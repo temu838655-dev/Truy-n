@@ -17,11 +17,17 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
+      # Giải nén file zip chứa mã nguồn
+      - name: Extract source archive
+        run: |
+          if [ -f "manga-world-source.zip" ]; then
+            unzip -o manga-world-source.zip
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -36,27 +42,18 @@ jobs:
         run: |
           sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Extract source archive if needed
+      # Chuyển vào thư mục manga-world để thực hiện các lệnh npm và build Android
+      - name: Install dependencies & Build
         run: |
-          if [ -f "manga-world-source.zip" ]; then
-            unzip -o manga-world-source.zip
-          fi
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build web application
-        run: npm run build
-
-      - name: Generate Android project
-        run: npm run android:add || true
-
-      - name: Sync Capacitor
-        run: npm run android:sync
+          cd manga-world
+          npm install
+          npm run build
+          npm run android:add || true
+          npm run android:sync
 
       - name: Build APK
         run: |
-          cd android
+          cd manga-world/android
           chmod +x gradlew
           ./gradlew assembleDebug
 
@@ -64,5 +61,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MANGA-WORLD-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: manga-world/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
