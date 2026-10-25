@@ -21,6 +21,7 @@ jobs:
       - name: Extract source archive
         run: |
           if [ -f "manga-world-source.zip" ]; then
+            rm -rf manga-world
             unzip -o manga-world-source.zip
           fi
           echo "== Root directory =="
