@@ -1,18 +1,27 @@
 
 name: Build MANGA WORLD APK
+
 on:
   workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Check ZIP
+        run: |
+          ls -lah
+          test -f manga-world-source.zip
+          unzip -l manga-world-source.zip | head -40
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -26,15 +35,25 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Extract source ZIP
+      - name: Extract source
         run: |
+          mkdir source
           unzip -q manga-world-source.zip -d source
-          cd source/manga-world
+          find source -maxdepth 3 -name package.json
+
+      - name: Locate project and build
+        run: |
+          PROJECT=$(find source -name package.json -not -path '*/node_modules/*' | head -1 | xargs dirname)
+          echo "PROJECT=$PROJECT" >> $GITHUB_ENV
+          cd "$PROJECT"
           npm install
           npm run build
           npx cap add android
           npx cap sync android
-          cd android
+
+      - name: Build APK
+        run: |
+          cd "$PROJECT/android"
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
@@ -42,5 +61,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: manga-world-debug-apk
-          path: source/manga-world/android/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.PROJECT }}/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
           retention-days: 14
