@@ -39,7 +39,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
 
       - name: Install Android SDK packages
         run: |
@@ -61,7 +61,7 @@ jobs:
         working-directory: manga-world/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --console=plain
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
