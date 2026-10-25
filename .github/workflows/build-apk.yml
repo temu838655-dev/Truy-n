@@ -3,7 +3,7 @@ name: Build MANGA WORLD APK
 on:
   workflow_dispatch:
   push:
-  _branches:
+    branches:
       - main
 
 permissions:
@@ -36,7 +36,6 @@ jobs:
         run: |
           sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-      # Trường hợp mã nguồn nằm trong file zip (manga-world-source.zip) hiển thị trên repo:
       - name: Extract source archive if needed
         run: |
           if [ -f "manga-world-source.zip" ]; then
