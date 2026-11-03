@@ -99,17 +99,35 @@ public class MainActivity extends Activity {
     private void kaliShellMenu() {
         new AlertDialog.Builder(this)
             .setTitle("Kali Shell • NetHunter Rootless")
-            .setMessage("BO Kali AI dùng Termux làm bộ chạy shell Linux. Cài Kali lần đầu cần Internet, dung lượng trống lớn và thao tác xác nhận trong Termux. Không cần root.")
-            .setPositiveButton("Mở Kali Shell", (d, w) -> {
-                copyText("nh", "Đã sao chép lệnh nh (mở Kali).");
-                openTermux();
-            })
+            .setMessage("BO Kali AI dùng Termux làm bộ chạy shell Linux. Sau khi cài Kali và bật quyền chạy lệnh bên ngoài trong Termux, có thể mở Kali trực tiếp từ đây. Cài lần đầu cần Internet, dung lượng trống lớn và thao tác xác nhận. Không cần root.")
+            .setPositiveButton("Vào Kali trực tiếp", (d, w) -> runKaliDirectly())
             .setNeutralButton("Cài Kali Rootless", (d, w) -> {
                 copyText(KALI_INSTALL_COMMAND, "Đã sao chép lệnh cài Kali. Dán vào Termux để bắt đầu.");
                 openTermux();
             })
             .setNegativeButton("Hướng dẫn", (d, w) -> showKaliInstructions())
             .show();
+    }
+
+
+    private void runKaliDirectly() {
+        try {
+            Intent intent = new Intent("com.termux.RUN_COMMAND");
+            intent.setClassName("com.termux", "com.termux.app.RunCommandService");
+            intent.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash");
+            intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[]{"-lc", "nh"});
+            intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home");
+            intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", false);
+            intent.putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0");
+            startService(intent);
+            line("Đã gửi yêu cầu mở Kali trong Termux. Nếu Android báo thiếu quyền, làm theo Hướng dẫn.", GREEN);
+        } catch (SecurityException e) {
+            line("Termux chưa cấp quyền RUN_COMMAND hoặc chưa bật allow-external-apps. Mở Hướng dẫn để thiết lập.", 0xffffca70);
+            openTermux();
+        } catch (Exception e) {
+            line("Không mở được Kali trực tiếp: " + e.getMessage() + ". Đang mở Termux thay thế.", 0xffff8080);
+            openTermux();
+        }
     }
 
     private void showKaliInstructions() {
@@ -120,8 +138,10 @@ public class MainActivity extends Activity {
                 "3. Trong BO Kali AI → KALI SHELL → Cài Kali Rootless.\n" +
                 "4. Chuyển sang Termux, dán lệnh đã sao chép và nhấn Enter.\n" +
                 "5. Làm theo câu hỏi của trình cài đặt; không tắt ứng dụng khi tải rootfs.\n" +
-                "6. Sau khi cài xong, mở BO Kali AI → KALI SHELL → Mở Kali Shell.\n\n" +
-                "Trong Termux: nhập nh để vào Kali, exit để thoát. Lần đầu cần mạng và có thể tải nhiều GB nếu cài thêm bộ công cụ.")
+                "6. Sau khi cài xong, trong Termux chạy: mkdir -p ~/.termux && echo 'allow-external-apps=true' >> ~/.termux/termux.properties rồi đóng/mở lại Termux.\n" +
+                "7. Vào Cài đặt Android → Ứng dụng → BO Kali AI → Quyền → Quyền bổ sung → cho phép chạy lệnh trong Termux (nếu mục này xuất hiện).\n" +
+                "8. Mở BO Kali AI → KALI SHELL → Vào Kali trực tiếp. Nếu chưa bật quyền, mở Termux và nhập nh.\n\n" +
+                "Lệnh nh vào Kali, exit để thoát. Cài lần đầu cần mạng và có thể tải nhiều GB nếu cài thêm bộ công cụ.")
             .setPositiveButton("Mở trang Termux", (d, w) ->
                 startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/termux/termux-app/releases"))))
             .setNegativeButton("Đóng", null).show();
