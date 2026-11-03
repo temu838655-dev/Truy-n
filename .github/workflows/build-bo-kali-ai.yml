@@ -60,13 +60,3 @@ jobs:
             gh release create "$TAG" "bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk" --title "BO Kali AI — bản mới nhất" --notes "APK mới nhất được build tự động từ nhánh main. Mã nguồn: $GITHUB_SHA" --prerelease
           fi
           gh release upload "$TAG" "bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk" --clobber
-
-      - name: Publish APK to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          APK="bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk"
-          TAG="bo-kali-ai-v0.1.${GITHUB_RUN_NUMBER}"
-          gh release create "$TAG" "$APK" \
-            --title "BO Kali AI v0.1.${GITHUB_RUN_NUMBER}" \
-            --notes "Bản build tự động từ nhánh main. Commit: ${GITHUB_SHA}. APK debug để cài thử nghiệm."
