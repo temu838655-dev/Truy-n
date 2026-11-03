@@ -90,6 +90,17 @@ public class MainActivity extends Activity {
         clear.setOnClickListener(v -> log.removeAllViews());
         bar.addView(clear, new LinearLayout.LayoutParams(dp(62), dp(44)));
         root.addView(bar);
+        LinearLayout adbRow = new LinearLayout(this); adbRow.setOrientation(0);
+        Button pairAdb = button("GHÉP ĐÔI ADB");
+        pairAdb.setOnClickListener(v -> showAdbPairDialog());
+        adbRow.addView(pairAdb, new LinearLayout.LayoutParams(0, dp(42), 1));
+        Button connectAdb = button("KẾT NỐI IP");
+        connectAdb.setOnClickListener(v -> showAdbConnectDialog());
+        adbRow.addView(connectAdb, new LinearLayout.LayoutParams(0, dp(42), 1));
+        Button listAdb = button("THIẾT BỊ");
+        listAdb.setOnClickListener(v -> runTermuxCommand("adb devices -l"));
+        adbRow.addView(listAdb, new LinearLayout.LayoutParams(0, dp(42), 1));
+        root.addView(adbRow);
         scroll = new ScrollView(this); scroll.setFillViewport(true);
         log = new LinearLayout(this); log.setOrientation(1); log.setPadding(12,12,12,12); log.setBackgroundColor(PANEL);
         scroll.addView(log);
@@ -150,6 +161,51 @@ public class MainActivity extends Activity {
             mainHandler.postDelayed(() -> { if (adbScanActive && adbDiscoveryListener != null) { try { nsdManager.stopServiceDiscovery(adbDiscoveryListener); } catch (Exception ignored) { adbScanActive = false; } } }, 12000);
         } catch (Exception e) { adbScanActive = false; line("Lỗi quét ADB: " + e.getMessage(), 0xffff8080); }
     }
+    private void showAdbPairDialog() {
+        LinearLayout form = new LinearLayout(this); form.setOrientation(1); form.setPadding(dp(16), dp(8), dp(16), 0);
+        EditText endpoint = input("IP: CỔNG GHÉP ĐÔI (ví dụ 192.168.1.20:37123)");
+        EditText code = input("Mã ghép đôi 6 chữ số"); code.setInputType(2);
+        form.addView(endpoint); form.addView(code);
+        new AlertDialog.Builder(this).setTitle("Ghép đôi ADB không dây")
+            .setMessage("Trên thiết bị cần điều khiển: bật Developer options → Wireless debugging → Pair device with pairing code. Hai thiết bị phải cùng mạng Wi-Fi. Nhập đúng IP:cổng pairing và mã hiện trên thiết bị đó.")
+            .setView(form).setPositiveButton("GHÉP ĐÔI", (d,w) -> {
+                String ep = endpoint.getText().toString().trim(); String pin = code.getText().toString().trim();
+                if (!ep.matches("[A-Za-z0-9.:-]+:[0-9]{1,5}") || !pin.matches("[0-9]{6}")) { line("IP:cổng hoặc mã ghép đôi không hợp lệ.", 0xffff8080); return; }
+                runTermuxCommand("pkg install -y android-tools && adb pair " + shellQuote(ep) + " " + shellQuote(pin));
+            }).setNegativeButton("HỦY", null).show();
+    }
+
+    private void showAdbConnectDialog() {
+        EditText endpoint = input("IP:CỔNG KẾT NỐI (không phải cổng pairing)");
+        new AlertDialog.Builder(this).setTitle("Kết nối ADB")
+            .setMessage("Sau khi ghép đôi thành công, quay lại Wireless debugging để xem IP address & port. Nhập endpoint kết nối hiển thị ở màn hình chính Wireless debugging.")
+            .setView(endpoint).setPositiveButton("KẾT NỐI", (d,w) -> {
+                String ep = endpoint.getText().toString().trim();
+                if (!ep.matches("[A-Za-z0-9.:-]+:[0-9]{1,5}")) { line("Địa chỉ IP:cổng không hợp lệ.", 0xffff8080); return; }
+                runTermuxCommand("pkg install -y android-tools && adb connect " + shellQuote(ep));
+            }).setNegativeButton("HỦY", null).show();
+    }
+
+    private void runTermuxCommand(String command) {
+        try {
+            int request = TERMUX_REQUEST.incrementAndGet();
+            Intent callback = new Intent(this, TermuxResultReceiver.class);
+            PendingIntent resultPending = PendingIntent.getBroadcast(this, request, callback,
+                PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+            Intent intent = new Intent("com.termux.RUN_COMMAND");
+            intent.setClassName("com.termux", "com.termux.app.RunCommandService");
+            intent.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash");
+            intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[]{"-lc", command});
+            intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home");
+            intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
+            intent.putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", resultPending);
+            intent.putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "BO Kali AI - ADB do người dùng xác nhận");
+            startService(intent);
+            line("Đã gửi tác vụ ADB đến Termux. Đang chờ kết quả...", GREEN);
+        } catch (SecurityException e) { line("Termux chưa bật allow-external-apps hoặc chưa cấp quyền RUN_COMMAND.", 0xffffca70); openTermux(); }
+          catch (Exception e) { line("Không chạy được ADB trong Termux: " + e.getMessage(), 0xffff8080); }
+    }
+
     private static final String KALI_INSTALL_COMMAND =
         "pkg update -y && pkg install -y wget && " +
         "wget -O install-nethunter-termux https://offs.ec/2MceZWr && " +
