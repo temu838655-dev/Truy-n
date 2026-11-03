@@ -128,7 +128,7 @@ public class MainActivity extends Activity {
             int request = TERMUX_REQUEST.incrementAndGet();
             Intent callback = new Intent(this, TermuxResultReceiver.class);
             PendingIntent resultPending = PendingIntent.getBroadcast(this, request, callback,
-                PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
             Intent intent = new Intent("com.termux.RUN_COMMAND");
             intent.setClassName("com.termux", "com.termux.app.RunCommandService");
             intent.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/nh");
