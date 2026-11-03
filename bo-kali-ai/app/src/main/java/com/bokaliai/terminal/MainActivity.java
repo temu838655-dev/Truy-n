@@ -3,6 +3,9 @@ package com.bokaliai.terminal;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.PendingIntent;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import java.util.concurrent.atomic.AtomicInteger;
 import android.os.Bundle;
 import android.graphics.Color;
@@ -50,6 +53,9 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         buildUi();
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 3101);
+        }
         line("BO Kali AI v0.1.0 — Android safe terminal", GREEN);
         line("Đây là bản điều khiển chẩn đoán không root. Chưa chạy shell tùy ý.", WHITE);
         line("Gõ help để xem lệnh khả dụng. Kết nối AI/GitHub trong Cài đặt kết nối.", GREEN);
@@ -168,6 +174,20 @@ public class MainActivity extends Activity {
         }
         questionInput.setText("Hãy giải thích kết quả/lỗi Kali dưới đây bằng tiếng Việt, chỉ ra nguyên nhân, mức độ rủi ro và cách xử lý an toàn. Không giả định lệnh đã làm gì ngoài nội dung kết quả:\\n\\n" + lastCommandOutput);
         askAi();
+    }
+
+
+    @Override protected void onResume() {
+        super.onResume();
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_results", MODE_PRIVATE);
+        String pending = prefs.getString("pending_output", null);
+        if (pending != null && !pending.isEmpty()) {
+            prefs.edit().remove("pending_output").apply();
+            lastCommandOutput = pending;
+            line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
+            for (String part : pending.split("\\n")) line(part, WHITE);
+            line("Nhấn GIẢI THÍCH KẾT QUẢ KALI BẰNG AI để phân tích.", 0xff79c9ff);
+        }
     }
 
     @Override protected void onNewIntent(Intent intent) {
