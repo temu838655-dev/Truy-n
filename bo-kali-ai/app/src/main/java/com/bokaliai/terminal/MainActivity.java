@@ -174,6 +174,7 @@ public class MainActivity extends Activity {
 
     private void showUpdateManager() {
         String[] choices = {
+            "Quét cập nhật tất cả công cụ (chỉ kiểm tra)",
             "Kiểm tra phiên bản BO Kali AI mới nhất",
             "Cập nhật toàn bộ gói Termux (bao gồm ADB nếu đã cài)",
             "Cập nhật gói Kali NetHunter",
@@ -182,18 +183,33 @@ public class MainActivity extends Activity {
         };
         new AlertDialog.Builder(this).setTitle("Trung tâm cập nhật BO Kali AI")
             .setItems(choices, (dialog, which) -> {
-                if (which == 0) checkAppUpdate();
-                else if (which == 1) confirmUpdateCommand("Cập nhật Termux",
+                if (which == 0) checkAllToolUpdates();
+                else if (which == 1) checkAppUpdate();
+                else if (which == 2) confirmUpdateCommand("Cập nhật Termux",
                     "Làm mới danh sách và nâng cấp các gói đã cài. Cần Internet.",
                     "pkg update -y && pkg upgrade -y");
-                else if (which == 2) confirmUpdateCommand("Cập nhật Kali NetHunter",
+                else if (which == 3) confirmUpdateCommand("Cập nhật Kali NetHunter",
                     "Chỉ cập nhật gói trong Kali rootless; không nâng cấp firmware Android.",
                     "nh apt update && nh apt full-upgrade -y");
-                else if (which == 3) confirmUpdateCommand("Cài / cập nhật ADB",
+                else if (which == 4) confirmUpdateCommand("Cài / cập nhật ADB",
                     "Cài hoặc nâng cấp android-tools trong Termux.",
                     "pkg update -y && pkg install -y android-tools && pkg upgrade -y android-tools && adb version");
                 else showAiUpdateInfo();
             }).show();
+    }
+
+    private void checkAllToolUpdates() {
+        new AlertDialog.Builder(this).setTitle("Quét cập nhật công cụ")
+            .setMessage("App sẽ làm mới danh sách gói Termux và Kali, sau đó liệt kê gói có thể nâng cấp. Không cài đặt/nâng cấp gói nào trong bước này. Cần Internet.")
+            .setPositiveButton("BẮT ĐẦU QUÉT", (d,w) -> {
+                String cmd = "echo '=== TERMUX: UPDATE INDEX ==='; pkg update -y; " +
+                    "echo '=== TERMUX: UPGRADABLE ==='; pkg list-upgradable; " +
+                    "echo '=== ADB VERSION ==='; if command -v adb >/dev/null 2>&1; then adb version; else echo 'ADB chưa cài'; fi; " +
+                    "echo '=== KALI: UPGRADABLE ==='; if command -v nh >/dev/null 2>&1; then nh apt update && nh apt list --upgradable; else echo 'Kali NetHunter chưa cài'; fi";
+                line("Đang kiểm tra danh sách cập nhật Termux / Kali / ADB...", GREEN);
+                runTermuxCommand(cmd);
+                line("AI: model chạy qua API nhà cung cấp; kiểm tra kết nối tại mục AI, không có gói model cục bộ để apt nâng cấp.", 0xff79c9ff);
+            }).setNegativeButton("HỦY", null).show();
     }
 
     private void confirmUpdateCommand(String title, String description, String command) {
