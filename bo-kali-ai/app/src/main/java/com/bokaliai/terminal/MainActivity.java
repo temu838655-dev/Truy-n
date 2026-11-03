@@ -1,7 +1,8 @@
 package com.bokaliai.terminal;
 
 import android.app.Activity;
-import android.app.AlertDialog;\nimport android.app.PendingIntent;\nimport java.util.concurrent.atomic.AtomicInteger;
+import android.app.AlertDialog;
+import android.app.PendingIntent;\nimport java.util.concurrent.atomic.AtomicInteger;
 import android.os.Bundle;
 import android.graphics.Color;
 import android.graphics.Typeface;
