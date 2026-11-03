@@ -9,7 +9,7 @@ on:
       - ".github/workflows/build-bo-kali-ai.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -46,3 +46,17 @@ jobs:
           path: bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish latest APK to GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="bo-kali-ai-latest"
+          git tag -f "$TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$TAG" --force
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "BO Kali AI — bản mới nhất" --notes "APK mới nhất được build tự động từ nhánh main. Mã nguồn: $GITHUB_SHA" --prerelease
+          else
+            gh release create "$TAG" "bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk" --title "BO Kali AI — bản mới nhất" --notes "APK mới nhất được build tự động từ nhánh main. Mã nguồn: $GITHUB_SHA" --prerelease
+          fi
+          gh release upload "$TAG" "bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk" --clobber
