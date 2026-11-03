@@ -19,6 +19,11 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.wifi.WifiManager;
+import android.net.nsd.NsdManager;
+import android.net.nsd.NsdServiceInfo;
+import android.os.Handler;
+import android.os.Looper;
+import java.net.InetAddress;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothAdapter;
 import android.view.Gravity;
@@ -48,6 +53,10 @@ public class MainActivity extends Activity {
     private EditText commandInput, questionInput;
     private String geminiKey = "", githubToken = "", lastCommandOutput = "";
     private static final AtomicInteger TERMUX_REQUEST = new AtomicInteger(2000);
+    private NsdManager nsdManager;
+    private NsdManager.DiscoveryListener adbDiscoveryListener;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private boolean adbScanActive = false;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
 
     @Override public void onCreate(Bundle state) {
@@ -74,6 +83,9 @@ public class MainActivity extends Activity {
         Button kali = button("KALI SHELL");
         kali.setOnClickListener(v -> kaliShellMenu());
         bar.addView(kali, new LinearLayout.LayoutParams(0, dp(44), 1));
+        Button adb = button("QUÉT ADB");
+        adb.setOnClickListener(v -> scanAdbServices());
+        bar.addView(adb, new LinearLayout.LayoutParams(0, dp(44), 1));
         Button clear = button("Xóa");
         clear.setOnClickListener(v -> log.removeAllViews());
         bar.addView(clear, new LinearLayout.LayoutParams(dp(62), dp(44)));
@@ -106,6 +118,38 @@ public class MainActivity extends Activity {
     }
 
 
+    // Discovers Wireless Debugging endpoints; discovery alone does not pair or authenticate.
+    private void scanAdbServices() {
+        if (adbScanActive) { line("Đang quét ADB, vui lòng chờ.", 0xffffca70); return; }
+        nsdManager = (NsdManager) getSystemService(Context.NSD_SERVICE);
+        if (nsdManager == null) { line("Thiết bị không hỗ trợ Network Service Discovery.", 0xffff8080); return; }
+        adbScanActive = true;
+        line("Đang tìm Wireless debugging trên cùng mạng Wi-Fi...", GREEN);
+        line("Tìm thấy endpoint chưa có nghĩa là đã ghép đôi.", 0xffffca70);
+        adbDiscoveryListener = new NsdManager.DiscoveryListener() {
+            @Override public void onDiscoveryStarted(String type) { line("Đang quét " + type, 0xff79c9ff); }
+            @Override public void onServiceFound(NsdServiceInfo service) {
+                final String serviceName = service.getServiceName();
+                nsdManager.resolveService(service, new NsdManager.ResolveListener() {
+                    @Override public void onResolveFailed(NsdServiceInfo info, int error) { line("Không đọc được ADB endpoint " + serviceName + ", mã " + error, 0xffffca70); }
+                    @Override public void onServiceResolved(NsdServiceInfo info) {
+                        InetAddress host = info.getHost();
+                        String ip = host == null ? "IP không rõ" : host.getHostAddress();
+                        line("Tìm thấy ADB: " + serviceName + " — " + ip + ":" + info.getPort(), GREEN);
+                        line("Để ghép đôi Android 11+, cần mã ghép đôi và cổng pairing riêng.", WHITE);
+                    }
+                });
+            }
+            @Override public void onServiceLost(NsdServiceInfo service) { line("Mất dịch vụ: " + service.getServiceName(), 0xffffca70); }
+            @Override public void onStartDiscoveryFailed(String type, int error) { adbScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} line("Quét ADB thất bại, mã " + error, 0xffff8080); }
+            @Override public void onStopDiscoveryFailed(String type, int error) { adbScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} }
+            @Override public void onDiscoveryStopped(String type) { adbScanActive = false; line("Đã kết thúc quét ADB.", GREEN); }
+        };
+        try {
+            nsdManager.discoverServices("_adb-tls-connect._tcp.", NsdManager.PROTOCOL_DNS_SD, adbDiscoveryListener);
+            mainHandler.postDelayed(() -> { if (adbScanActive && adbDiscoveryListener != null) { try { nsdManager.stopServiceDiscovery(adbDiscoveryListener); } catch (Exception ignored) { adbScanActive = false; } } }, 12000);
+        } catch (Exception e) { adbScanActive = false; line("Lỗi quét ADB: " + e.getMessage(), 0xffff8080); }
+    }
     private static final String KALI_INSTALL_COMMAND =
         "pkg update -y && pkg install -y wget && " +
         "wget -O install-nethunter-termux https://offs.ec/2MceZWr && " +
