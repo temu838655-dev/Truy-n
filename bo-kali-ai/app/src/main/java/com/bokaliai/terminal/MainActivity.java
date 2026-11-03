@@ -225,22 +225,38 @@ public class MainActivity extends Activity {
                     String tag = release.optString("tag_name", "không rõ");
                     String name = release.optString("name", tag);
                     String html = release.optString("html_url", "https://github.com/temu838655-dev/Truy-n/releases");
+                    String notes = release.optString("body", "");
                     JSONArray assets = release.optJSONArray("assets");
-                    String assetInfo = "Chưa thấy APK đính kèm";
+                    boolean hasApk = false;
+                    long apkSize = 0;
                     if (assets != null) for (int i=0;i<assets.length();i++) {
                         JSONObject a = assets.getJSONObject(i);
                         if ("app-debug.apk".equals(a.optString("name"))) {
-                            assetInfo = "APK: " + a.optLong("size") + " byte";
-                            break;
+                            hasApk = true; apkSize = a.optLong("size"); break;
                         }
                     }
-                    String installed = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
-                    final String message = "Đang cài: " + installed + "\nBản phát hành GitHub: " + name
-                        + " (" + tag + ")\n" + assetInfo
-                        + "\nRelease hiện dùng tag cố định, chưa có metadata versionCode để so sánh tự động. Mở trang release để xem và cài APK.";
+                    int latestCode = -1;
+                    java.util.regex.Matcher matcher = java.util.regex.Pattern
+                        .compile("(?i)Version code:\\s*(\\d+)").matcher(notes);
+                    if (matcher.find()) latestCode = Integer.parseInt(matcher.group(1));
+                    android.content.pm.PackageInfo installedInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
+                    int installedCode = installedInfo.versionCode;
+                    String installedName = installedInfo.versionName;
+                    final boolean updateAvailable = latestCode > installedCode;
+                    final String status;
+                    if (latestCode < 0) status = "Release chưa có metadata versionCode. Hãy build lại bằng workflow mới để bật so sánh phiên bản.";
+                    else if (updateAvailable) status = "CÓ BẢN MỚI! Version code " + latestCode + " cao hơn bản đang cài.";
+                    else status = "Ứng dụng đang ở bản mới nhất hoặc ngang phiên bản (version code " + latestCode + ").";
+                    final String message = "Đang cài: " + installedName + " (code " + installedCode + ")"
+                        + "\nBản GitHub: " + name + " (" + tag + ")"
+                        + (latestCode >= 0 ? "\nVersion code mới: " + latestCode : "")
+                        + "\n" + status
+                        + "\nAPK: " + (hasApk ? (apkSize + " byte") : "chưa đính kèm");
                     final String page = html;
-                    runOnUiThread(() -> new AlertDialog.Builder(this).setTitle("Kiểm tra cập nhật BO Kali AI")
-                        .setMessage(message).setPositiveButton("MỞ BẢN PHÁT HÀNH", (d,w) ->
+                    runOnUiThread(() -> new AlertDialog.Builder(this)
+                        .setTitle(updateAvailable ? "Có cập nhật BO Kali AI" : "Kiểm tra BO Kali AI")
+                        .setMessage(message)
+                        .setPositiveButton(updateAvailable ? "MỞ TẢI BẢN MỚI" : "MỞ GITHUB RELEASE", (d,w) ->
                             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(page))))
                         .setNegativeButton("ĐÓNG", null).show());
                 } else {
