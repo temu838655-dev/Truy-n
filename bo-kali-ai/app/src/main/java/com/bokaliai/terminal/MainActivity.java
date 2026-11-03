@@ -104,6 +104,9 @@ public class MainActivity extends Activity {
         shellAdb.setOnClickListener(v -> showAdbShellDialog());
         adbRow.addView(shellAdb, new LinearLayout.LayoutParams(0, dp(42), 1));
         root.addView(adbRow);
+        Button firmware = button("FIRMWARE / OTA");
+        firmware.setOnClickListener(v -> showFirmwareManager());
+        root.addView(firmware, new LinearLayout.LayoutParams(-1, dp(44)));
         scroll = new ScrollView(this); scroll.setFillViewport(true);
         log = new LinearLayout(this); log.setOrientation(1); log.setPadding(12,12,12,12); log.setBackgroundColor(PANEL);
         scroll.addView(log);
@@ -164,6 +167,39 @@ public class MainActivity extends Activity {
             mainHandler.postDelayed(() -> { if (adbScanActive && adbDiscoveryListener != null) { try { nsdManager.stopServiceDiscovery(adbDiscoveryListener); } catch (Exception ignored) { adbScanActive = false; } } }, 12000);
         } catch (Exception e) { adbScanActive = false; line("Lỗi quét ADB: " + e.getMessage(), 0xffff8080); }
     }
+
+    // Reads the selected device's installed firmware metadata over authorized ADB.
+    // OTA availability and installation remain OEM-controlled; never flash generic images.
+    private void showFirmwareManager() {
+        EditText serial = input("Serial ADB (xem bằng nút THIẾT BỊ)");
+        new AlertDialog.Builder(this).setTitle("Quản lý Firmware / OTA")
+            .setMessage("Nhập serial của thiết bị đã ghép đôi và kết nối. App sẽ đọc Android version, hãng, model, build fingerprint và bản vá bảo mật. Sau đó có thể mở màn hình cập nhật chính thức của thiết bị. Không tự flash firmware.")
+            .setView(serial)
+            .setPositiveButton("KIỂM TRA PHIÊN BẢN", (d,w) -> {
+                String id = serial.getText().toString().trim();
+                if (id.isEmpty() || !id.matches("[A-Za-z0-9._:-]+")) {
+                    line("Serial ADB không hợp lệ.", 0xffff8080); return;
+                }
+                String props = "for p in ro.product.manufacturer ro.product.brand ro.product.model ro.product.device ro.build.version.release ro.build.version.sdk ro.build.display.id ro.build.fingerprint ro.build.version.incremental ro.build.version.security_patch; do echo \"$p=$(getprop $p)\"; done";
+                runTermuxCommand("adb -s " + shellQuote(id) + " shell " + shellQuote(props));
+                line("Đã gửi yêu cầu đọc thông tin firmware của " + id + ".", GREEN);
+                line("Lưu ý: đây là phiên bản ĐANG CÀI, không phải xác nhận có OTA mới.", 0xffffca70);
+            })
+            .setNeutralButton("MỞ KIỂM TRA OTA", (d,w) -> {
+                String id = serial.getText().toString().trim();
+                if (id.isEmpty() || !id.matches("[A-Za-z0-9._:-]+")) {
+                    line("Serial ADB không hợp lệ.", 0xffff8080); return;
+                }
+                new AlertDialog.Builder(this)
+                    .setTitle("Mở trình cập nhật của thiết bị?")
+                    .setMessage("Lệnh chỉ mở trang cập nhật hệ thống trên thiết bị đã kết nối. Việc tải/cài đặt do Android và hãng thiết bị quyết định.")
+                    .setPositiveButton("MỞ", (x,y) ->
+                        runTermuxCommand("adb -s " + shellQuote(id) + " shell am start -a android.settings.SYSTEM_UPDATE_SETTINGS"))
+                    .setNegativeButton("HỦY", null).show();
+            })
+            .setNegativeButton("ĐÓNG", null).show();
+    }
+
     private void showAdbPairDialog() {
         LinearLayout form = new LinearLayout(this); form.setOrientation(1); form.setPadding(dp(16), dp(8), dp(16), 0);
         EditText endpoint = input("IP: CỔNG GHÉP ĐÔI (ví dụ 192.168.1.20:37123)");
