@@ -107,6 +107,9 @@ public class MainActivity extends Activity {
         Button firmware = button("FIRMWARE / OTA");
         firmware.setOnClickListener(v -> showFirmwareManager());
         root.addView(firmware, new LinearLayout.LayoutParams(-1, dp(44)));
+        Button updates = button("TRUNG TÂM CẬP NHẬT • APP / ADB / KALI / TERMUX / AI");
+        updates.setOnClickListener(v -> showUpdateManager());
+        root.addView(updates, new LinearLayout.LayoutParams(-1, dp(46)));
         scroll = new ScrollView(this); scroll.setFillViewport(true);
         log = new LinearLayout(this); log.setOrientation(1); log.setPadding(12,12,12,12); log.setBackgroundColor(PANEL);
         scroll.addView(log);
@@ -166,6 +169,100 @@ public class MainActivity extends Activity {
             nsdManager.discoverServices("_adb-tls-connect._tcp.", NsdManager.PROTOCOL_DNS_SD, adbDiscoveryListener);
             mainHandler.postDelayed(() -> { if (adbScanActive && adbDiscoveryListener != null) { try { nsdManager.stopServiceDiscovery(adbDiscoveryListener); } catch (Exception ignored) { adbScanActive = false; } } }, 12000);
         } catch (Exception e) { adbScanActive = false; line("Lỗi quét ADB: " + e.getMessage(), 0xffff8080); }
+    }
+
+
+    private void showUpdateManager() {
+        String[] choices = {
+            "Kiểm tra phiên bản BO Kali AI mới nhất",
+            "Cập nhật toàn bộ gói Termux (bao gồm ADB nếu đã cài)",
+            "Cập nhật gói Kali NetHunter",
+            "Cài / cập nhật Android Platform Tools (ADB)",
+            "Kiểm tra cấu hình và phiên bản AI"
+        };
+        new AlertDialog.Builder(this).setTitle("Trung tâm cập nhật BO Kali AI")
+            .setItems(choices, (dialog, which) -> {
+                if (which == 0) checkAppUpdate();
+                else if (which == 1) confirmUpdateCommand("Cập nhật Termux",
+                    "Làm mới danh sách và nâng cấp các gói đã cài. Cần Internet.",
+                    "pkg update -y && pkg upgrade -y");
+                else if (which == 2) confirmUpdateCommand("Cập nhật Kali NetHunter",
+                    "Chỉ cập nhật gói trong Kali rootless; không nâng cấp firmware Android.",
+                    "nh apt update && nh apt full-upgrade -y");
+                else if (which == 3) confirmUpdateCommand("Cài / cập nhật ADB",
+                    "Cài hoặc nâng cấp android-tools trong Termux.",
+                    "pkg update -y && pkg install -y android-tools && pkg upgrade -y android-tools && adb version");
+                else showAiUpdateInfo();
+            }).show();
+    }
+
+    private void confirmUpdateCommand(String title, String description, String command) {
+        new AlertDialog.Builder(this).setTitle(title)
+            .setMessage(description + "\n\nChỉ chạy khi bạn đồng ý. Nên dùng Wi-Fi và pin đủ.")
+            .setPositiveButton("CẬP NHẬT", (d,w) -> {
+                line("Bắt đầu: " + title, GREEN);
+                runTermuxCommand(command);
+            }).setNegativeButton("ĐỂ SAU", null).show();
+    }
+
+    private void checkAppUpdate() {
+        line("Đang kiểm tra bản BO Kali AI mới trên GitHub...", GREEN);
+        worker.execute(() -> {
+            HttpURLConnection conn = null;
+            try {
+                URL url = new URL("https://api.github.com/repos/temu838655-dev/Truy-n/releases/tags/bo-kali-ai-latest");
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(12000); conn.setReadTimeout(15000);
+                conn.setRequestProperty("Accept", "application/vnd.github+json");
+                int code = conn.getResponseCode();
+                BufferedReader br = new BufferedReader(new InputStreamReader(
+                    code >= 200 && code < 300 ? conn.getInputStream() : conn.getErrorStream(), StandardCharsets.UTF_8));
+                StringBuilder body = new StringBuilder(); String row;
+                while ((row = br.readLine()) != null) body.append(row);
+                if (code >= 200 && code < 300) {
+                    JSONObject release = new JSONObject(body.toString());
+                    String tag = release.optString("tag_name", "không rõ");
+                    String name = release.optString("name", tag);
+                    String html = release.optString("html_url", "https://github.com/temu838655-dev/Truy-n/releases");
+                    JSONArray assets = release.optJSONArray("assets");
+                    String assetInfo = "Chưa thấy APK đính kèm";
+                    if (assets != null) for (int i=0;i<assets.length();i++) {
+                        JSONObject a = assets.getJSONObject(i);
+                        if ("app-debug.apk".equals(a.optString("name"))) {
+                            assetInfo = "APK: " + a.optLong("size") + " byte";
+                            break;
+                        }
+                    }
+                    String installed = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+                    final String message = "Đang cài: " + installed + "\nBản phát hành GitHub: " + name
+                        + " (" + tag + ")\n" + assetInfo
+                        + "\nRelease hiện dùng tag cố định, chưa có metadata versionCode để so sánh tự động. Mở trang release để xem và cài APK.";
+                    final String page = html;
+                    runOnUiThread(() -> new AlertDialog.Builder(this).setTitle("Kiểm tra cập nhật BO Kali AI")
+                        .setMessage(message).setPositiveButton("MỞ BẢN PHÁT HÀNH", (d,w) ->
+                            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(page))))
+                        .setNegativeButton("ĐÓNG", null).show());
+                } else {
+                    final String err = "GitHub trả HTTP " + code + ". Có thể chưa tạo release hoặc mạng lỗi.";
+                    runOnUiThread(() -> line(err, 0xffffca70));
+                }
+            } catch (Exception e) {
+                runOnUiThread(() -> line("Không kiểm tra được cập nhật app: " + e.getMessage(), 0xffff8080));
+            } finally { if (conn != null) conn.disconnect(); }
+        });
+    }
+
+    private void showAiUpdateInfo() {
+        String info = "AI gọi qua API nên model do nhà cung cấp cập nhật phía máy chủ. GPT / Claude / Codex cần nhà cung cấp, tài khoản và API tương ứng. App có thể cập nhật bộ kết nối, nhưng không thể tự nâng cấp model phía hãng hoặc bỏ qua giới hạn miễn phí. API key hiện chỉ giữ trong bộ nhớ phiên.";
+        new AlertDialog.Builder(this).setTitle("Cập nhật AI")
+            .setMessage(info + "\n\nPhiên bản Android app hiện tại: " + getVersionName())
+            .setPositiveButton("ĐÃ HIỂU", null).show();
+    }
+
+    private String getVersionName() {
+        try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
+        catch (Exception e) { return "không rõ"; }
     }
 
     // Reads the selected device's installed firmware metadata over authorized ADB.
