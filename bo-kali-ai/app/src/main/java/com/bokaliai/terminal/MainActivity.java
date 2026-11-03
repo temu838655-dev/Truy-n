@@ -172,7 +172,12 @@ public class MainActivity extends Activity {
             line("Chưa có kết quả Kali để giải thích. Chạy một lệnh Kali trước.", 0xffffca70);
             return;
         }
-        questionInput.setText("Hãy giải thích kết quả/lỗi Kali dưới đây bằng tiếng Việt, chỉ ra nguyên nhân, mức độ rủi ro và cách xử lý an toàn. Không giả định lệnh đã làm gì ngoài nội dung kết quả:\\n\\n" + lastCommandOutput);
+        String outputForAi = lastCommandOutput;
+        if (outputForAi.length() > 12000) {
+            outputForAi = outputForAi.substring(0, 12000)
+                + "\\n[Đã rút gọn kết quả còn 12.000 ký tự để AI phân tích ổn định.]";
+        }
+        questionInput.setText("Hãy giải thích kết quả/lỗi Kali dưới đây bằng tiếng Việt, chỉ ra nguyên nhân, mức độ rủi ro và cách xử lý an toàn. Không giả định lệnh đã làm gì ngoài nội dung kết quả:\\n\\n" + outputForAi);
         askAi();
     }
 
@@ -350,8 +355,18 @@ public class MainActivity extends Activity {
                 conn.disconnect();
                 JSONObject result = new JSONObject(sb.toString());
                 String answer;
-                if(code >= 200 && code < 300) answer = result.getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts").getJSONObject(0).optString("text","AI không trả nội dung.");
-                else answer = "Gemini API báo lỗi HTTP " + code + ": " + result.toString();
+                if(code >= 200 && code < 300) {
+                    JSONArray candidates = result.optJSONArray("candidates");
+                    if (candidates != null && candidates.length() > 0) {
+                        JSONObject content = candidates.getJSONObject(0).optJSONObject("content");
+                        JSONArray parts = content == null ? null : content.optJSONArray("parts");
+                        answer = (parts != null && parts.length() > 0)
+                            ? parts.getJSONObject(0).optString("text", "AI không trả nội dung văn bản.")
+                            : "Gemini không trả nội dung văn bản. Có thể yêu cầu bị chặn hoặc cần thử lại.";
+                    } else {
+                        answer = "Gemini không trả câu trả lời. Phản hồi: " + result.toString();
+                    }
+                } else answer = "Gemini API báo lỗi HTTP " + code + ": " + result.toString();
                 final String out = answer;
                 runOnUiThread(() -> line("AI: " + out, WHITE));
             } catch(Exception e) { runOnUiThread(() -> line("Lỗi kết nối AI: " + e.getMessage(), 0xffff8080)); }
