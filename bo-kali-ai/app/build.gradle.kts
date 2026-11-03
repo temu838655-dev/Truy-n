@@ -2,6 +2,11 @@ plugins {
     id("com.android.application")
 }
 
+val ciBuildNumber = providers.environmentVariable("GITHUB_RUN_NUMBER")
+    .orElse("1")
+    .get()
+    .toInt()
+
 android {
     namespace = "com.bokaliai.terminal"
     compileSdk = 35
@@ -10,8 +15,8 @@ android {
         applicationId = "com.bokaliai.terminal"
         minSdk = 23
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = ciBuildNumber
+        versionName = "0.1.$ciBuildNumber"
     }
 
     compileOptions {
