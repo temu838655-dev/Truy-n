@@ -446,6 +446,7 @@ public class MainActivity extends Activity {
         if ("device".equals(state)) return "ĐANG KẾT NỐI";
         if ("offline".equals(state)) return "OFFLINE";
         if ("unauthorized".equals(state)) return "CHƯA CẤP QUYỀN";
+        if ("not_listed".equals(state)) return "KHÔNG THẤY KHI QUÉT";
         return "CHƯA KIỂM TRA";
     }
 
@@ -455,13 +456,39 @@ public class MainActivity extends Activity {
         AlertDialog actions = new AlertDialog.Builder(this).setTitle("Thiết bị: " + serial)
             .setMessage("Trạng thái lần quét gần nhất: " + adbStateLabel(state)
                 + ". Hãy kiểm tra lại trước khi chạy lệnh.")
-            .setPositiveButton("KIỂM TRA", (d, w) ->
-                runTermuxCommand("adb devices -l"))
+            .setPositiveButton("THÔNG TIN AN TOÀN", (d, w) -> showAdbReadOnlyTools(serial))
             .setNeutralButton("ADB SHELL", (d, w) -> showAdbShellDialogFor(serial))
             .setNegativeButton("NGẮT ADB", null).create();
         actions.setOnShowListener(v -> actions.getButton(AlertDialog.BUTTON_NEGATIVE)
             .setOnClickListener(b -> { actions.dismiss(); confirmAdbDisconnect(serial); }));
         actions.show();
+    }
+
+    private void showAdbReadOnlyTools(String serial) {
+        String[] tools = {
+            "Thông tin thiết bị / Android",
+            "Pin và nhiệt độ",
+            "Dung lượng lưu trữ",
+            "Địa chỉ mạng",
+            "Danh sách ứng dụng bên thứ ba"
+        };
+        String[] commands = {
+            "echo 'MODEL'; getprop ro.product.model; echo 'BRAND'; getprop ro.product.brand; echo 'ANDROID'; getprop ro.build.version.release; echo 'SDK'; getprop ro.build.version.sdk; echo 'BUILD'; getprop ro.build.display.id",
+            "dumpsys battery",
+            "df -h",
+            "ip addr",
+            "pm list packages -3"
+        };
+        new AlertDialog.Builder(this).setTitle("Chẩn đoán chỉ đọc • " + serial)
+            .setItems(tools, (d, which) -> {
+                String command = commands[which];
+                new AlertDialog.Builder(this).setTitle("Chạy kiểm tra?")
+                    .setMessage("Thiết bị: " + serial + "\\nLệnh chỉ đọc: " + command
+                        + "\\n\\nLệnh này đọc thông tin, không chủ động thay đổi cài đặt hay dữ liệu.")
+                    .setPositiveButton("CHẠY", (x, y) ->
+                        runTermuxCommand("adb -s " + shellQuote(serial) + " shell " + shellQuote(command)))
+                    .setNegativeButton("HỦY", null).show();
+            }).setNegativeButton("ĐÓNG", null).show();
     }
 
     private void confirmAdbDisconnect(String serial) {
@@ -497,6 +524,8 @@ public class MainActivity extends Activity {
         String[] rows = output.split("\\n");
         android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
         android.content.SharedPreferences.Editor editor = prefs.edit();
+        java.util.Set<String> previouslySaved = prefs.getStringSet("serials", new java.util.HashSet<>());
+        for (String serial : previouslySaved) editor.putString("state_" + serial, "not_listed");
         for (String row : rows) {
             String trimmed = row.trim();
             java.util.regex.Matcher matcher = java.util.regex.Pattern
