@@ -100,6 +100,9 @@ public class MainActivity extends Activity {
         Button listAdb = button("THIẾT BỊ");
         listAdb.setOnClickListener(v -> runTermuxCommand("adb devices -l"));
         adbRow.addView(listAdb, new LinearLayout.LayoutParams(0, dp(42), 1));
+        Button shellAdb = button("ADB SHELL");
+        shellAdb.setOnClickListener(v -> showAdbShellDialog());
+        adbRow.addView(shellAdb, new LinearLayout.LayoutParams(0, dp(42), 1));
         root.addView(adbRow);
         scroll = new ScrollView(this); scroll.setFillViewport(true);
         log = new LinearLayout(this); log.setOrientation(1); log.setPadding(12,12,12,12); log.setBackgroundColor(PANEL);
@@ -204,6 +207,29 @@ public class MainActivity extends Activity {
             line("Đã gửi tác vụ ADB đến Termux. Đang chờ kết quả...", GREEN);
         } catch (SecurityException e) { line("Termux chưa bật allow-external-apps hoặc chưa cấp quyền RUN_COMMAND.", 0xffffca70); openTermux(); }
           catch (Exception e) { line("Không chạy được ADB trong Termux: " + e.getMessage(), 0xffff8080); }
+    }
+
+    private void showAdbShellDialog() {
+        LinearLayout form = new LinearLayout(this); form.setOrientation(1);
+        form.setPadding(dp(16), dp(8), dp(16), 0);
+        EditText serial = input("Serial thiết bị (xem trong THIẾT BỊ)");
+        EditText remoteCommand = input("Lệnh trên thiết bị, ví dụ: getprop ro.product.model");
+        form.addView(serial); form.addView(remoteCommand);
+        new AlertDialog.Builder(this).setTitle("ADB Shell • Thiết bị đã ghép đôi")
+            .setMessage("Chọn đúng serial từ danh sách adb devices -l. Lệnh sẽ chạy trên thiết bị bạn sở hữu/quản lý. Không nhập lệnh phá hoại hoặc xóa dữ liệu nếu chưa hiểu rõ.")
+            .setView(form).setPositiveButton("XEM LẠI LỆNH", (d,w) -> {
+                String id = serial.getText().toString().trim();
+                String cmd = remoteCommand.getText().toString().trim();
+                if (id.isEmpty() || !id.matches("[A-Za-z0-9._:-]+") || cmd.isEmpty()) {
+                    line("Cần serial hợp lệ và lệnh ADB.", 0xffff8080); return;
+                }
+                new AlertDialog.Builder(this).setTitle("Xác nhận chạy ADB Shell")
+                    .setMessage("Thiết bị: " + id + "\nLệnh: adb -s " + id + " shell " + cmd
+                        + "\n\nLệnh có thể thay đổi thiết bị từ xa. Chỉ tiếp tục nếu bạn hiểu tác động.")
+                    .setPositiveButton("CHẠY", (dialog, which) ->
+                        runTermuxCommand("adb -s " + shellQuote(id) + " shell " + shellQuote(cmd)))
+                    .setNegativeButton("HỦY", null).show();
+            }).setNegativeButton("HỦY", null).show();
     }
 
     private static final String KALI_INSTALL_COMMAND =
