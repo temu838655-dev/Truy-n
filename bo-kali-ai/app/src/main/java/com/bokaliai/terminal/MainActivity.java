@@ -388,7 +388,7 @@ public class MainActivity extends Activity {
             .setView(endpoint).setPositiveButton("KẾT NỐI", (d,w) -> {
                 String ep = endpoint.getText().toString().trim();
                 if (!ep.matches("[A-Za-z0-9.:-]+:[0-9]{1,5}")) { line("Địa chỉ IP:cổng không hợp lệ.", 0xffff8080); return; }
-                runTermuxCommand("pkg install -y android-tools && adb connect " + shellQuote(ep));
+                runTermuxCommand("pkg install -y android-tools && adb connect " + shellQuote(ep) + " ; adb devices -l");
             }).setNegativeButton("HỦY", null).show();
     }
 
@@ -486,6 +486,24 @@ public class MainActivity extends Activity {
     }
 
     private void showAdbShellDialog() {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        java.util.ArrayList<String> saved = new java.util.ArrayList<>(
+            prefs.getStringSet("serials", new java.util.HashSet<>()));
+        java.util.Collections.sort(saved);
+        if (saved.isEmpty()) {
+            showAdbShellManualDialog();
+            return;
+        }
+        String[] choices = saved.toArray(new String[0]);
+        new AlertDialog.Builder(this).setTitle("Chọn thiết bị ADB")
+            .setItems(choices, (dialog, which) -> showAdbShellDialogFor(choices[which]))
+            .setPositiveButton("NHẬP SERIAL", (dialog, which) -> showAdbShellManualDialog())
+            .setNeutralButton("QUÉT LẠI", (dialog, which) ->
+                runTermuxCommand("pkg install -y android-tools && adb devices -l"))
+            .setNegativeButton("HỦY", null).show();
+    }
+
+    private void showAdbShellManualDialog() {
         LinearLayout form = new LinearLayout(this); form.setOrientation(1);
         form.setPadding(dp(16), dp(8), dp(16), 0);
         EditText serial = input("Serial thiết bị (xem trong THIẾT BỊ)");
