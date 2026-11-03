@@ -235,8 +235,11 @@ public class MainActivity extends Activity {
         android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_update_history", MODE_PRIVATE);
         String history = prefs.getString("entries", "");
         if (history.isEmpty()) history = "Chưa có tác vụ cập nhật nào được ghi lại.";
+        final String historyToCopy = history;
         new AlertDialog.Builder(this).setTitle("Lịch sử cập nhật")
-            .setMessage(history + "\n\nLưu ý: lịch sử ghi nhận tác vụ đã gửi, không tự khẳng định cập nhật thành công. Hãy xem mã thoát và kết quả trong nhật ký terminal.")
+            .setMessage(history + "\n\nLưu ý: mỗi tác vụ có thể có hai dòng: lúc gửi lệnh và lúc Termux trả kết quả. Chỉ trạng thái exit 0 mới xác nhận lệnh kết thúc thành công; vẫn cần đọc đầu ra để biết gói nào đã được cập nhật.")
+            .setNeutralButton("SAO CHÉP", (d,w) ->
+                copyText(historyToCopy, "Đã sao chép lịch sử cập nhật vào clipboard."))
             .setPositiveButton("XÓA LỊCH SỬ", (d,w) -> new AlertDialog.Builder(this)
                 .setTitle("Xóa lịch sử?").setMessage("Chỉ xóa nhật ký cập nhật trên ứng dụng này.")
                 .setPositiveButton("XÓA", (x,y) -> {
