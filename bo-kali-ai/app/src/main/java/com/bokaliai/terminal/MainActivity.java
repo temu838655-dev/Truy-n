@@ -6,6 +6,10 @@ import android.os.Bundle;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.content.Context;
+import android.content.Intent;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.net.Uri;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -58,9 +62,12 @@ public class MainActivity extends Activity {
         Button settings = button("Kết nối AI / GitHub");
         settings.setOnClickListener(v -> connectionSettings());
         bar.addView(settings, new LinearLayout.LayoutParams(0, dp(44), 1));
-        Button clear = button("Xóa màn hình");
+        Button kali = button("KALI SHELL");
+        kali.setOnClickListener(v -> kaliShellMenu());
+        bar.addView(kali, new LinearLayout.LayoutParams(0, dp(44), 1));
+        Button clear = button("Xóa");
         clear.setOnClickListener(v -> log.removeAllViews());
-        bar.addView(clear, new LinearLayout.LayoutParams(dp(112), dp(44)));
+        bar.addView(clear, new LinearLayout.LayoutParams(dp(62), dp(44)));
         root.addView(bar);
         scroll = new ScrollView(this); scroll.setFillViewport(true);
         log = new LinearLayout(this); log.setOrientation(1); log.setPadding(12,12,12,12); log.setBackgroundColor(PANEL);
@@ -81,6 +88,64 @@ public class MainActivity extends Activity {
         aiRow.addView(ask, new LinearLayout.LayoutParams(dp(88),dp(50)));
         root.addView(aiRow);
         setContentView(root);
+    }
+
+
+    private static final String KALI_INSTALL_COMMAND =
+        "pkg update -y && pkg install -y wget && " +
+        "wget -O install-nethunter-termux https://offs.ec/2MceZWr && " +
+        "chmod +x install-nethunter-termux && ./install-nethunter-termux";
+
+    private void kaliShellMenu() {
+        new AlertDialog.Builder(this)
+            .setTitle("Kali Shell • NetHunter Rootless")
+            .setMessage("BO Kali AI dùng Termux làm bộ chạy shell Linux. Cài Kali lần đầu cần Internet, dung lượng trống lớn và thao tác xác nhận trong Termux. Không cần root.")
+            .setPositiveButton("Mở Kali Shell", (d, w) -> {
+                copyText("nh", "Đã sao chép lệnh nh (mở Kali).");
+                openTermux();
+            })
+            .setNeutralButton("Cài Kali Rootless", (d, w) -> {
+                copyText(KALI_INSTALL_COMMAND, "Đã sao chép lệnh cài Kali. Dán vào Termux để bắt đầu.");
+                openTermux();
+            })
+            .setNegativeButton("Hướng dẫn", (d, w) -> showKaliInstructions())
+            .show();
+    }
+
+    private void showKaliInstructions() {
+        new AlertDialog.Builder(this)
+            .setTitle("Thiết lập Kali Shell")
+            .setMessage("1. Cài Termux từ GitHub chính thức hoặc F-Droid (không dùng bản Play Store cũ).\n" +
+                "2. Mở Termux một lần, chờ hoàn tất thiết lập.\n" +
+                "3. Trong BO Kali AI → KALI SHELL → Cài Kali Rootless.\n" +
+                "4. Chuyển sang Termux, dán lệnh đã sao chép và nhấn Enter.\n" +
+                "5. Làm theo câu hỏi của trình cài đặt; không tắt ứng dụng khi tải rootfs.\n" +
+                "6. Sau khi cài xong, mở BO Kali AI → KALI SHELL → Mở Kali Shell.\n\n" +
+                "Trong Termux: nhập nh để vào Kali, exit để thoát. Lần đầu cần mạng và có thể tải nhiều GB nếu cài thêm bộ công cụ.")
+            .setPositiveButton("Mở trang Termux", (d, w) ->
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/termux/termux-app/releases"))))
+            .setNegativeButton("Đóng", null).show();
+    }
+
+    private void copyText(String value, String message) {
+        ClipboardManager cm = (ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+        if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("BO Kali command", value));
+        line(message, GREEN);
+    }
+
+    private void openTermux() {
+        try {
+            Intent launch = getPackageManager().getLaunchIntentForPackage("com.termux");
+            if (launch == null) {
+                line("Termux chưa được cài. Mở trang tải Termux chính thức.", 0xffffca70);
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/termux/termux-app/releases")));
+                return;
+            }
+            startActivity(launch);
+            line("Đã mở Termux. Lệnh cần chạy đã được sao chép; nhấn giữ trong terminal và chọn Dán.", GREEN);
+        } catch (Exception e) {
+            line("Không mở được Termux: " + e.getMessage(), 0xffff8080);
+        }
     }
 
     private void runCommand() {
