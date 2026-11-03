@@ -9,7 +9,8 @@
 - Kiểm tra GitHub và liệt kê tối đa 10 repository qua Personal Access Token.
 - API key/token chỉ nằm trong bộ nhớ phiên, không ghi vào file, không nhúng sẵn trong APK.
 - Tích hợp nút KALI SHELL để mở Termux, sao chép lệnh cài Kali NetHunter Rootless hoặc mở Kali trực tiếp qua Termux `RUN_COMMAND` sau khi người dùng bật quyền.
-- Ô lệnh có nút KALI riêng: hiển thị xác nhận trước khi gửi lệnh do người dùng nhập tới Kali Rootless; nhận stdout/stderr và mã thoát qua callback Termux (cần Termux >= 0.109).\n- Nút **KALI** bên cạnh CHẠY gửi lệnh tới Kali Rootless sau khi xác nhận; nút **GIẢI THÍCH KẾT QUẢ KALI BẰNG AI** gửi stdout/stderr và mã thoát vừa nhận tới Gemini.
+- Ô lệnh có nút KALI riêng: hiển thị xác nhận trước khi gửi lệnh do người dùng nhập tới Kali Rootless; nhận stdout/stderr và mã thoát qua callback Termux (cần Termux >= 0.109).
+- Nút **KALI** bên cạnh CHẠY gửi lệnh tới Kali Rootless sau khi xác nhận; nút **GIẢI THÍCH KẾT QUẢ KALI BẰNG AI** gửi stdout/stderr và mã thoát vừa nhận tới Gemini.
 - Kali Shell dùng môi trường Termux/PRoot bên ngoài ứng dụng; người dùng tự xác nhận lệnh cài đặt. Không cần root, không flash kernel và không sửa phân vùng hệ thống.
 
 ## Build và phát hành
