@@ -2,7 +2,8 @@ package com.bokaliai.terminal;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.PendingIntent;\nimport java.util.concurrent.atomic.AtomicInteger;
+import android.app.PendingIntent;
+import java.util.concurrent.atomic.AtomicInteger;
 import android.os.Bundle;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -42,7 +43,8 @@ public class MainActivity extends Activity {
     private LinearLayout root, log;
     private ScrollView scroll;
     private EditText commandInput, questionInput;
-    private String geminiKey = "", githubToken = "", lastCommandOutput = "";\n    private static final AtomicInteger TERMUX_REQUEST = new AtomicInteger(2000);
+    private String geminiKey = "", githubToken = "", lastCommandOutput = "";
+    private static final AtomicInteger TERMUX_REQUEST = new AtomicInteger(2000);
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
 
     @Override public void onCreate(Bundle state) {
