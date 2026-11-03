@@ -3,12 +3,14 @@ package com.bokaliai.terminal;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 
 public class TermuxResultReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context context, Intent intent) {
         Bundle result = intent == null ? null : intent.getBundleExtra("result");
         StringBuilder output = new StringBuilder();
+        int exitCode = -1;
 
         if (result == null) {
             output.append("Termux không trả về gói kết quả. Có thể lệnh chưa chạy, Termux quá cũ hoặc quyền RUN_COMMAND chưa được cấp.\n");
@@ -19,7 +21,7 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         } else {
             String stdout = result.getString("stdout", "");
             String stderr = result.getString("stderr", "");
-            int exitCode = result.getInt("exitCode", -1);
+            exitCode = result.getInt("exitCode", -1);
             int err = result.getInt("err", -1);
             String errmsg = result.getString("errmsg", "");
             output.append("Mã thoát: ").append(exitCode);
@@ -36,6 +38,23 @@ public class TermuxResultReceiver extends BroadcastReceiver {
             }
         }
 
+        // Store the actual Termux result so the update history distinguishes a sent command from a completed one.
+        SharedPreferences prefs = context.getSharedPreferences("bo_kali_update_history", Context.MODE_PRIVATE);
+        String old = prefs.getString("entries", "");
+        String stamp = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+            .format(new java.util.Date());
+        String status = result == null ? "KHÔNG NHẬN ĐƯỢC KẾT QUẢ" :
+            (exitCode == 0 ? "HOÀN THÀNH (exit 0)" : "CẦN KIỂM TRA (exit " + exitCode + ")");
+        String entry = stamp + " | Kết quả tác vụ Termux | " + status;
+        String combined = entry + (old.isEmpty() ? "" : "\n" + old);
+        String[] rows = combined.split("\n");
+        StringBuilder kept = new StringBuilder();
+        for (int i = 0; i < rows.length && i < 30; i++) {
+            if (kept.length() > 0) kept.append("\n");
+            kept.append(rows[i]);
+        }
+        prefs.edit().putString("entries", kept.toString()).apply();
+
         // Avoid passing an unbounded transcript back into the activity or a later AI request.
         final int maxChars = 24000;
         if (output.length() > maxChars) {
@@ -50,8 +69,9 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         try {
             context.startActivity(show);
         } catch (Exception ignored) {
-            // The result is still returned through the callback; Android may prevent background UI launches.
-            // The next foreground opening can be improved with a notification-based handoff.
+            // Android may prevent background UI launches; the result is stored for the next foreground opening.
+            context.getSharedPreferences("bo_kali_results", Context.MODE_PRIVATE)
+                .edit().putString("pending_output", output.toString()).apply();
         }
     }
 }
