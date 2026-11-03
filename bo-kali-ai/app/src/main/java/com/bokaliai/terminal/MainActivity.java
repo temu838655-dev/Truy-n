@@ -81,7 +81,10 @@ public class MainActivity extends Activity {
         commandInput = input("Nhập lệnh: help, device, net, wifi, bluetooth...");
         commandRow.addView(commandInput, new LinearLayout.LayoutParams(0,dp(50),1));
         Button run = button("CHẠY"); run.setOnClickListener(v -> runCommand());
-        commandRow.addView(run, new LinearLayout.LayoutParams(dp(82),dp(50)));
+        commandRow.addView(run, new LinearLayout.LayoutParams(dp(68),dp(50)));
+        Button kaliRun = button("KALI");
+        kaliRun.setOnClickListener(v -> confirmKaliCommand());
+        commandRow.addView(kaliRun, new LinearLayout.LayoutParams(dp(68),dp(50)));
         root.addView(commandRow);
         TextView aiLabel = text("Ô 2 · HỎI AI BẰNG TIẾNG VIỆT", 0xff79c9ff, 12, true); root.addView(aiLabel);
         LinearLayout aiRow = new LinearLayout(this); aiRow.setOrientation(0);
@@ -90,6 +93,9 @@ public class MainActivity extends Activity {
         Button ask = button("HỎI AI"); ask.setOnClickListener(v -> askAi());
         aiRow.addView(ask, new LinearLayout.LayoutParams(dp(88),dp(50)));
         root.addView(aiRow);
+        Button explain = button("GIẢI THÍCH KẾT QUẢ KALI BẰNG AI");
+        explain.setOnClickListener(v -> explainLastOutput());
+        root.addView(explain, new LinearLayout.LayoutParams(-1, dp(44)));
         setContentView(root);
     }
 
@@ -134,8 +140,8 @@ public class MainActivity extends Activity {
                 PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
             Intent intent = new Intent("com.termux.RUN_COMMAND");
             intent.setClassName("com.termux", "com.termux.app.RunCommandService");
-            intent.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/nh");
-            intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[]{"-c", command});
+            intent.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash");
+            intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[]{"-lc", "nh " + shellQuote(command)});
             intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home");
             intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
             intent.putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", resultPending);
@@ -149,6 +155,10 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             line("Không gửi được lệnh Kali: " + e.getMessage(), 0xffff8080);
         }
+    }
+
+    private String shellQuote(String value) {
+        return "'" + value.replace("'", "'\\''") + "'";
     }
 
     private void explainLastOutput() {
