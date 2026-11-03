@@ -39,6 +39,18 @@ jobs:
         working-directory: bo-kali-ai
         run: gradle --no-daemon assembleDebug --stacktrace
 
+      - name: Write update metadata
+        run: |
+          mkdir -p bo-kali-ai/app/build/outputs/apk/debug
+          cat > bo-kali-ai/app/build/outputs/apk/debug/bo-kali-ai-update.json <<EOF
+          {
+            "versionCode": $GITHUB_RUN_NUMBER,
+            "versionName": "0.1.$GITHUB_RUN_NUMBER",
+            "commit": "$GITHUB_SHA",
+            "workflowRun": "$GITHUB_RUN_ID"
+          }
+          EOF
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
@@ -55,8 +67,8 @@ jobs:
           git tag -f "$TAG" "$GITHUB_SHA"
           git push origin "refs/tags/$TAG" --force
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --title "BO Kali AI — bản mới nhất" --notes "APK mới nhất được build tự động từ nhánh main. Mã nguồn: $GITHUB_SHA" --prerelease
+            gh release edit "$TAG" --title "BO Kali AI — bản mới nhất" --notes "APK mới nhất từ main. Version code: $GITHUB_RUN_NUMBER; Version name: 0.1.$GITHUB_RUN_NUMBER. Mã nguồn: $GITHUB_SHA" --prerelease
           else
-            gh release create "$TAG" "bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk" --title "BO Kali AI — bản mới nhất" --notes "APK mới nhất được build tự động từ nhánh main. Mã nguồn: $GITHUB_SHA" --prerelease
+            gh release create "$TAG" "bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk" --title "BO Kali AI — bản mới nhất" --notes "APK mới nhất từ main. Version code: $GITHUB_RUN_NUMBER; Version name: 0.1.$GITHUB_RUN_NUMBER. Mã nguồn: $GITHUB_SHA" --prerelease
           fi
-          gh release upload "$TAG" "bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk" --clobber
+          gh release upload "$TAG" "bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk" "bo-kali-ai/app/build/outputs/apk/debug/bo-kali-ai-update.json" --clobber
