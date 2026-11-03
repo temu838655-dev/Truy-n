@@ -1,7 +1,7 @@
 package com.bokaliai.terminal;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import android.app.AlertDialog;\nimport android.app.PendingIntent;\nimport java.util.concurrent.atomic.AtomicInteger;
 import android.os.Bundle;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -41,7 +41,7 @@ public class MainActivity extends Activity {
     private LinearLayout root, log;
     private ScrollView scroll;
     private EditText commandInput, questionInput;
-    private String geminiKey = "", githubToken = "";
+    private String geminiKey = "", githubToken = "", lastCommandOutput = "";\n    private static final AtomicInteger TERMUX_REQUEST = new AtomicInteger(2000);
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
 
     @Override public void onCreate(Bundle state) {
@@ -109,6 +109,65 @@ public class MainActivity extends Activity {
             .show();
     }
 
+
+    private void confirmKaliCommand() {
+        String command = commandInput.getText().toString().trim();
+        if (command.isEmpty()) {
+            line("Nhập lệnh Kali trước. Ví dụ: uname -a hoặc ip addr", 0xffffca70);
+            return;
+        }
+        new AlertDialog.Builder(this)
+            .setTitle("Xác nhận chạy lệnh Kali")
+            .setMessage("Lệnh sẽ chạy trong Kali Rootless qua Termux:\\n\\n" + command + "\\n\\nChỉ chạy lệnh bạn hiểu và trên thiết bị bạn có quyền quản lý. Kết quả sẽ được đưa về BO Kali AI.")
+            .setPositiveButton("Chạy lệnh", (d,w) -> runKaliCommand(command))
+            .setNegativeButton("Hủy", null).show();
+    }
+
+    private void runKaliCommand(String command) {
+        try {
+            int request = TERMUX_REQUEST.incrementAndGet();
+            Intent callback = new Intent(this, TermuxResultReceiver.class);
+            PendingIntent resultPending = PendingIntent.getBroadcast(this, request, callback,
+                PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            Intent intent = new Intent("com.termux.RUN_COMMAND");
+            intent.setClassName("com.termux", "com.termux.app.RunCommandService");
+            intent.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/nh");
+            intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[]{"-c", command});
+            intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home");
+            intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
+            intent.putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", resultPending);
+            intent.putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "BO Kali AI - lệnh do người dùng xác nhận");
+            startService(intent);
+            line("Đã gửi lệnh Kali: " + command, GREEN);
+            commandInput.setText("");
+        } catch (SecurityException e) {
+            line("Termux chưa cấp quyền RUN_COMMAND hoặc chưa bật allow-external-apps. Mở Hướng dẫn.", 0xffffca70);
+            openTermux();
+        } catch (Exception e) {
+            line("Không gửi được lệnh Kali: " + e.getMessage(), 0xffff8080);
+        }
+    }
+
+    private void explainLastOutput() {
+        if (lastCommandOutput.isEmpty()) {
+            line("Chưa có kết quả Kali để giải thích. Chạy một lệnh Kali trước.", 0xffffca70);
+            return;
+        }
+        questionInput.setText("Hãy giải thích kết quả/lỗi Kali dưới đây bằng tiếng Việt, chỉ ra nguyên nhân, mức độ rủi ro và cách xử lý an toàn. Không giả định lệnh đã làm gì ngoài nội dung kết quả:\\n\\n" + lastCommandOutput);
+        askAi();
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent != null && "com.bokaliai.terminal.TERMUX_RESULT".equals(intent.getAction())) {
+            lastCommandOutput = intent.getStringExtra("termux_output");
+            if (lastCommandOutput == null) lastCommandOutput = "Termux trả về kết quả trống.";
+            line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
+            for (String part : lastCommandOutput.split("\\n")) line(part, WHITE);
+            line("Nhấn GIẢI THÍCH KẾT QUẢ KALI BẰNG AI để phân tích.", 0xff79c9ff);
+        }
+    }
 
     private void runKaliDirectly() {
         try {
