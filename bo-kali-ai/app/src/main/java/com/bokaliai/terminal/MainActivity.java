@@ -98,7 +98,7 @@ public class MainActivity extends Activity {
         connectAdb.setOnClickListener(v -> showAdbConnectDialog());
         adbRow.addView(connectAdb, new LinearLayout.LayoutParams(0, dp(42), 1));
         Button listAdb = button("THIẾT BỊ");
-        listAdb.setOnClickListener(v -> runTermuxCommand("adb devices -l"));
+        listAdb.setOnClickListener(v -> showAdbDeviceManager());
         adbRow.addView(listAdb, new LinearLayout.LayoutParams(0, dp(42), 1));
         Button shellAdb = button("ADB SHELL");
         shellAdb.setOnClickListener(v -> showAdbShellDialog());
@@ -412,6 +412,79 @@ public class MainActivity extends Activity {
           catch (Exception e) { line("Không chạy được ADB trong Termux: " + e.getMessage(), 0xffff8080); }
     }
 
+    private void showAdbDeviceManager() {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        java.util.Set<String> saved = new java.util.HashSet<>(prefs.getStringSet("serials", new java.util.HashSet<>()));
+        java.util.ArrayList<String> devices = new java.util.ArrayList<>(saved);
+        java.util.Collections.sort(devices);
+        String[] labels = new String[devices.size()];
+        for (int i = 0; i < devices.size(); i++) labels[i] = devices.get(i);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("Quản lý thiết bị ADB")
+            .setMessage(devices.isEmpty()
+                ? "Chưa có thiết bị được lưu. Nhấn QUÉT LẠI để lấy danh sách từ Termux sau khi đã kết nối ADB."
+                : "Thiết bị đã ghi nhớ (" + devices.size() + "). Trạng thái có thể thay đổi; hãy quét lại để xác nhận kết nối.")
+            .setItems(labels, (d, which) -> showSavedAdbDeviceActions(devices.get(which)))
+            .setPositiveButton("QUÉT LẠI", (d, w) -> runTermuxCommand("pkg install -y android-tools && adb devices -l"))
+            .setNeutralButton("XÓA THIẾT BỊ LƯU", (d, w) -> {
+                new AlertDialog.Builder(this).setTitle("Xóa danh sách đã lưu?")
+                    .setMessage("Chỉ xóa serial khỏi BO Kali AI, không ngắt kết nối hay thay đổi thiết bị.")
+                    .setPositiveButton("XÓA", (x, y) -> {
+                        prefs.edit().remove("serials").apply();
+                        line("Đã xóa danh sách serial ADB đã lưu.", GREEN);
+                    }).setNegativeButton("HỦY", null).show();
+            })
+            .setNegativeButton("ĐÓNG", null).create();
+        dialog.show();
+    }
+
+    private void showSavedAdbDeviceActions(String serial) {
+        new AlertDialog.Builder(this).setTitle("Thiết bị: " + serial)
+            .setMessage("Serial đã lưu chỉ là thông tin ghi nhớ. Hãy kiểm tra trạng thái trước khi thao tác.")
+            .setPositiveButton("KIỂM TRA", (d, w) ->
+                runTermuxCommand("adb -s " + shellQuote(serial) + " get-state && adb -s " +
+                    shellQuote(serial) + " shell getprop ro.product.model"))
+            .setNeutralButton("ADB SHELL", (d, w) -> showAdbShellDialogFor(serial))
+            .setNegativeButton("ĐÓNG", null).show();
+    }
+
+    private void showAdbShellDialogFor(String serialValue) {
+        LinearLayout form = new LinearLayout(this); form.setOrientation(1);
+        form.setPadding(dp(16), dp(8), dp(16), 0);
+        EditText remoteCommand = input("Lệnh trên thiết bị, ví dụ: getprop ro.product.model");
+        form.addView(remoteCommand);
+        new AlertDialog.Builder(this).setTitle("ADB Shell • " + serialValue)
+            .setMessage("Chỉ chạy trên thiết bị bạn sở hữu/quản lý. Xem lại tác động của lệnh trước khi xác nhận.")
+            .setView(form).setPositiveButton("XEM LẠI LỆNH", (d, w) -> {
+                String cmd = remoteCommand.getText().toString().trim();
+                if (cmd.isEmpty()) { line("Chưa nhập lệnh ADB.", 0xffff8080); return; }
+                new AlertDialog.Builder(this).setTitle("Xác nhận ADB Shell")
+                    .setMessage("Thiết bị: " + serialValue + "\nLệnh: adb -s " + serialValue + " shell " + cmd
+                        + "\n\nLệnh có thể thay đổi thiết bị từ xa.")
+                    .setPositiveButton("CHẠY", (x, y) ->
+                        runTermuxCommand("adb -s " + shellQuote(serialValue) + " shell " + shellQuote(cmd)))
+                    .setNegativeButton("HỦY", null).show();
+            }).setNegativeButton("HỦY", null).show();
+    }
+
+    private void handleAdbDevicesOutput(String output) {
+        if (output == null || !output.contains("List of devices attached")) return;
+        java.util.HashSet<String> found = new java.util.HashSet<>();
+        String[] rows = output.split("\\n");
+        for (String row : rows) {
+            String trimmed = row.trim();
+            java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("^([^\\s]+)\\s+(device|offline|unauthorized)\\b").matcher(trimmed);
+            if (matcher.find()) found.add(matcher.group(1));
+        }
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        java.util.HashSet<String> merged = new java.util.HashSet<>(prefs.getStringSet("serials", new java.util.HashSet<>()));
+        merged.addAll(found);
+        prefs.edit().putStringSet("serials", merged).apply();
+        line("ADB: tìm thấy " + found.size() + " thiết bị trong lần quét này; đã ghi nhớ serial để chọn nhanh.", 0xff79c9ff);
+        if (found.isEmpty()) line("Không thấy thiết bị. Kiểm tra Wi-Fi, Wireless debugging và chạy adb connect nếu cần.", 0xffffca70);
+    }
+
     private void showAdbShellDialog() {
         LinearLayout form = new LinearLayout(this); form.setOrientation(1);
         form.setPadding(dp(16), dp(8), dp(16), 0);
@@ -518,6 +591,7 @@ public class MainActivity extends Activity {
         if (pending != null && !pending.isEmpty()) {
             prefs.edit().remove("pending_output").apply();
             lastCommandOutput = pending;
+            handleAdbDevicesOutput(pending);
             line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
             for (String part : pending.split("\\n")) line(part, WHITE);
             line("Nhấn GIẢI THÍCH KẾT QUẢ KALI BẰNG AI để phân tích.", 0xff79c9ff);
@@ -530,6 +604,7 @@ public class MainActivity extends Activity {
         if (intent != null && "com.bokaliai.terminal.TERMUX_RESULT".equals(intent.getAction())) {
             lastCommandOutput = intent.getStringExtra("termux_output");
             if (lastCommandOutput == null) lastCommandOutput = "Termux trả về kết quả trống.";
+            handleAdbDevicesOutput(lastCommandOutput);
             line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
             for (String part : lastCommandOutput.split("\\n")) line(part, WHITE);
             line("Nhấn GIẢI THÍCH KẾT QUẢ KALI BẰNG AI để phân tích.", 0xff79c9ff);
