@@ -418,12 +418,16 @@ public class MainActivity extends Activity {
         java.util.ArrayList<String> devices = new java.util.ArrayList<>(saved);
         java.util.Collections.sort(devices);
         String[] labels = new String[devices.size()];
-        for (int i = 0; i < devices.size(); i++) labels[i] = devices.get(i);
+        for (int i = 0; i < devices.size(); i++) {
+            String serial = devices.get(i);
+            String state = prefs.getString("state_" + serial, "chưa kiểm tra");
+            labels[i] = serial + "  [" + adbStateLabel(state) + "]";
+        }
         AlertDialog dialog = new AlertDialog.Builder(this)
             .setTitle("Quản lý thiết bị ADB")
             .setMessage(devices.isEmpty()
                 ? "Chưa có thiết bị được lưu. Nhấn QUÉT LẠI để lấy danh sách từ Termux sau khi đã kết nối ADB."
-                : "Thiết bị đã ghi nhớ (" + devices.size() + "). Trạng thái có thể thay đổi; hãy quét lại để xác nhận kết nối.")
+                : "Thiết bị đã ghi nhớ (" + devices.size() + "). Trạng thái bên dưới là lần quét gần nhất, không đảm bảo còn trực tuyến.")
             .setItems(labels, (d, which) -> showSavedAdbDeviceActions(devices.get(which)))
             .setPositiveButton("QUÉT LẠI", (d, w) -> runTermuxCommand("pkg install -y android-tools && adb devices -l"))
             .setNeutralButton("XÓA THIẾT BỊ LƯU", (d, w) -> {
@@ -438,14 +442,34 @@ public class MainActivity extends Activity {
         dialog.show();
     }
 
+    private String adbStateLabel(String state) {
+        if ("device".equals(state)) return "ĐANG KẾT NỐI";
+        if ("offline".equals(state)) return "OFFLINE";
+        if ("unauthorized".equals(state)) return "CHƯA CẤP QUYỀN";
+        return "CHƯA KIỂM TRA";
+    }
+
     private void showSavedAdbDeviceActions(String serial) {
-        new AlertDialog.Builder(this).setTitle("Thiết bị: " + serial)
-            .setMessage("Serial đã lưu chỉ là thông tin ghi nhớ. Hãy kiểm tra trạng thái trước khi thao tác.")
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        String state = prefs.getString("state_" + serial, "unknown");
+        AlertDialog actions = new AlertDialog.Builder(this).setTitle("Thiết bị: " + serial)
+            .setMessage("Trạng thái lần quét gần nhất: " + adbStateLabel(state)
+                + ". Hãy kiểm tra lại trước khi chạy lệnh.")
             .setPositiveButton("KIỂM TRA", (d, w) ->
-                runTermuxCommand("adb -s " + shellQuote(serial) + " get-state && adb -s " +
-                    shellQuote(serial) + " shell getprop ro.product.model"))
+                runTermuxCommand("adb devices -l"))
             .setNeutralButton("ADB SHELL", (d, w) -> showAdbShellDialogFor(serial))
-            .setNegativeButton("ĐÓNG", null).show();
+            .setNegativeButton("NGẮT ADB", null).create();
+        actions.setOnShowListener(v -> actions.getButton(AlertDialog.BUTTON_NEGATIVE)
+            .setOnClickListener(b -> { actions.dismiss(); confirmAdbDisconnect(serial); }));
+        actions.show();
+    }
+
+    private void confirmAdbDisconnect(String serial) {
+        new AlertDialog.Builder(this).setTitle("Ngắt kết nối ADB?")
+            .setMessage("Chỉ ngắt phiên ADB với " + serial + " trên Termux. Không xóa dữ liệu, không tắt Wireless debugging và không thay đổi thiết bị.")
+            .setPositiveButton("NGẮT KẾT NỐI", (d, w) ->
+                runTermuxCommand("adb disconnect " + shellQuote(serial) + "; adb devices -l"))
+            .setNegativeButton("HỦY", null).show();
     }
 
     private void showAdbShellDialogFor(String serialValue) {
@@ -471,16 +495,22 @@ public class MainActivity extends Activity {
         if (output == null || !output.contains("List of devices attached")) return;
         java.util.HashSet<String> found = new java.util.HashSet<>();
         String[] rows = output.split("\\n");
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        android.content.SharedPreferences.Editor editor = prefs.edit();
         for (String row : rows) {
             String trimmed = row.trim();
             java.util.regex.Matcher matcher = java.util.regex.Pattern
                 .compile("^([^\\s]+)\\s+(device|offline|unauthorized)\\b").matcher(trimmed);
-            if (matcher.find()) found.add(matcher.group(1));
+            if (matcher.find()) {
+                String serial = matcher.group(1);
+                String state = matcher.group(2);
+                found.add(serial);
+                editor.putString("state_" + serial, state);
+            }
         }
-        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
         java.util.HashSet<String> merged = new java.util.HashSet<>(prefs.getStringSet("serials", new java.util.HashSet<>()));
         merged.addAll(found);
-        prefs.edit().putStringSet("serials", merged).apply();
+        editor.putStringSet("serials", merged).apply();
         line("ADB: tìm thấy " + found.size() + " thiết bị trong lần quét này; đã ghi nhớ serial để chọn nhanh.", 0xff79c9ff);
         if (found.isEmpty()) line("Không thấy thiết bị. Kiểm tra Wi-Fi, Wireless debugging và chạy adb connect nếu cần.", 0xffffca70);
     }
