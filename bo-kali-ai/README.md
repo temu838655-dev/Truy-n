@@ -8,7 +8,8 @@
 - Gemini online qua API key do người dùng tự nhập.
 - Kiểm tra GitHub và liệt kê tối đa 10 repository qua Personal Access Token.
 - API key/token chỉ nằm trong bộ nhớ phiên, không ghi vào file, không nhúng sẵn trong APK.
-- Không root, không flash kernel, không chạy shell tùy ý và không tự điều khiển thiết bị khác.
+- Tích hợp nút KALI SHELL để mở Termux, sao chép lệnh cài Kali NetHunter Rootless hoặc vào Kali bằng `nh`.
+- Kali Shell dùng môi trường Termux/PRoot bên ngoài ứng dụng; người dùng tự xác nhận lệnh cài đặt. Không cần root, không flash kernel và không sửa phân vùng hệ thống.
 
 ## Build
 Mở GitHub Actions → **Build BO Kali AI APK** → Run workflow. Tải artifact `BO-KALI-AI-DEBUG-APK`.
@@ -21,4 +22,4 @@ Dùng model Gemini 2.5 Flash trong bản MVP. Hạn mức/giá phụ thuộc tà
 Tạo fine-grained Personal Access Token chỉ cấp quyền đọc Metadata và Contents cho repository cần xem. Nhập token trong app. Không cấp quyền ghi nếu chưa cần.
 
 ## Giới hạn
-Đây chưa phải Kali NetHunter hoặc một shell Linux thật. Các lệnh hiện tại là lệnh chẩn đoán do ứng dụng xử lý. Kali ARM64/proot, ADB host, điều khiển thiết bị từ xa, OAuth và AI offline là các giai đoạn tiếp theo.
+Kali Shell hiện được chuyển giao cho Termux/NetHunter Rootless; terminal tương tác chạy trong Termux, chưa được nhúng trực tiếp vào màn hình BO Kali AI và BO chưa đọc được stdout/stderr của phiên shell. Cần cài Termux trước, sau đó dùng nút KALI SHELL trong app. Rootless có giới hạn phần cứng: không có Wi-Fi monitor/injection, HID/USB gadget hay quyền kernel như NetHunter Full có kernel tương thích. ADB host, console nhúng, đồng bộ kết quả shell với AI, OAuth và AI offline là các giai đoạn tiếp theo.
