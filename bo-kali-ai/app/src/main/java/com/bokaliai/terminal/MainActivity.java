@@ -483,8 +483,8 @@ public class MainActivity extends Activity {
             .setItems(tools, (d, which) -> {
                 String command = commands[which];
                 new AlertDialog.Builder(this).setTitle("Chạy kiểm tra?")
-                    .setMessage("Thiết bị: " + serial + "\\nLệnh chỉ đọc: " + command
-                        + "\\n\\nLệnh này đọc thông tin, không chủ động thay đổi cài đặt hay dữ liệu.")
+                    .setMessage("Thiết bị: " + serial + "\nLệnh chỉ đọc: " + command
+                        + "\n\nLệnh này đọc thông tin, không chủ động thay đổi cài đặt hay dữ liệu.")
                     .setPositiveButton("CHẠY", (x, y) ->
                         runTermuxCommand("adb -s " + shellQuote(serial) + " shell " + shellQuote(command)))
                     .setNegativeButton("HỦY", null).show();
