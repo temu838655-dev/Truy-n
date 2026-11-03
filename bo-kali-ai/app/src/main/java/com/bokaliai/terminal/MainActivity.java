@@ -179,7 +179,8 @@ public class MainActivity extends Activity {
             "Cập nhật toàn bộ gói Termux (bao gồm ADB nếu đã cài)",
             "Cập nhật gói Kali NetHunter",
             "Cài / cập nhật Android Platform Tools (ADB)",
-            "Kiểm tra cấu hình và phiên bản AI"
+            "Kiểm tra cấu hình và phiên bản AI",
+            "Lịch sử cập nhật"
         };
         new AlertDialog.Builder(this).setTitle("Trung tâm cập nhật BO Kali AI")
             .setItems(choices, (dialog, which) -> {
@@ -194,7 +195,8 @@ public class MainActivity extends Activity {
                 else if (which == 4) confirmUpdateCommand("Cài / cập nhật ADB",
                     "Cài hoặc nâng cấp android-tools trong Termux.",
                     "pkg update -y && pkg install -y android-tools && pkg upgrade -y android-tools && adb version");
-                else showAiUpdateInfo();
+                else if (which == 5) showAiUpdateInfo();
+                else showUpdateHistory();
             }).show();
     }
 
@@ -207,9 +209,41 @@ public class MainActivity extends Activity {
                     "echo '=== ADB VERSION ==='; if command -v adb >/dev/null 2>&1; then adb version; else echo 'ADB chưa cài'; fi; " +
                     "echo '=== KALI: UPGRADABLE ==='; if command -v nh >/dev/null 2>&1; then nh apt update && nh apt list --upgradable; else echo 'Kali NetHunter chưa cài'; fi";
                 line("Đang kiểm tra danh sách cập nhật Termux / Kali / ADB...", GREEN);
+                saveUpdateHistory("Quét phiên bản Termux / Kali / ADB", "Đã gửi yêu cầu quét; xem kết quả ở nhật ký terminal.");
                 runTermuxCommand(cmd);
                 line("AI: model chạy qua API nhà cung cấp; kiểm tra kết nối tại mục AI, không có gói model cục bộ để apt nâng cấp.", 0xff79c9ff);
             }).setNegativeButton("HỦY", null).show();
+    }
+
+    private void saveUpdateHistory(String title, String detail) {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_update_history", MODE_PRIVATE);
+        String old = prefs.getString("entries", "");
+        String stamp = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+            .format(new java.util.Date());
+        String entry = stamp + " | " + title + " | " + detail;
+        String next = entry + (old.isEmpty() ? "" : "\n" + old);
+        String[] rows = next.split("\n");
+        StringBuilder kept = new StringBuilder();
+        for (int i=0; i<rows.length && i<30; i++) {
+            if (kept.length()>0) kept.append("\n");
+            kept.append(rows[i]);
+        }
+        prefs.edit().putString("entries", kept.toString()).apply();
+    }
+
+    private void showUpdateHistory() {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_update_history", MODE_PRIVATE);
+        String history = prefs.getString("entries", "");
+        if (history.isEmpty()) history = "Chưa có tác vụ cập nhật nào được ghi lại.";
+        new AlertDialog.Builder(this).setTitle("Lịch sử cập nhật")
+            .setMessage(history + "\n\nLưu ý: lịch sử ghi nhận tác vụ đã gửi, không tự khẳng định cập nhật thành công. Hãy xem mã thoát và kết quả trong nhật ký terminal.")
+            .setPositiveButton("XÓA LỊCH SỬ", (d,w) -> new AlertDialog.Builder(this)
+                .setTitle("Xóa lịch sử?").setMessage("Chỉ xóa nhật ký cập nhật trên ứng dụng này.")
+                .setPositiveButton("XÓA", (x,y) -> {
+                    getSharedPreferences("bo_kali_update_history", MODE_PRIVATE).edit().clear().apply();
+                    line("Đã xóa lịch sử cập nhật.", GREEN);
+                }).setNegativeButton("HỦY", null).show())
+            .setNegativeButton("ĐÓNG", null).show();
     }
 
     private void confirmUpdateCommand(String title, String description, String command) {
@@ -217,6 +251,7 @@ public class MainActivity extends Activity {
             .setMessage(description + "\n\nChỉ chạy khi bạn đồng ý. Nên dùng Wi-Fi và pin đủ.")
             .setPositiveButton("CẬP NHẬT", (d,w) -> {
                 line("Bắt đầu: " + title, GREEN);
+                saveUpdateHistory(title, "Đã gửi lệnh nâng cấp qua Termux; cần kiểm tra kết quả trả về.");
                 runTermuxCommand(command);
             }).setNegativeButton("ĐỂ SAU", null).show();
     }
