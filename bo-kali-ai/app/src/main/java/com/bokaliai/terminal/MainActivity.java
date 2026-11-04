@@ -4715,7 +4715,7 @@ public class MainActivity extends Activity {
                 String prompt = "Trả lời bằng tiếng Việt. Làm việc trong đúng workspace được chỉ định. "
                     + "Không truy cập bí mật, không xuất token/khóa, không xóa dữ liệu hoặc chạy lệnh phá hủy. "
                     + "Nếu thiếu thông tin, hãy hỏi lại. Báo cáo rõ tệp đã đọc/sửa và kiểm tra đã chạy. "
-                    + request;
+                    + request + buildAiContextForSharing();
                 String script = "export PATH=\"$HOME/.codex/bin:$HOME/.local/bin:$PATH\"; "
                     + "if ! command -v codex >/dev/null 2>&1; then echo 'Chưa cài Codex CLI. Hãy cài trước.'; exit 127; fi; "
                     + "if ! git -C " + shellQuote(dir) + " rev-parse --show-toplevel >/dev/null 2>&1; then "
@@ -4749,7 +4749,7 @@ public class MainActivity extends Activity {
         shareOutput.setChecked(shareRecentTerminalOutputWithAi);
         box.addView(shareOutput);
         new AlertDialog.Builder(this).setTitle("Kết nối AI / GitHub")
-            .setMessage("Gemini: dùng API key từ Google AI Studio. GitHub: đọc cần Contents: read; ghi cần Contents: read and write (fine-grained) hoặc repo (classic). Token chỉ giữ trong bộ nhớ phiên, không chia sẻ hoặc commit.")
+            .setMessage("Gemini: dùng API key từ Google AI Studio. GitHub: đọc cần Contents: read; ghi cần Contents: read and write (fine-grained) hoặc repo (classic). Token chỉ giữ trong bộ nhớ phiên. Quyền chia sẻ kết quả terminal là tùy chọn, mặc định tắt và chỉ có hiệu lực trong phiên app này.")
             .setView(box)
             .setPositiveButton("Lưu và kiểm tra GitHub", (d,w) -> {
                 geminiKey = gem.getText().toString().trim();
