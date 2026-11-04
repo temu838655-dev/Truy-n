@@ -3267,7 +3267,7 @@ public class MainActivity extends Activity {
             "echo '=== NETHUNTER LAUNCHER ==='; " +
             "if command -v nh >/dev/null 2>&1; then command -v nh; echo 'NETHUNTER_LAUNCHER=FOUND'; " +
             "echo '=== KALI ROOTFS ==='; " +
-            "if nh bash -lc 'if [ -r /etc/os-release ]; then . /etc/os-release; printf \"KALI_OS=%s\\\\n\" \"$PRETTY_NAME\"; else echo KALI_OS_FILE=MISSING; exit 2; fi; id; uname -m'; then " +
+            "if nh bash -lc 'if [ -r /etc/os-release ]; then . /etc/os-release; printf \"KALI_OS=%s\\n\" \"$PRETTY_NAME\"; else echo KALI_OS_FILE=MISSING; exit 2; fi; id; uname -m'; then " +
             "echo 'KALI_ROOTFS=READY'; else echo 'KALI_ROOTFS=ERROR'; fi; " +
             "else echo 'NETHUNTER_LAUNCHER=MISSING'; echo 'Kali chưa được cài hoặc lệnh nh chưa có trong PATH.'; fi; " +
             "echo '=== TERMUX STORAGE ==='; df -h \"$HOME\" 2>&1 | tail -n 2; " +
