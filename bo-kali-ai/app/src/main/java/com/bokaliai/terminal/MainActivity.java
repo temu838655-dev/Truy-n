@@ -4252,16 +4252,22 @@ public class MainActivity extends Activity {
     private void showKaliToolManager() {
         final String[] actions = {
             "KIỂM TRA CÔNG CỤ CƠ BẢN",
+            "KIỂM TRA PHIÊN BẢN CÔNG CỤ",
             "CÀI BỘ CÔNG CỤ TERMUX",
-            "CÀI BỘ CÔNG CỤ KALI ROOTLESS"
+            "CÀI BỘ CÔNG CỤ KALI ROOTLESS",
+            "CẬP NHẬT GÓI TERMUX",
+            "CẬP NHẬT GÓI KALI ROOTLESS"
         };
         new AlertDialog.Builder(this)
             .setTitle("Quản lý công cụ • BO Kali AI")
             .setMessage("Chỉ quản lý các gói tiện ích phát triển và chẩn đoán cơ bản. Không tự cài đặt. Mỗi lần cài đều hiển thị lệnh và yêu cầu bạn xác nhận.")
             .setItems(actions, (dialog, which) -> {
                 if (which == 0) checkBasicTools();
-                else if (which == 1) confirmToolInstall(false);
-                else if (which == 2) confirmToolInstall(true);
+                else if (which == 1) checkToolVersions();
+                else if (which == 2) confirmToolInstall(false);
+                else if (which == 3) confirmToolInstall(true);
+                else if (which == 4) confirmToolUpgrade(false);
+                else if (which == 5) confirmToolUpgrade(true);
             })
             .setNegativeButton("ĐÓNG", null)
             .show();
@@ -4282,6 +4288,44 @@ public class MainActivity extends Activity {
             "echo 'END=Read-only inventory; no packages installed'";
         line("Đang kiểm tra các tiện ích cơ bản, không cài đặt...", GREEN);
         runTermuxCommand(command);
+    }
+
+    private void checkToolVersions() {
+        String command =
+            "echo '=== TERMUX PACKAGE VERSIONS ==='; " +
+            "for x in git python curl wget jq openssh clang make; do " +
+            "if command -v \"$x\" >/dev/null 2>&1; then " +
+            "p=$(command -v \"$x\"); printf '%s: ' \"$x\"; " +
+            "case \"$x\" in python) python --version 2>&1;; git) git --version 2>&1;; " +
+            "curl) curl --version 2>&1 | head -n 1;; wget) wget --version 2>&1 | head -n 1;; " +
+            "jq) jq --version 2>&1;; openssh) ssh -V 2>&1;; clang) clang --version 2>&1 | head -n 1;; " +
+            "make) make --version 2>&1 | head -n 1;; esac; else echo \"$x: MISSING\"; fi; done; " +
+            "echo '=== PACKAGE MANAGER ==='; pkg --version 2>&1; " +
+            "echo '=== KALI APT (IF AVAILABLE) ==='; " +
+            "if command -v nh >/dev/null 2>&1; then nh bash -lc 'apt-get --version | head -n 1; " +
+            "for x in git python3 curl wget jq ip ping dig; do " +
+            "if command -v \"$x\" >/dev/null 2>&1; then printf \"%s: INSTALLED\\\\n\" \"$x\"; " +
+            "else printf \"%s: MISSING\\\\n\" \"$x\"; fi; done' 2>&1; " +
+            "else echo 'NetHunter not installed'; fi; " +
+            "echo 'END=Version check only; no package changes'";
+        line("Đang kiểm tra phiên bản các công cụ...", GREEN);
+        runTermuxCommand(command);
+    }
+
+    private void confirmToolUpgrade(boolean kali) {
+        final String command = kali
+            ? "nh bash -lc " + shellQuote("apt-get update && apt-get upgrade")
+            : "pkg update && pkg upgrade";
+        new AlertDialog.Builder(this)
+            .setTitle(kali ? "Cập nhật gói Kali Rootless?" : "Cập nhật gói Termux?")
+            .setMessage("Thao tác này có thể tải nhiều dữ liệu, nâng cấp nhiều gói và cần dung lượng trống. Trình quản lý gói có thể hỏi xác nhận thêm. BO Kali AI không tự chạy nếu bạn chưa đồng ý.\\n\\nMôi trường: " +
+                (kali ? "Kali NetHunter Rootless" : "Termux"))
+            .setPositiveButton("XÁC NHẬN CẬP NHẬT", (d, w) -> {
+                line("Đã xác nhận cập nhật " + (kali ? "Kali Rootless" : "Termux") + ".", GREEN);
+                runTermuxCommand(command);
+            })
+            .setNegativeButton("HỦY", null)
+            .show();
     }
 
     private void confirmToolInstall(boolean kali) {
