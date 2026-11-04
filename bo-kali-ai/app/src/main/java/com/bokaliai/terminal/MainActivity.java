@@ -4533,7 +4533,7 @@ public class MainActivity extends Activity {
                 if ("Gemini".equals(provider)) {
                     JSONObject body = new JSONObject().put("contents", new JSONArray().put(
                         new JSONObject().put("parts", new JSONArray().put(new JSONObject().put("text", prompt)))));
-                    URL url = new URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent");
+                    URL url = new URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent");
                     conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("POST");
                     conn.setRequestProperty("x-goog-api-key", apiKey);
@@ -4544,7 +4544,7 @@ public class MainActivity extends Activity {
                     result = new JSONObject(readAiHttpResponse(conn, code));
                 } else if ("Claude".equals(provider)) {
                     JSONObject body = new JSONObject()
-                        .put("model", "claude-sonnet-4-20250514")
+                        .put("model", "claude-sonnet-5-5")
                         .put("max_tokens", 2048)
                         .put("messages", new JSONArray().put(new JSONObject()
                             .put("role", "user").put("content", prompt)));
@@ -4560,7 +4560,7 @@ public class MainActivity extends Activity {
                     result = new JSONObject(readAiHttpResponse(conn, code));
                 } else {
                     JSONObject body = new JSONObject()
-                        .put("model", "gpt-4.1-mini")
+                        .put("model", "gpt-6.1-sol")
                         .put("messages", new JSONArray().put(new JSONObject()
                             .put("role", "user").put("content", prompt)));
                     URL url = new URL("https://api.openai.com/v1/chat/completions");
