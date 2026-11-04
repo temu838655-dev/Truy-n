@@ -168,7 +168,7 @@ public class MainActivity extends Activity {
                     @Override public void onServiceResolved(NsdServiceInfo info) {
                         InetAddress host = info.getHost();
                         String address = host == null ? "" : host.getHostAddress();
-                        String endpoint = address.isEmpty() ? "" : address + ":" + info.getPort();
+                        String endpoint = host == null ? "" : formatAdbEndpoint(host, info.getPort());
                         if (!isValidAdbEndpoint(endpoint)) { line("Dịch vụ pairing có địa chỉ không hợp lệ: " + name, 0xffffca70); return; }
                         android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
                         java.util.Set<String> saved = new java.util.HashSet<>(prefs.getStringSet("pairing_endpoints", new java.util.HashSet<>()));
@@ -219,7 +219,7 @@ public class MainActivity extends Activity {
                     @Override public void onServiceResolved(NsdServiceInfo info) {
                         InetAddress host = info.getHost();
                         String ip = host == null ? "IP không rõ" : host.getHostAddress();
-                        String endpoint = ip + ":" + info.getPort();
+                        String endpoint = host == null ? "" : formatAdbEndpoint(host, info.getPort());
                         android.content.SharedPreferences saved = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
                         java.util.Set<String> endpoints = new java.util.HashSet<>(saved.getStringSet("discovered_endpoints", new java.util.HashSet<>()));
                         endpoints.add(endpoint);
@@ -495,11 +495,34 @@ public class MainActivity extends Activity {
             }).setNegativeButton("HỦY", null).show();
     }
 
+    // ADB accepts IPv6 endpoints in [address]:port form; keep IPv4/host:port too.
+    private String formatAdbEndpoint(InetAddress host, int port) {
+        if (host == null || port < 1 || port > 65535) return "";
+        String address = host.getHostAddress();
+        if (address == null || address.isEmpty()) return "";
+        return (host instanceof java.net.Inet6Address ? "[" + address + "]" : address) + ":" + port;
+    }
+
     private boolean isValidAdbEndpoint(String endpoint) {
-        if (endpoint == null || !endpoint.matches("[A-Za-z0-9.:-]+:[0-9]{1,5}")) return false;
-        int colon = endpoint.lastIndexOf(':');
+        if (endpoint == null || endpoint.isEmpty()) return false;
+        String host;
+        String portText;
+        if (endpoint.startsWith("[")) {
+            int close = endpoint.indexOf(']');
+            if (close < 0 || close + 1 >= endpoint.length() || endpoint.charAt(close + 1) != ':') return false;
+            host = endpoint.substring(1, close);
+            portText = endpoint.substring(close + 2);
+            if (!host.matches("[0-9A-Fa-f:.%a-zA-Z_-]+") || host.indexOf(':') < 0) return false;
+        } else {
+            int colon = endpoint.lastIndexOf(':');
+            if (colon <= 0 || endpoint.indexOf(':') != colon) return false;
+            host = endpoint.substring(0, colon);
+            portText = endpoint.substring(colon + 1);
+            if (!host.matches("[A-Za-z0-9.-]+")) return false;
+        }
+        if (!portText.matches("[0-9]{1,5}")) return false;
         try {
-            int port = Integer.parseInt(endpoint.substring(colon + 1));
+            int port = Integer.parseInt(portText);
             return port >= 1 && port <= 65535;
         } catch (Exception e) { return false; }
     }
