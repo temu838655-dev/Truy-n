@@ -793,7 +793,12 @@ public class MainActivity extends Activity {
                 java.util.HashSet<String> merged = new java.util.HashSet<>(prefs.getStringSet(key, new java.util.HashSet<>()));
                 for (int i = 0; i < values.length(); i++) {
                     String value = values.optString(i, "").trim();
-                    if (!value.isEmpty() && value.length() <= 512) merged.add(value);
+                    if (value.isEmpty() || value.length() > 512) continue;
+                    if ("serials".equals(key)) {
+                        if (value.matches("[A-Za-z0-9._:-]{1,200}")) merged.add(value);
+                    } else if (isValidAdbEndpoint(value)) {
+                        merged.add(value);
+                    }
                 }
                 editor.putStringSet(key, merged);
             }
@@ -808,9 +813,20 @@ public class MainActivity extends Activity {
                     || key.startsWith("pairing_discovered_at_");
                 if (!allowed || key.length() > 600) continue;
                 Object value = data.get(key);
-                if (value instanceof String) editor.putString(key, ((String) value).substring(0, Math.min(((String) value).length(), 4000)));
-                else if (value instanceof Number) editor.putLong(key, ((Number) value).longValue());
+                if (key.startsWith("state_")) {
+                    if (!(value instanceof String)) continue;
+                    String state = (String) value;
+                    if (!("device".equals(state) || "offline".equals(state)
+                        || "unauthorized".equals(state) || "not_listed".equals(state))) continue;
+                    editor.putString(key, state);
+                } else if (value instanceof String) {
+                    String stringValue = (String) value;
+                    int limit = key.startsWith("preset_") ? 2000
+                        : (key.startsWith("alias_") ? 80 : 160);
+                    editor.putString(key, stringValue.substring(0, Math.min(stringValue.length(), limit)));
+                } else if (value instanceof Number) editor.putLong(key, ((Number) value).longValue());
                 else if (value instanceof Boolean) editor.putBoolean(key, (Boolean) value);
+                else continue;
                 restored++;
             }
             editor.apply();
