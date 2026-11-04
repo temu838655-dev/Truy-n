@@ -485,7 +485,7 @@ public class MainActivity extends Activity {
             return;
         }
         hubResolveGeneration++;
-        hubResolveDrainDeadline = android.os.SystemClock.elapsedRealtime() + 8000L;
+        hubResolveDrainDeadline = 0L;
         hubDiscoveredServices.clear();
         hubResolveQueue.clear();
         hubResolvingService = false;
@@ -599,12 +599,15 @@ public class MainActivity extends Activity {
     }
 
     private void finishUniversalNetworkScan() {
-        // Let already discovered services finish resolving before clearing the queue.
-        if (hubDiscoveryActive && (!hubResolveQueue.isEmpty() || hubResolvingService)
-            && android.os.SystemClock.elapsedRealtime() < hubResolveDrainDeadline) {
-            hubScanTimeout = this::finishUniversalNetworkScan;
-            mainHandler.postDelayed(hubScanTimeout, 750L);
-            return;
+        // Start the drain window when discovery itself ends, not when the scan begins.
+        if (hubDiscoveryActive && (!hubResolveQueue.isEmpty() || hubResolvingService)) {
+            long now = android.os.SystemClock.elapsedRealtime();
+            if (hubResolveDrainDeadline == 0L) hubResolveDrainDeadline = now + 8000L;
+            if (now < hubResolveDrainDeadline) {
+                hubScanTimeout = this::finishUniversalNetworkScan;
+                mainHandler.postDelayed(hubScanTimeout, 750L);
+                return;
+            }
         }
         stopHubDiscovery();
         if (hubDiscoveredServices.isEmpty()) {
