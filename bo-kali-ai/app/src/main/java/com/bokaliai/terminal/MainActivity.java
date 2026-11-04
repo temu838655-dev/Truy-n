@@ -3247,6 +3247,39 @@ public class MainActivity extends Activity {
         return false;
     }
 
+    private void saveAntigravityPendingTool(String interactionId, String environmentId, String callId) {
+        if (interactionId == null || interactionId.trim().isEmpty() || callId == null || callId.trim().isEmpty()) return;
+        getSharedPreferences("bo_kali_antigravity_pending_tool", MODE_PRIVATE).edit().clear()
+            .putString("interaction_id", interactionId).putString("environment_id", environmentId == null ? "" : environmentId)
+            .putString("call_id", callId).putLong("created_at", System.currentTimeMillis()).commit();
+    }
+
+    private void reportAiProposalOutcome(String providerId, String status, String message) {
+        if ("antigravity".equals(providerId)) reportAntigravityToolOutcome(status, message);
+    }
+
+    private void reportAntigravityToolOutcome(String status, String message) {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_antigravity_pending_tool", MODE_PRIVATE);
+        String interactionId = prefs.getString("interaction_id", "");
+        String environmentId = prefs.getString("environment_id", "");
+        String callId = prefs.getString("call_id", "");
+        if (interactionId.isEmpty() || callId.isEmpty()) return;
+        if (geminiKey == null || geminiKey.trim().isEmpty()) {
+            line("Kết quả ADB đã ghi nhận nhưng API key không còn trong phiên; chưa gửi được kết quả cho Antigravity. Hãy nhập lại khóa Google.", 0xffffca70);
+            return;
+        }
+        requestAntigravityToolFollowUp(geminiKey, interactionId, environmentId, callId, status, message);
+    }
+
+    private void reportAntigravityExecutionResult(String executionId, String exitCode) {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_antigravity_pending_tool", MODE_PRIVATE);
+        if (executionId == null || !executionId.equals(prefs.getString("execution_id", ""))) return;
+        boolean success = "0".equals(exitCode);
+        reportAntigravityToolOutcome(success ? "execution_succeeded" : "execution_failed",
+            "Kết quả thực tế từ Termux/ADB: exit_code=" + exitCode
+                + ". Chỉ xác nhận thành công khi mã thoát bằng 0; giải thích output và không suy diễn tác động.");
+    }
+
     private void processAiDevicePlanOutput(String output) {
         if (output == null || !output.contains("BO_AI_PLAN:")) return;
         android.content.SharedPreferences pending = getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE);
@@ -3260,12 +3293,15 @@ public class MainActivity extends Activity {
         java.util.regex.Matcher matcher = java.util.regex.Pattern
             .compile("(?m)^BO_AI_PLAN:([0-9a-fA-F-]{36}):(\\{[^\\r\\n]{1,5000}\\})\\s*$").matcher(output);
         if (!matcher.find() || !requestId.equalsIgnoreCase(matcher.group(1))) {
-            // A delayed result for another request must never be applied to the latest selected device.
-            line("Bỏ qua kế hoạch AI không khớp request ID đang chờ. Không thực thi lệnh.", 0xffffca70); return;
+            line("Bỏ qua kế hoạch AI không khớp request ID đang chờ. Không thực thi lệnh.", 0xffffca70);
+            reportAiProposalOutcome(provider, "rejected_by_bo", "BO từ chối kế hoạch vì request ID không khớp.");
+            return;
         }
         if (serial.isEmpty() || requestedAt == 0L || System.currentTimeMillis() - requestedAt > 600000L) {
             pending.edit().clear().commit();
-            line("Bỏ qua kế hoạch AI vì yêu cầu hiện tại đã hết hạn.", 0xffffca70); return;
+            line("Bỏ qua kế hoạch AI vì yêu cầu hiện tại đã hết hạn.", 0xffffca70);
+            reportAiProposalOutcome(provider, "expired", "Yêu cầu ADB đã hết hạn trước khi được duyệt.");
+            return;
         }
         pending.edit().clear().commit();
         try {
@@ -3291,6 +3327,7 @@ public class MainActivity extends Activity {
             String registryStatus = AiToolRegistry.validateAdbPlan(scope, serial, command, registryGrants);
             if (!"OK".equals(registryStatus)) {
                 line("Kế hoạch AI bị từ chối bởi bộ kiểm tra công cụ: " + registryStatus, 0xffff8080);
+                reportAiProposalOutcome(provider, "rejected_by_bo", "Bộ kiểm tra công cụ từ chối: " + registryStatus);
                 return;
             }
             if (!knownScope || command.isEmpty() || command.length() > 1200 || command.indexOf(0) >= 0
@@ -3300,15 +3337,22 @@ public class MainActivity extends Activity {
                 || command.contains("\\") || command.contains("'") || command.contains("\"")
                 || command.contains("adb ") || command.startsWith("adb")
                 || !isAiCommandAllowedForScope(scope, command)) {
-                line("Kế hoạch AI bị từ chối: lệnh không khớp quyền, chứa cú pháp shell hoặc thuộc nhóm thao tác bị chặn.", 0xffff8080); return;
+                line("Kế hoạch AI bị từ chối: lệnh không khớp quyền, chứa cú pháp shell hoặc thuộc nhóm thao tác bị chặn.", 0xffff8080);
+                reportAiProposalOutcome(provider, "rejected_by_bo", "Lệnh không qua chính sách an toàn của BO.");
+                return;
             }
             // The app, not the model, determines minimum risk for sensitive scopes.
             if ("RAW_ADB_SHELL".equals(scope) || "APP_INSTALL_REMOVE".equals(scope)
                 || "DEVICE_SETTINGS".equals(scope)) risk = "HIGH";
             else if ("SCREEN_CONTROL".equals(scope) && "LOW".equals(risk)) risk = "MEDIUM";
-            if (!isFreshAdbDevice(serial)) { line("Kế hoạch bị hủy: thiết bị đích không còn trực tuyến.", 0xffffca70); return; }
+            if (!isFreshAdbDevice(serial)) {
+                line("Kế hoạch bị hủy: thiết bị đích không còn trực tuyến.", 0xffffca70);
+                reportAiProposalOutcome(provider, "device_unavailable", "Thiết bị ADB không còn trực tuyến.");
+                return;
+            }
             if (!hasAiDevicePermission(serial, scope)) {
                 line("Kế hoạch bị chặn: chưa cấp quyền " + scope + " cho " + serial + ".", 0xffffca70);
+                reportAiProposalOutcome(provider, "permission_missing", "Chưa cấp quyền " + scope + " cho thiết bị " + serial + ".");
                 new AlertDialog.Builder(this).setTitle("AI chưa được cấp quyền")
                     .setMessage("Thiết bị: " + serial + "\nNhóm quyền cần: " + scope
                         + "\nMở phần cấp quyền, sau đó yêu cầu AI lập kế hoạch lại.")
@@ -3326,29 +3370,41 @@ public class MainActivity extends Activity {
             new AlertDialog.Builder(this).setTitle("Xem xét kế hoạch ADB do AI đề xuất")
                 .setMessage(message).setPositiveButton("XÁC NHẬN & CHẠY", (d, w) -> {
                     if (!isFreshAdbDevice(serial) || !hasAiDevicePermission(serial, scope)) {
-                        line("Không thực thi: thiết bị đã ngắt hoặc quyền đã bị thu hồi.", 0xffff8080); return;
+                        line("Không thực thi: thiết bị đã ngắt hoặc quyền đã bị thu hồi.", 0xffff8080);
+                        reportAiProposalOutcome(provider, "rejected_before_execution", "Thiết bị đã ngắt hoặc quyền bị thu hồi trước khi chạy.");
+                        return;
                     }
                     if ("HIGH".equals(risk)) {
                         new AlertDialog.Builder(this).setTitle("Lệnh có rủi ro cao")
                             .setMessage("Bạn đã xem lệnh và AI đánh giá rủi ro cao. Xác nhận lần cuối?\n\n" + command)
-                            .setPositiveButton("TÔI HIỂU, CHẠY", (x, y) -> executeAiAdbCommand(serial, scope, command))
-                            .setNegativeButton("HỦY", null).show();
-                    } else executeAiAdbCommand(serial, scope, command);
-                }).setNegativeButton("HỦY", null).show();
+                            .setPositiveButton("TÔI HIỂU, CHẠY", (x, y) -> executeAiAdbCommand(serial, scope, command, provider))
+                            .setNegativeButton("HỦY", (x, y) ->
+                                reportAiProposalOutcome(provider, "rejected_by_user", "Người dùng hủy xác nhận rủi ro cao; lệnh không chạy.")).show();
+                    } else executeAiAdbCommand(serial, scope, command, provider);
+                }).setNegativeButton("HỦY", (d, w) ->
+                    reportAiProposalOutcome(provider, "rejected_by_user", "Người dùng từ chối đề xuất ADB; lệnh không chạy.")).show();
         } catch (Exception e) { line("Không đọc được kế hoạch JSON: " + e.getMessage(), 0xffff8080); }
     }
 
-    private void executeAiAdbCommand(String serial, String scope, String command) {
+    private void executeAiAdbCommand(String serial, String scope, String command, String provider) {
         if (!isFreshAdbDevice(serial) || !hasAiDevicePermission(serial, scope)) {
-            line("Chặn thực thi: thiết bị không trực tuyến hoặc quyền đã bị thu hồi.", 0xffff8080); return;
+            line("Chặn thực thi: thiết bị không trực tuyến hoặc quyền đã bị thu hồi.", 0xffff8080);
+            reportAiProposalOutcome(provider, "rejected_before_execution", "Thiết bị ngoại tuyến hoặc quyền bị thu hồi tại bước kiểm tra cuối.");
+            return;
         }
         if (command == null || command.trim().isEmpty() || command.length() > 1200
             || command.matches("(?s).*[;&|<>$].*") || command.indexOf(96) >= 0
             || command.contains("\\") || command.contains("'") || command.contains("\"")
             || !isAiCommandAllowedForScope(scope, command)) {
-            line("Lệnh không qua kiểm tra cuối cùng; không thực thi.", 0xffff8080); return;
+            line("Lệnh không qua kiểm tra cuối cùng; không thực thi.", 0xffff8080);
+            reportAiProposalOutcome(provider, "rejected_by_bo", "Lệnh không qua kiểm tra cuối cùng của BO.");
+            return;
         }
         String executionId = java.util.UUID.randomUUID().toString();
+        if ("antigravity".equals(provider)) {
+            getSharedPreferences("bo_kali_antigravity_pending_tool", MODE_PRIVATE).edit()
+                .putString("execution_id", executionId).commit();
+        }
         String detail = "Thiết bị=" + serial + " | quyền=" + scope + " | lệnh=" + command;
         android.content.SharedPreferences audit = getSharedPreferences("bo_kali_ai_device_audit", MODE_PRIVATE);
         audit.edit().putString("pending_" + executionId, detail).apply();
@@ -3403,7 +3459,8 @@ public class MainActivity extends Activity {
             if (detail.isEmpty()) continue;
             prefs.edit().remove("pending_" + id).apply();
             appendAiDeviceAudit("KẾT QUẢ exit=" + status + " | " + detail);
-            line("AI ADB hoàn tất: mã thoát " + status + ". Xem Nhật ký điều khiển AI để biết chi tiết.", 
+            reportAntigravityExecutionResult(id, status);
+            line("AI ADB hoàn tất: mã thoát " + status + ". Xem Nhật ký điều khiển AI để biết chi tiết.",
                 "0".equals(status) ? GREEN : 0xffffca70);
         }
     }
@@ -4791,7 +4848,7 @@ public class MainActivity extends Activity {
     /** Return a guarded BO tool result to Antigravity; no ADB action is executed here. */
     private void requestAntigravityToolFollowUp(String apiKey, String previousId,
                                                  String environmentId, String callId,
-                                                 String toolResultText) {
+                                                 String status, String toolResultText) {
         worker.execute(() -> {
             HttpURLConnection followConn = null;
             try {
@@ -4800,7 +4857,7 @@ public class MainActivity extends Activity {
                     .put("name", "adb_propose_shell_command")
                     .put("call_id", callId)
                     .put("result", new JSONObject()
-                        .put("status", "queued_for_user_review")
+                        .put("status", status)
                         .put("message", toolResultText)));
                 JSONObject body = new JSONObject()
                     .put("agent", "antigravity-preview-09-2026")
@@ -4832,7 +4889,11 @@ public class MainActivity extends Activity {
                     edit.putLong("updated_at", System.currentTimeMillis()).apply();
                 }
                 String answer = extractAntigravityAnswer(followResult);
-                if (followCode < 200 || followCode >= 300) {
+                if (followCode >= 200 && followCode < 300) {
+                    android.content.SharedPreferences pendingTool =
+                        getSharedPreferences("bo_kali_antigravity_pending_tool", MODE_PRIVATE);
+                    if (callId.equals(pendingTool.getString("call_id", ""))) pendingTool.edit().clear().commit();
+                } else {
                     answer = "API chưa nhận được kết quả công cụ (HTTP " + followCode + "): " + answer;
                 }
                 final String out = answer.isEmpty()
@@ -4840,7 +4901,8 @@ public class MainActivity extends Activity {
                     : answer;
                 runOnUiThread(() -> line("Antigravity Agent: " + out, WHITE));
             } catch (Exception e) {
-                runOnUiThread(() -> line("Không gửi được kết quả công cụ cho Antigravity: " + e.getMessage(), 0xffff8080));
+                runOnUiThread(() -> line("Không gửi được kết quả công cụ cho Antigravity: " + e.getMessage()
+                    + ". Trạng thái vẫn được giữ cục bộ; chưa xác nhận AI đã nhận.", 0xffff8080));
             } finally {
                 if (followConn != null) followConn.disconnect();
             }
@@ -5046,9 +5108,10 @@ public class MainActivity extends Activity {
                             if (!"adb_propose_shell_command".equals(functionName) || callId.isEmpty() || args == null) {
                                 runOnUiThread(() -> line("BO từ chối công cụ Antigravity không được hỗ trợ hoặc thiếu đối số.", 0xffff8080));
                             } else {
-                                runOnUiThread(() -> acceptAiAdbProposal(args, "antigravity"));
-                                requestAntigravityToolFollowUp(apiKey, interactionId, environmentId, callId,
-                                    "BO đã nhận đề xuất ADB và chuyển sang kiểm tra quyền/duyệt của người dùng. Chưa có lệnh nào được thực thi. Không được tuyên bố thiết bị đã thay đổi.");
+                                runOnUiThread(() -> {
+                                    saveAntigravityPendingTool(interactionId, environmentId, callId);
+                                    acceptAiAdbProposal(args, "antigravity");
+                                });
                             }
                         }
                     } else {
@@ -5308,6 +5371,7 @@ public class MainActivity extends Activity {
         String providerName = aiProviderDisplayName(providerId);
         if (args == null) {
             line("BO từ chối đề xuất " + providerName + ": thiếu đối số.", 0xffff8080);
+            reportAiProposalOutcome(providerId, "rejected_by_bo", "Đề xuất thiếu đối số hợp lệ.");
             return;
         }
         String serial = args.optString("serial", "").trim();
@@ -5318,12 +5382,14 @@ public class MainActivity extends Activity {
         if (!"LOW".equals(risk) && !"MEDIUM".equals(risk) && !"HIGH".equals(risk)) risk = "HIGH";
         if (serial.isEmpty() || !isFreshAdbDevice(serial)) {
             line("BO từ chối đề xuất " + providerName + ": thiết bị không trực tuyến hoặc serial không hợp lệ.", 0xffff8080);
+            reportAiProposalOutcome(providerId, "device_unavailable", "Thiết bị không trực tuyến hoặc serial không hợp lệ.");
             return;
         }
         java.util.Set<String> grants = aiDevicePermissions.get(serial);
         String validation = AiToolRegistry.validateAdbPlan(scope, serial, command, grants);
         if (!"OK".equals(validation) || !hasAiDevicePermission(serial, scope)) {
             line("BO từ chối đề xuất " + providerName + ": " + validation + ". Hãy cấp đúng quyền cho thiết bị rồi yêu cầu lại.", 0xffffca70);
+            reportAiProposalOutcome(providerId, "permission_or_scope_rejected", "BO từ chối do scope/quyền chưa được cấp hoặc không hợp lệ: " + validation);
             return;
         }
         String requestId = java.util.UUID.randomUUID().toString();
@@ -5343,6 +5409,7 @@ public class MainActivity extends Activity {
         } catch (org.json.JSONException e) {
             getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE).edit().clear().commit();
             line("Không thể tạo bản xem xét lệnh " + providerName + ": " + e.getMessage(), 0xffff8080);
+            reportAiProposalOutcome(providerId, "rejected_by_bo", "BO không tạo được bản xem xét lệnh: " + e.getMessage());
         }
     }
 
