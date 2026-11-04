@@ -130,7 +130,7 @@ public class MainActivity extends Activity {
         Button routerWifi = button("KẾT NỐI MODEM / ROUTER WI-FI");
         routerWifi.setOnClickListener(v -> showWifiRouterManager());
         root.addView(routerWifi, new LinearLayout.LayoutParams(-1, dp(46)));
-        root.addView(adbRow);
+
         Button batchAdb = button("KIỂM TRA NHIỀU THIẾT BỊ");
         batchAdb.setOnClickListener(v -> showAdbBatchCheck());
         root.addView(batchAdb);
