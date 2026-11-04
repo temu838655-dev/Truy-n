@@ -25,12 +25,19 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         } else {
             String stdout = result.getString("stdout", "");
             String stderr = result.getString("stderr", "");
-            // Capture this compact marker before stdout is truncated for display.
+            // Capture compact machine-readable callbacks before stdout is truncated.
+            // AI plan output may be printed after a long CLI explanation; preserve the exact
+            // bounded marker so the Activity can still validate request ID and command policy.
             String aiExecutionMarker = "";
             java.util.regex.Matcher aiExecutionMatcher = java.util.regex.Pattern
                 .compile("BO_AI_EXEC_RESULT:([0-9a-fA-F-]{36}):(-?[0-9]+)")
                 .matcher(stdout);
             if (aiExecutionMatcher.find()) aiExecutionMarker = aiExecutionMatcher.group();
+            String aiPlanMarker = "";
+            java.util.regex.Matcher aiPlanMatcher = java.util.regex.Pattern
+                .compile("(?m)^BO_AI_PLAN:([0-9a-fA-F-]{36}):(\\\\{[^\\\\r\\\\n]{1,5000}\\\\})\\\\s*$")
+                .matcher(stdout);
+            if (aiPlanMatcher.find()) aiPlanMarker = aiPlanMatcher.group();
             // Screenshot Base64 is decoded below; never copy its multi-megabyte payload
             // into the human-readable transcript builder.
             boolean screenshotPayload = stdout.startsWith("BO_SCREEN_BASE64:");
@@ -53,6 +60,9 @@ public class TermuxResultReceiver extends BroadcastReceiver {
             int err = result.getInt("err", -1);
             String errmsg = result.getString("errmsg", "");
             output.append("Mã thoát: ").append(exitCode);
+            // Put the validated AI plan marker near the beginning so the Activity's
+            // bounded transcript truncation cannot discard it at the end of stdout.
+            if (!aiPlanMarker.isEmpty()) output.append("\\n").append(aiPlanMarker).append("\\n");
             if (exitCode == 0) output.append(" (thành công)");
             else if (exitCode > 0) output.append(" (lệnh kết thúc với lỗi)");
             output.append("\n");
