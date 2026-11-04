@@ -2389,7 +2389,7 @@ public class MainActivity extends Activity {
             .setNegativeButton("HỦY", null).show();
     }
 
-    private void runTermuxCommand(String command) {
+    private boolean runTermuxCommand(String command) {
         try {
             int request = TERMUX_REQUEST.incrementAndGet();
             Intent callback = new Intent(this, TermuxResultReceiver.class);
@@ -2405,8 +2405,15 @@ public class MainActivity extends Activity {
             intent.putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "BO Kali AI - tác vụ do người dùng yêu cầu");
             startService(intent);
             line("Đã gửi tác vụ đến Termux. Đang chờ kết quả...", GREEN);
-        } catch (SecurityException e) { line("Termux chưa bật allow-external-apps hoặc chưa cấp quyền RUN_COMMAND.", 0xffffca70); openTermux(); }
-          catch (Exception e) { line("Không gửi được tác vụ đến Termux: " + e.getMessage(), 0xffff8080); }
+            return true;
+        } catch (SecurityException e) {
+            line("Termux chưa bật allow-external-apps hoặc chưa cấp quyền RUN_COMMAND.", 0xffffca70);
+            openTermux();
+            return false;
+        } catch (Exception e) {
+            line("Không gửi được tác vụ đến Termux: " + e.getMessage(), 0xffff8080);
+            return false;
+        }
     }
 
     
@@ -3439,7 +3446,16 @@ public class MainActivity extends Activity {
         String commandLine = "adb -s " + shellQuote(serial) + " shell " + shellQuote(command)
             + "; __bo_ai_status=$?; printf '\\nBO_AI_EXEC_RESULT:" + executionId
             + ":%s\\n' \"$__bo_ai_status\"; exit \"$__bo_ai_status\"";
-        runTermuxCommand(commandLine);
+        if (!runTermuxCommand(commandLine)) {
+            audit.edit().remove("pending_" + executionId).apply();
+            appendAiDeviceAudit("KHÔNG GỬI ĐƯỢC TERMUX / CHƯA THỰC THI | " + detail);
+            if ("antigravity".equals(provider)) {
+                getSharedPreferences("bo_kali_antigravity_pending_tool", MODE_PRIVATE).edit()
+                    .remove("execution_id").commit();
+            }
+            reportAiProposalOutcome(provider, "dispatch_failed",
+                "BO không gửi được tác vụ tới Termux (thiếu quyền RUN_COMMAND, Termux chưa sẵn sàng hoặc lỗi dịch vụ). Lệnh chưa được xác nhận là đã chạy.");
+        }
     }
 
     private void appendAiDeviceAudit(String entry) {
