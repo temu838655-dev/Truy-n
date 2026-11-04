@@ -217,6 +217,9 @@ public class MainActivity extends Activity {
         Button importAiFile = button("CHỌN TỆP VĂN BẢN / MÃ NGUỒN CHO AI");
         importAiFile.setOnClickListener(v -> pickAiTextFile());
         root.addView(importAiFile, new LinearLayout.LayoutParams(-1, dp(42)));
+        Button clearAiFile = button("XÓA TỆP AI ĐANG CHỌN KHỎI BỘ NHỚ PHIÊN");
+        clearAiFile.setOnClickListener(v -> clearSelectedAiFile());
+        root.addView(clearAiFile, new LinearLayout.LayoutParams(-1, dp(40)));
         Button antigravity = button("GOOGLE ANTIGRAVITY • CHAT / AGENT");
         antigravity.setOnClickListener(v -> showAntigravityMenu());
         root.addView(antigravity, new LinearLayout.LayoutParams(-1, dp(44)));
@@ -2504,6 +2507,12 @@ public class MainActivity extends Activity {
     private static final int REQ_ADB_BACKUP_IMPORT = 4102;
     private static final int REQ_RESULT_EXPORT = 4103;
     private static final int REQ_AI_TEXT_FILE = 4104;
+
+    private void clearSelectedAiFile() {
+        selectedAiFileName = "";
+        selectedAiFileText = "";
+        line("Đã xóa nội dung tệp AI khỏi bộ nhớ phiên BO. Quyền chia sẻ tệp vẫn có thể được tắt trong Cài đặt.", GREEN);
+    }
 
     private void pickAiTextFile() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -4951,7 +4960,7 @@ public class MainActivity extends Activity {
             + ". Chỉ hỗ trợ văn bản/mã nguồn UTF-8 tối đa 256 KB; PDF/DOCX/XLSX/ảnh chưa hỗ trợ.", 0xff91a9bd, 11, false));
         box.addView(text("Terminal và tệp là hai quyền độc lập. Không gửi GitHub token hoặc tệp nếu chưa bật đúng quyền.", 0xff91a9bd, 11, false));
         new AlertDialog.Builder(this).setTitle("Kết nối AI / GitHub")
-            .setMessage("Gemini: dùng API key từ Google AI Studio. GitHub: đọc cần Contents: read; ghi cần Contents: read and write (fine-grained) hoặc repo (classic). Token chỉ giữ trong bộ nhớ phiên. Quyền chia sẻ kết quả terminal được cấp riêng cho từng AI, mặc định tắt và chỉ có hiệu lực trong phiên app này.")
+            .setMessage("Gemini: dùng API key từ Google AI Studio. GitHub: đọc cần Contents: read; ghi cần Contents: read and write (fine-grained) hoặc repo (classic). Token chỉ giữ trong bộ nhớ phiên. Quyền đọc terminal và tệp đã chọn được cấp độc lập cho từng AI, mặc định tắt; tệp chỉ giữ trong RAM phiên và có thể xóa bằng nút XÓA TỆP.")
             .setView(box)
             .setPositiveButton("Lưu và kiểm tra GitHub", (d,w) -> {
                 geminiKey = gem.getText().toString().trim();
