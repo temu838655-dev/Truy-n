@@ -89,6 +89,60 @@ public final class AiToolRegistry {
         return "OK";
     }
 
+    /**
+     * Strict OpenAI Responses function schema for the single-command ADB proposal.
+     * This tool only creates a proposal; it is not an execution endpoint.
+     */
+    public static JSONArray openAiProposalTools() throws org.json.JSONException {
+        JSONObject properties = new JSONObject()
+            .put("serial", new JSONObject().put("type", "string")
+                .put("description", "Serial chính xác của thiết bị ADB đã được người dùng chọn."))
+            .put("scope", new JSONObject().put("type", "string")
+                .put("enum", new org.json.JSONArray().put(READ_INFO).put(READ_LOGS)
+                    .put(APP_LIST).put(APP_LAUNCH).put(APP_INSTALL_REMOVE)
+                    .put(SCREEN_CONTROL).put(DEVICE_SETTINGS).put(NETWORK_DIAGNOSTICS)
+                    .put(RAW_ADB_SHELL)))
+            .put("command", new JSONObject().put("type", "string")
+                .put("description", "Đúng một lệnh Android shell; không thêm adb -s."))
+            .put("reason", new JSONObject().put("type", "string"))
+            .put("risk", new JSONObject().put("type", "string")
+                .put("enum", new org.json.JSONArray().put("LOW").put("MEDIUM").put("HIGH")));
+        JSONObject parameters = new JSONObject().put("type", "object")
+            .put("properties", properties)
+            .put("required", new org.json.JSONArray().put("serial").put("scope")
+                .put("command").put("reason").put("risk"))
+            .put("additionalProperties", false);
+        JSONObject function = new JSONObject().put("type", "function")
+            .put("name", "adb.propose_shell_command")
+            .put("description", "Đề xuất một lệnh ADB duy nhất cho thiết bị được người dùng chỉ định. Không thực thi. BO sẽ kiểm tra quyền và yêu cầu người dùng xác nhận.")
+            .put("parameters", parameters).put("strict", true);
+        return new JSONArray().put(function);
+    }
+
+    /** Extract direct Responses API function_call items; malformed calls are ignored. */
+    public static JSONArray extractOpenAiFunctionCalls(JSONObject response) {
+        JSONArray calls = new JSONArray();
+        if (response == null) return calls;
+        JSONArray output = response.optJSONArray("output");
+        if (output == null) return calls;
+        for (int i = 0; i < output.length(); i++) {
+            JSONObject item = output.optJSONObject(i);
+            if (item == null || !"function_call".equals(item.optString("type"))) continue;
+            String callId = item.optString("call_id", "").trim();
+            String name = item.optString("name", "").trim();
+            String rawArgs = item.optString("arguments", "");
+            if (callId.isEmpty() || name.isEmpty() || rawArgs.isEmpty()) continue;
+            try {
+                JSONObject args = new JSONObject(rawArgs);
+                calls.put(new JSONObject().put("call_id", callId)
+                    .put("name", name).put("arguments", args));
+            } catch (org.json.JSONException ignored) {
+                // Never pass malformed model-generated arguments to a dispatcher.
+            }
+        }
+        return calls;
+    }
+
     /** Validate the call envelope only; host UI must still obtain approval before side effects. */
     public static String validateCall(String name, JSONObject args, Set<String> grants) {
         Tool t = find(name);
