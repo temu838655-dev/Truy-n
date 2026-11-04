@@ -4254,10 +4254,18 @@ public class MainActivity extends Activity {
     private void showCodexMenu() {
         new AlertDialog.Builder(this).setTitle("OpenAI Codex • Coding Agent")
             .setMessage("Codex CLI chạy trong Debian proot. Đăng nhập bằng ChatGPT OAuth hoặc API key ngay trong Termux; không gửi mật khẩu/token vào BO. Chế độ CHAT chỉ đọc mã. Chế độ SỬA CODE chỉ ghi trong workspace bạn chọn, không bật quyền toàn hệ thống.")
-            .setPositiveButton("CHAT / PHÂN TÍCH (CHỈ ĐỌC)", (d, w) -> showCodexTask(false))
-            .setNeutralButton("AI ĐỌC TỆP GITHUB", (d, w) -> showGithubAiReviewDialog(true))
-            .setNeutralButton("SỬA CODE (CÓ XÁC NHẬN)", (d, w) -> showCodexEditConfirmation())
-            .setNegativeButton("CÀI / ĐĂNG NHẬP", (d, w) -> showCodexSetupMenu())
+            .setItems(new String[]{
+                "CHAT / PHÂN TÍCH (CHỈ ĐỌC)",
+                "AI ĐỌC TỆP GITHUB",
+                "SỬA CODE (CÓ XÁC NHẬN)",
+                "CÀI / ĐĂNG NHẬP"
+            }, (d, which) -> {
+                if (which == 0) showCodexTask(false);
+                else if (which == 1) showGithubAiReviewDialog(true);
+                else if (which == 2) showCodexEditConfirmation();
+                else showCodexSetupMenu();
+            })
+            .setNegativeButton("ĐÓNG", null)
             .show();
     }
 
