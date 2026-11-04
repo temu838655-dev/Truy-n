@@ -111,7 +111,7 @@ public class MainActivity extends Activity {
 
     private void buildUi() {
         root = new LinearLayout(this);
-        root.setOrientation(1);
+        root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(18,18,18,14);
         root.setBackgroundColor(BG);
         root.addView(text("BO KALI AI  •  ADB & CODE", GREEN, 19, true));
@@ -125,7 +125,7 @@ public class MainActivity extends Activity {
         root.addView(github, new LinearLayout.LayoutParams(-1, dp(46)));
 
         root.addView(text("ADB DEVICE CONTROL", GREEN, 12, true));
-        LinearLayout adbRow = new LinearLayout(this); adbRow.setOrientation(0);
+        LinearLayout adbRow = new LinearLayout(this); adbRow.setOrientation(LinearLayout.HORIZONTAL);
         Button scan = button("QUÉT ADB"); scan.setOnClickListener(v -> scanAdbServices());
         adbRow.addView(scan, new LinearLayout.LayoutParams(0, dp(44), 1));
         Button pair = button("GHÉP ĐÔI"); pair.setOnClickListener(v -> showAdbPairDialog());
@@ -136,7 +136,7 @@ public class MainActivity extends Activity {
         adbRow.addView(devices, new LinearLayout.LayoutParams(0, dp(44), 1));
         root.addView(adbRow);
 
-        LinearLayout controlRow = new LinearLayout(this); controlRow.setOrientation(0);
+        LinearLayout controlRow = new LinearLayout(this); controlRow.setOrientation(LinearLayout.HORIZONTAL);
         Button shell = button("ADB SHELL"); shell.setOnClickListener(v -> showAdbShellDialog());
         controlRow.addView(shell, new LinearLayout.LayoutParams(0, dp(44), 1));
         Button aiPermissions = button("QUYỀN AI / ADB"); aiPermissions.setOnClickListener(v -> showAiDeviceControlMenu());
@@ -145,7 +145,7 @@ public class MainActivity extends Activity {
         controlRow.addView(aiPlan, new LinearLayout.LayoutParams(0, dp(44), 1));
         root.addView(controlRow);
 
-        LinearLayout toolsRow = new LinearLayout(this); toolsRow.setOrientation(0);
+        LinearLayout toolsRow = new LinearLayout(this); toolsRow.setOrientation(LinearLayout.HORIZONTAL);
         Button batch = button("KIỂM TRA NHIỀU MÁY"); batch.setOnClickListener(v -> showAdbBatchCheck());
         toolsRow.addView(batch, new LinearLayout.LayoutParams(0, dp(42), 1));
         Button backup = button("SAO LƯU / KHÔI PHỤC"); backup.setOnClickListener(v -> showAdbBackupMenu());
@@ -155,13 +155,13 @@ public class MainActivity extends Activity {
         root.addView(toolsRow);
 
         scroll = new ScrollView(this); scroll.setFillViewport(true);
-        log = new LinearLayout(this); log.setOrientation(1);
+        log = new LinearLayout(this); log.setOrientation(LinearLayout.VERTICAL);
         log.setPadding(12,12,12,12); log.setBackgroundColor(PANEL);
         scroll.addView(log);
         root.addView(scroll, new LinearLayout.LayoutParams(-1,0,1));
 
         root.addView(text("ADB / TERMINAL COMMAND", GREEN, 12, true));
-        LinearLayout commandRow = new LinearLayout(this); commandRow.setOrientation(0);
+        LinearLayout commandRow = new LinearLayout(this); commandRow.setOrientation(LinearLayout.HORIZONTAL);
         commandInput = input("Nhập lệnh: help, device, net, wifi...");
         commandRow.addView(commandInput, new LinearLayout.LayoutParams(0,dp(50),1));
         Button run = button("CHẠY"); run.setOnClickListener(v -> runCommand());
@@ -180,7 +180,7 @@ public class MainActivity extends Activity {
         Button ask = button("GỬI YÊU CẦU CHO AI"); ask.setOnClickListener(v -> askAi());
         root.addView(ask, new LinearLayout.LayoutParams(-1, dp(46)));
 
-        LinearLayout agentRow = new LinearLayout(this); agentRow.setOrientation(0);
+        LinearLayout agentRow = new LinearLayout(this); agentRow.setOrientation(LinearLayout.HORIZONTAL);
         Button antigravity = button("GOOGLE ANTIGRAVITY"); antigravity.setOnClickListener(v -> showAntigravityMenu());
         agentRow.addView(antigravity, new LinearLayout.LayoutParams(0, dp(44), 1));
         Button codex = button("OPENAI CODEX"); codex.setOnClickListener(v -> showCodexMenu());
@@ -193,7 +193,7 @@ public class MainActivity extends Activity {
         Button clearCode = button("XÓA TỆP ĐANG NẠP");
         clearCode.setOnClickListener(v -> clearSelectedAiFile());
         root.addView(clearCode, new LinearLayout.LayoutParams(-1, dp(40)));
-        LinearLayout outputRow = new LinearLayout(this); outputRow.setOrientation(0);
+        LinearLayout outputRow = new LinearLayout(this); outputRow.setOrientation(LinearLayout.HORIZONTAL);
         Button explain = button("AI GIẢI THÍCH KẾT QUẢ"); explain.setOnClickListener(v -> explainLastOutput());
         outputRow.addView(explain, new LinearLayout.LayoutParams(0, dp(42), 1));
         Button copy = button("SAO CHÉP OUTPUT"); copy.setOnClickListener(v -> copyLastCommandOutput());
@@ -748,7 +748,7 @@ public class MainActivity extends Activity {
                     displayName.setText(service.name);
                     EditText user = input("Tài khoản SSH");
                     LinearLayout form = new LinearLayout(this);
-                    form.setOrientation(1);
+                    form.setOrientation(LinearLayout.VERTICAL);
                     form.setPadding(dp(18), dp(8), dp(18), 0);
                     form.addView(displayName);
                     if (ssh) form.addView(user);
@@ -790,7 +790,7 @@ public class MainActivity extends Activity {
 
     private void showAddDeviceProfileDialog() {
         LinearLayout form = new LinearLayout(this);
-        form.setOrientation(1);
+        form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(dp(18), dp(8), dp(18), 0);
 
         String[] platformLabels = {
@@ -1431,12 +1431,12 @@ public class MainActivity extends Activity {
             }
         }
         LinearLayout page = new LinearLayout(this);
-        page.setOrientation(1);
+        page.setOrientation(LinearLayout.VERTICAL);
         page.setPadding(dp(10), dp(10), dp(10), dp(10));
         page.setBackgroundColor(BG);
 
         LinearLayout top = new LinearLayout(this);
-        top.setOrientation(0);
+        top.setOrientation(LinearLayout.HORIZONTAL);
         Button back = button("QUAY LẠI");
         back.setOnClickListener(v -> setContentView(root));
         top.addView(back, new LinearLayout.LayoutParams(0, dp(44), 1));
@@ -1456,7 +1456,7 @@ public class MainActivity extends Activity {
         split.setWeightSum(5f);
 
         LinearLayout codePane = new LinearLayout(this);
-        codePane.setOrientation(1);
+        codePane.setOrientation(LinearLayout.VERTICAL);
         codePane.setPadding(dp(8), dp(8), dp(8), dp(8));
         codePane.setBackgroundColor(PANEL);
         TextView codeTitle = text("MÀN HÌNH CHÍNH · CODE / KALI / AI", GREEN, 13, true);
@@ -1474,7 +1474,7 @@ public class MainActivity extends Activity {
         codePane.addView(ai, new LinearLayout.LayoutParams(-1, dp(44)));
 
         LinearLayout devicePane = new LinearLayout(this);
-        devicePane.setOrientation(1);
+        devicePane.setOrientation(LinearLayout.VERTICAL);
         devicePane.setPadding(dp(8), dp(8), dp(8), dp(8));
         devicePane.setBackgroundColor(0xff101f2e);
         TextView deviceTitle = text("MÀN HÌNH PHỤ · THIẾT BỊ", 0xff79c9ff, 13, true);
@@ -1532,7 +1532,7 @@ public class MainActivity extends Activity {
         Button splitAgain = button("CHIA ĐÔI");
         Button swap = button("ĐỔI VỊ TRÍ");
         LinearLayout controls = new LinearLayout(this);
-        controls.setOrientation(0);
+        controls.setOrientation(LinearLayout.HORIZONTAL);
         controls.addView(expandCode, new LinearLayout.LayoutParams(0, dp(42), 1));
         controls.addView(expandDevice, new LinearLayout.LayoutParams(0, dp(42), 1));
         controls.addView(splitAgain, new LinearLayout.LayoutParams(0, dp(42), 1));
@@ -2178,7 +2178,7 @@ public class MainActivity extends Activity {
     }
 
     private void showAdbPairForm(String presetEndpoint) {
-        LinearLayout form = new LinearLayout(this); form.setOrientation(1); form.setPadding(dp(16), dp(8), dp(16), 0);
+        LinearLayout form = new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL); form.setPadding(dp(16), dp(8), dp(16), 0);
         EditText endpoint = input("IP: CỔNG GHÉP ĐÔI (ví dụ 192.168.1.20:37123)");
         if (presetEndpoint != null && !presetEndpoint.isEmpty()) endpoint.setText(presetEndpoint);
         EditText code = input("Mã ghép đôi 6 chữ số"); code.setInputType(2);
@@ -3123,7 +3123,7 @@ public class MainActivity extends Activity {
             return;
         }
         LinearLayout form = new LinearLayout(this);
-        form.setOrientation(1); form.setPadding(dp(8), dp(4), dp(8), dp(4));
+        form.setOrientation(LinearLayout.VERTICAL); form.setPadding(dp(8), dp(4), dp(8), dp(4));
         String[] labels = new String[devices.size()];
         android.content.SharedPreferences devicePrefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
         for (int i = 0; i < devices.size(); i++) {
@@ -3712,7 +3712,7 @@ public class MainActivity extends Activity {
     // Read a bounded recent logcat snapshot; never clears logs or changes device state.
     private void showAdbLogcatDialog(String serial) {
         LinearLayout fields = new LinearLayout(this);
-        fields.setOrientation(1);
+        fields.setOrientation(LinearLayout.VERTICAL);
         fields.setPadding(24, 8, 24, 8);
         android.content.SharedPreferences filterPrefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
         EditText countInput = input("Số dòng log (50–1000, mặc định 300)");
@@ -3876,7 +3876,7 @@ public class MainActivity extends Activity {
         android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
         String saved = prefs.getString("preset_" + serial, "");
         LinearLayout form = new LinearLayout(this);
-        form.setOrientation(1);
+        form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(dp(16), dp(8), dp(16), 0);
         EditText command = input("Ví dụ: getprop ro.product.model");
         command.setSingleLine(false);
@@ -4010,7 +4010,7 @@ public class MainActivity extends Activity {
     }
 
     private void showAdbShellDialogFor(String serialValue) {
-        LinearLayout form = new LinearLayout(this); form.setOrientation(1);
+        LinearLayout form = new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(dp(16), dp(8), dp(16), 0);
         EditText remoteCommand = input("Lệnh trên thiết bị, ví dụ: getprop ro.product.model");
         form.addView(remoteCommand);
@@ -4168,7 +4168,7 @@ public class MainActivity extends Activity {
     }
 
     private void showAdbShellManualDialog() {
-        LinearLayout form = new LinearLayout(this); form.setOrientation(1);
+        LinearLayout form = new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(dp(16), dp(8), dp(16), 0);
         EditText serial = input("Serial thiết bị (xem trong THIẾT BỊ)");
         EditText remoteCommand = input("Lệnh trên thiết bị, ví dụ: getprop ro.product.model");
@@ -5702,7 +5702,7 @@ public class MainActivity extends Activity {
 
     private void showCodexTask(boolean allowEdits) {
         LinearLayout form = new LinearLayout(this);
-        form.setOrientation(1);
+        form.setOrientation(LinearLayout.VERTICAL);
         int pad = dp(8);
         form.setPadding(pad, pad, pad, pad);
         EditText workspace = new EditText(this);
@@ -5778,7 +5778,7 @@ public class MainActivity extends Activity {
     }
 
     private void connectionSettings() {
-        LinearLayout box = new LinearLayout(this); box.setPadding(24,8,24,8); box.setOrientation(1);
+        LinearLayout box = new LinearLayout(this); box.setPadding(24,8,24,8); box.setOrientation(LinearLayout.VERTICAL);
         EditText gem = input("Gemini API key (Google AI Studio)");
         gem.setText(geminiKey); box.addView(gem);
         EditText claude = input("Claude API key (Anthropic Console)");
@@ -6551,7 +6551,7 @@ public class MainActivity extends Activity {
             return;
         }
         LinearLayout form = new LinearLayout(this);
-        form.setOrientation(1); form.setPadding(dp(8), dp(4), dp(8), dp(4));
+        form.setOrientation(LinearLayout.VERTICAL); form.setPadding(dp(8), dp(4), dp(8), dp(4));
         EditText repo = input("owner/repository");
         EditText branch = input("Nhánh, ví dụ main"); branch.setText("main");
         EditText path = input("Đường dẫn tệp trong repository");
@@ -6622,7 +6622,7 @@ public class MainActivity extends Activity {
     }
 
     private void showGithubFileDialog(boolean write) {
-        LinearLayout form = new LinearLayout(this); form.setOrientation(1); form.setPadding(dp(8), dp(4), dp(8), dp(4));
+        LinearLayout form = new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL); form.setPadding(dp(8), dp(4), dp(8), dp(4));
         EditText repoName = input("owner/repository");
         EditText branch = input("Nhánh (mặc định main)");
         branch.setText("main");
@@ -6658,7 +6658,7 @@ public class MainActivity extends Activity {
 
     private void showGithubPullRequestDialog() {
         LinearLayout form = new LinearLayout(this);
-        form.setOrientation(1); form.setPadding(dp(8), dp(4), dp(8), dp(4));
+        form.setOrientation(LinearLayout.VERTICAL); form.setPadding(dp(8), dp(4), dp(8), dp(4));
         EditText repository = input("owner/repository");
         EditText base = input("Nhánh đích, ví dụ main"); base.setText("main");
         EditText path = input("Đường dẫn tệp cần tạo/cập nhật");
