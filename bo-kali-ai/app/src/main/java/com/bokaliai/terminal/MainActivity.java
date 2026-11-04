@@ -1066,8 +1066,10 @@ public class MainActivity extends Activity {
         countInput.setText("300");
         EditText priorityInput = input("Mức lọc: V, D, I, W, E hoặc F (mặc định V)");
         priorityInput.setText("V");
+        EditText packageInput = input("Lọc theo package (để trống = tất cả ứng dụng)");
         fields.addView(countInput);
         fields.addView(priorityInput);
+        fields.addView(packageInput);
         new AlertDialog.Builder(this)
             .setTitle("Đọc Logcat • " + serial)
             .setMessage("Logcat có thể chứa tên ứng dụng, địa chỉ, mã phiên hoặc dữ liệu riêng tư. Giới hạn 1.000 dòng; thao tác chỉ đọc, không xóa log hay thay đổi thiết bị.\n\nMức lọc: V=tất cả, D=debug, I=info, W=cảnh báo, E=lỗi, F=lỗi nghiêm trọng.")
@@ -1091,16 +1093,35 @@ public class MainActivity extends Activity {
                     return;
                 }
                 final String selectedPriority = priority;
+                String packageName = packageInput.getText().toString().trim();
+                if (!packageName.isEmpty() && !packageName.matches("[A-Za-z0-9_]+(\\\\.[A-Za-z0-9_]+)+")) {
+                    line("Tên package không hợp lệ. Ví dụ: com.android.settings", 0xffffca70);
+                    return;
+                }
+                final String selectedPackage = packageName;
                 String filter = "*:" + selectedPriority;
-                String command = "adb -s " + shellQuote(serial)
-                    + " logcat -d -v threadtime -t " + count + " " + shellQuote(filter);
+                String command;
+                if (selectedPackage.isEmpty()) {
+                    command = "adb -s " + shellQuote(serial)
+                        + " logcat -d -v threadtime -t " + count + " " + shellQuote(filter);
+                } else {
+                    String pidLookup = "pid=\\$(adb -s " + shellQuote(serial) + " shell pidof "
+                        + shellQuote(selectedPackage) + " 2>/dev/null | tr -d '\\\\r'); "
+                        + "if [ -n \"\\$pid\" ]; then adb -s " + shellQuote(serial)
+                        + " logcat -d -v threadtime -t " + count + " --pid=\"\\$pid\" "
+                        + shellQuote(filter)
+                        + "; else echo 'Không tìm thấy PID đang chạy cho package " + selectedPackage + "'; fi";
+                    command = pidLookup;
+                }
                 new AlertDialog.Builder(this)
                     .setTitle("Xác nhận đọc Logcat")
                     .setMessage("Thiết bị: " + serial + "\\nSố dòng tối đa: " + count
-                        + "\\nMức lọc: " + priority
-                        + "\\n\\nLệnh chỉ đọc log, không dùng logcat -c. Kết quả gần nhất sẽ được lưu trong BO Kali AI; hãy kiểm tra trước khi chia sẻ.")
+                        + "\\nMức lọc: " + selectedPriority
+                        + "\\nPackage: " + (selectedPackage.isEmpty() ? "Tất cả ứng dụng" : selectedPackage)
+                        + "\\n\\nLệnh chỉ đọc log, không dùng logcat -c. Lọc package dựa trên PID của ứng dụng đang chạy; ứng dụng chưa chạy có thể không có kết quả.")
                     .setPositiveButton("ĐỌC LOG", (x, y) -> {
-                        line("Đang đọc tối đa " + count + " dòng Logcat (mức " + selectedPriority + ") từ " + serial + "...", GREEN);
+                        line("Đang đọc tối đa " + count + " dòng Logcat (mức " + selectedPriority
+                            + (selectedPackage.isEmpty() ? "" : ", package " + selectedPackage) + ") từ " + serial + "...", GREEN);
                         getSharedPreferences("bo_kali_results", MODE_PRIVATE).edit()
                             .putString("last_logcat_serial", serial)
                             .putLong("last_logcat_requested_at", System.currentTimeMillis() - 1)
