@@ -1170,7 +1170,6 @@ public class MainActivity extends Activity {
             if (!adbResolveInFlight || token != adbResolveTaskToken) return;
             adbResolveInFlight = false;
             adbResolveTimeout = null;
-            adbResolveQueuedKeys.remove(adbResolveCurrentKey);
             adbResolveCurrentKey = "";
             line("Hết thời gian phân giải một dịch vụ ADB; bỏ qua dịch vụ này và tiếp tục hàng đợi.", 0xffffca70);
             resolveNextAdbService();
@@ -1186,7 +1185,6 @@ public class MainActivity extends Activity {
         if (adbResolveTimeout != null) mainHandler.removeCallbacks(adbResolveTimeout);
         adbResolveTimeout = null;
         adbResolveInFlight = false;
-        adbResolveQueuedKeys.remove(key);
         adbResolveCurrentKey = "";
         resolveNextAdbService();
     }
