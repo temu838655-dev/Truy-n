@@ -175,18 +175,27 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
                 if (codec == null) continue;
 
                 int inputIndex = codec.dequeueInputBuffer(10_000);
+                long inputDeadline = System.nanoTime() + 500_000_000L;
+                while (inputIndex < 0 && running.get() && System.nanoTime() < inputDeadline) {
+                    // Drain decoded output while waiting for an input buffer. This applies
+                    // backpressure instead of immediately discarding a video frame.
+                    drainDecoder(codec);
+                    inputIndex = codec.dequeueInputBuffer(10_000);
+                }
                 if (inputIndex >= 0) {
                     ByteBuffer target = codec.getInputBuffer(inputIndex);
-                    if (target != null && target.capacity() >= packet.length) {
-                        target.clear();
-                        target.put(packet);
-                        boolean config = (ptsAndFlags & FLAG_CONFIG) != 0;
-                        long pts = config ? 0L : (ptsAndFlags & FLAG_PTS_MASK);
-                        codec.queueInputBuffer(inputIndex, 0, packet.length, pts,
-                            config ? MediaCodec.BUFFER_FLAG_CODEC_CONFIG : 0);
-                    } else {
+                    if (target == null || target.capacity() < packet.length) {
                         codec.queueInputBuffer(inputIndex, 0, 0, 0, 0);
+                        throw new IOException("Gói video vượt dung lượng bộ đệm giải mã");
                     }
+                    target.clear();
+                    target.put(packet);
+                    boolean config = (ptsAndFlags & FLAG_CONFIG) != 0;
+                    long pts = config ? 0L : (ptsAndFlags & FLAG_PTS_MASK);
+                    codec.queueInputBuffer(inputIndex, 0, packet.length, pts,
+                        config ? MediaCodec.BUFFER_FLAG_CODEC_CONFIG : 0);
+                } else if (running.get()) {
+                    throw new IOException("Bộ giải mã video không nhận buffer sau 500 ms");
                 }
                 drainDecoder(codec);
             }
