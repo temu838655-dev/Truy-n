@@ -1341,9 +1341,13 @@ public class MainActivity extends Activity {
                 if (adbPairingDiscoveryTimeout != null) mainHandler.removeCallbacks(adbPairingDiscoveryTimeout);
                 adbPairingDiscoveryTimeout = null;
                 adbPairingDiscoveryListener = null;
+                if (adbResolveInFlight || !adbResolveQueue.isEmpty()) {
+                    adbResolveDrainDeadline = android.os.SystemClock.elapsedRealtime() + 15000L;
+                }
                 try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) { }
                 releaseHubMulticastLock();
-                line("Không dừng được lượt quét pairing bình thường, mã " + error, 0xffffca70);
+                line("Không dừng được lượt quét pairing bình thường, mã " + error
+                    + "; vẫn giới hạn thời gian xử lý endpoint đã tìm thấy.", 0xffffca70);
             }
             @Override public void onDiscoveryStopped(String type) {
                 if (adbPairingDiscoveryListener != this) return;
@@ -1439,9 +1443,13 @@ public class MainActivity extends Activity {
                 if (adbDiscoveryTimeout != null) mainHandler.removeCallbacks(adbDiscoveryTimeout);
                 adbDiscoveryTimeout = null;
                 adbDiscoveryListener = null;
+                if (adbResolveInFlight || !adbResolveQueue.isEmpty()) {
+                    adbResolveDrainDeadline = android.os.SystemClock.elapsedRealtime() + 15000L;
+                }
                 try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) { }
                 releaseHubMulticastLock();
-                line("Không dừng được lượt quét ADB bình thường, mã " + error, 0xffffca70);
+                line("Không dừng được lượt quét ADB bình thường, mã " + error
+                    + "; vẫn giới hạn thời gian xử lý endpoint đã tìm thấy.", 0xffffca70);
             }
             @Override public void onDiscoveryStopped(String type) {
                 if (adbDiscoveryListener != this) return;
