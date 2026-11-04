@@ -1162,6 +1162,16 @@ public class MainActivity extends Activity {
                     .setNegativeButton("HỦY", null)
                     .show();
             })
+            .setNeutralButton("ĐẶT LẠI BỘ LỌC", (d, w) -> {
+                filterPrefs.edit()
+                    .remove("logcat_count_" + serial)
+                    .remove("logcat_priority_" + serial)
+                    .remove("logcat_buffer_" + serial)
+                    .remove("logcat_tag_" + serial)
+                    .remove("logcat_package_" + serial)
+                    .apply();
+                line("Đã xóa bộ lọc Logcat đã lưu riêng cho " + serial + ". Mở lại Logcat để dùng giá trị mặc định.", GREEN);
+            })
             .setNegativeButton("HỦY", null)
             .show();
     }
