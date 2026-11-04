@@ -450,6 +450,7 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("Chọn cổng ghép đôi đã quét")
             .setItems(choices, (d, which) -> showAdbPairForm(choices[which]))
             .setPositiveButton("NHẬP THỦ CÔNG", (d,w) -> showAdbPairForm(""))
+            .setNeutralButton("QUẢN LÝ ENDPOINT", (d,w) -> showManageAdbEndpoints(true))
             .setNegativeButton("HỦY", null).show();
     }
 
@@ -478,10 +479,55 @@ public class MainActivity extends Activity {
         if (choices.length > 0) {
             builder.setItems(choices, (d, which) -> connectAdbEndpoint(choices[which]));
             builder.setPositiveButton("NHẬP IP:CỔNG", (d, w) -> showManualAdbConnectDialog());
+            builder.setNeutralButton("QUẢN LÝ ENDPOINT", (d, w) -> showManageAdbEndpoints(false));
             builder.setNegativeButton("ĐÓNG", null).show();
         } else {
             showManualAdbConnectDialog();
         }
+    }
+
+    // Remove only locally saved discovery endpoints; this never disconnects an ADB device.
+    private void showManageAdbEndpoints(boolean pairing) {
+        final String listKey = pairing ? "pairing_endpoints" : "discovered_endpoints";
+        final String servicePrefix = pairing ? "pairing_service_" : "service_";
+        final String title = pairing ? "Endpoint ghép đôi đã lưu" : "Endpoint kết nối đã lưu";
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        java.util.ArrayList<String> endpoints = new java.util.ArrayList<>(
+            prefs.getStringSet(listKey, new java.util.HashSet<>()));
+        java.util.Collections.sort(endpoints);
+        if (endpoints.isEmpty()) {
+            new AlertDialog.Builder(this).setTitle(title)
+                .setMessage("Không có endpoint nào được lưu.")
+                .setPositiveButton("ĐÓNG", null).show();
+            return;
+        }
+        String[] labels = new String[endpoints.size()];
+        boolean[] checked = new boolean[endpoints.size()];
+        for (int i = 0; i < endpoints.size(); i++) {
+            String endpoint = endpoints.get(i);
+            String service = prefs.getString(servicePrefix + endpoint, "");
+            labels[i] = endpoint + (service.isEmpty() ? "" : "\\n" + service);
+        }
+        new AlertDialog.Builder(this).setTitle(title)
+            .setMessage("Chọn endpoint muốn xóa khỏi danh sách lưu. Thao tác này chỉ xóa địa chỉ đã lưu trong BO Kali AI; không ngắt kết nối ADB và không thay đổi thiết bị.")
+            .setMultiChoiceItems(labels, checked, (dialog, which, isChecked) -> checked[which] = isChecked)
+            .setPositiveButton("XÓA ĐÃ CHỌN", (dialog, which) -> {
+                java.util.HashSet<String> remaining = new java.util.HashSet<>(
+                    prefs.getStringSet(listKey, new java.util.HashSet<>()));
+                android.content.SharedPreferences.Editor editor = prefs.edit();
+                int removed = 0;
+                for (int i = 0; i < endpoints.size(); i++) {
+                    if (checked[i] && remaining.remove(endpoints.get(i))) {
+                        editor.remove(servicePrefix + endpoints.get(i));
+                        editor.remove((pairing ? "pairing_discovered_at_" : "discovered_at_") + endpoints.get(i));
+                        removed++;
+                    }
+                }
+                editor.putStringSet(listKey, remaining).apply();
+                line(removed == 0 ? "Chưa chọn endpoint nào để xóa." :
+                    "Đã xóa " + removed + " endpoint khỏi danh sách lưu. Kết nối ADB hiện có không bị ngắt.", GREEN);
+            })
+            .setNegativeButton("ĐÓNG", null).show();
     }
 
     private void showManualAdbConnectDialog() {
