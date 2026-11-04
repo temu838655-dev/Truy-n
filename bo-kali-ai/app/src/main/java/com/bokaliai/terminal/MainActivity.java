@@ -2863,28 +2863,49 @@ public class MainActivity extends Activity {
     }
 
     private boolean isAiCommandAllowedForScope(String scope, String command) {
-        if (command == null || command.isEmpty()) return false;
+        if (command == null || command.isEmpty() || command.length() > 1200) return false;
         String lower = command.toLowerCase(java.util.Locale.ROOT).trim();
-        // Block destructive/system-security operations even when the AI labels them as ordinary work.
+
+        // Hard-deny destructive, privilege, boot, and security-bypass operations in every scope.
         String[] blocked = {"rm ", "reboot", "shutdown", "factory_reset", "factory reset",
-            "wipe", "format", "mkfs", "dd ", " su", "setenforce", "passwd",
-            "recovery", "bootloader", "fastboot", "user 0", "pm clear",
-            "disable-user", "disable ", "resetprop", "mount ", "umount "};
+            "wipe", "format", "mkfs", "dd ", " su", "su ", "setenforce", "passwd",
+            "recovery", "bootloader", "fastboot", "pm clear", "disable-user",
+            "disable ", "resetprop", "mount ", "umount ", "chmod ", "chown ",
+            "logcat -c", "logcat -f", "settings put secure", "settings put global"};
         for (String token : blocked) if (lower.contains(token)) return false;
-        if ("READ_INFO".equals(scope))
-            return lower.matches("^(getprop|df|uptime|uname|dumpsys battery|dumpsys display|ip addr|cat /proc/(meminfo|uptime|cpuinfo))(\\s.*)?$");
-        if ("READ_LOGS".equals(scope))
-            // Read-only log commands only: reject logcat -c/-f and state-changing dumpsys subcommands.
-            return lower.matches("^(logcat|logcat -d|logcat -t [0-9]{1,4}|logcat -s [a-z0-9_.*:-]+|dumpsys (battery|activity|meminfo|cpuinfo|window|display|package))$");
-        if ("APP_LIST".equals(scope))
-            return lower.matches("^pm list packages(\\s.*)?$");
-        if ("APP_INSTALL_REMOVE".equals(scope))
-            return lower.matches("^pm (install|uninstall)(\\s.*)?$");
-        if ("SCREEN_CONTROL".equals(scope))
-            return lower.matches("^input (keyevent|tap|swipe|text)(\\s.*)?$");
-        if ("DEVICE_SETTINGS".equals(scope))
-            return lower.matches("^(settings (get|put|delete)|wm (size|density)|cmd uimode)(\\s.*)?$");
-        // RAW_ADB_SHELL is intentionally broad but requires its own explicit grant and HIGH-risk confirmation.
+
+        if ("READ_INFO".equals(scope)) {
+            return lower.matches("^(getprop( ro\\\\.(product\\\\.(model|manufacturer|device)|build\\\\.(version\\\\.(release|sdk)|fingerprint)))?|df|df -h|uptime|uname -a|dumpsys (battery|display)|ip addr show wlan0|cat /proc/(meminfo|uptime|cpuinfo))$");
+        }
+        if ("READ_LOGS".equals(scope)) {
+            // No clear/write options; only bounded diagnostic reads.
+            return lower.matches("^(logcat -d -t ([1-9][0-9]{0,2}|1000)|dumpsys (battery|activity|meminfo|cpuinfo|window|display|package))$");
+        }
+        if ("APP_LIST".equals(scope)) {
+            return lower.matches("^pm list packages( -3|-s)?$");
+        }
+        if ("APP_INSTALL_REMOVE".equals(scope)) {
+            // Installing an APK from a host file is not done through device shell.
+            // Permit uninstall or re-enable of an existing preinstalled package only.
+            return lower.matches("^pm uninstall [a-z][a-z0-9_]*(\\\\.[a-z0-9_]+)+$")
+                || lower.matches("^cmd package install-existing [a-z][a-z0-9_]*(\\\\.[a-z0-9_]+)+$");
+        }
+        if ("SCREEN_CONTROL".equals(scope)) {
+            if (lower.matches("^input keyevent (3|4|19|20|21|22|23|24|25|66|82)$")) return true;
+            if (lower.matches("^input tap [0-9]{1,4} [0-9]{1,4}$")) return true;
+            if (lower.matches("^input swipe [0-9]{1,4} [0-9]{1,4} [0-9]{1,4} [0-9]{1,4} ([1-9][0-9]{0,3}|5000)$")) return true;
+            return lower.matches("^input text [a-z0-9._%-]{1,80}$");
+        }
+        if ("DEVICE_SETTINGS".equals(scope)) {
+            if (lower.matches("^settings get system (screen_brightness|screen_off_timeout|font_scale|accelerometer_rotation)$")) return true;
+            if (lower.matches("^settings put system screen_brightness ([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$")) return true;
+            if (lower.matches("^settings put system screen_off_timeout ([1-9][0-9]{3,6})$")) return true;
+            if (lower.matches("^settings put system font_scale (0\\\\.[8-9]|1(\\\\.[0-5])?)$")) return true;
+            if (lower.matches("^settings put system accelerometer_rotation [01]$")) return true;
+            return lower.equals("wm size") || lower.equals("wm density") || lower.equals("cmd uimode night yes")
+                || lower.equals("cmd uimode night no");
+        }
+        // Raw shell remains a separate, explicit high-risk grant with a second confirmation.
         return "RAW_ADB_SHELL".equals(scope);
     }
 
