@@ -3004,6 +3004,12 @@ public class MainActivity extends Activity {
             String scope = plan.optString("scope", "");
             String command = plan.optString("command", "").trim();
             String reason = plan.optString("reason", "AI không nêu lý do.");
+            // AI-generated explanation is untrusted display text: bound its size and strip
+            // control characters so it cannot flood or visually forge terminal/audit lines.
+            if (reason.length() > 500) reason = reason.substring(0, 500);
+            reason = reason.replaceAll("[\\\\p{Cc}&&[^\\\\n\\\\t]]", " ")
+                .replace('\\n', ' ').replace('\\t', ' ').trim();
+            if (reason.isEmpty()) reason = "AI không nêu lý do.";
             String risk = plan.optString("risk", "HIGH").toUpperCase(java.util.Locale.ROOT);
             if (!"LOW".equals(risk) && !"MEDIUM".equals(risk) && !"HIGH".equals(risk)) risk = "HIGH";
             boolean knownScope = false;
@@ -3017,8 +3023,10 @@ public class MainActivity extends Activity {
                 || !isAiCommandAllowedForScope(scope, command)) {
                 line("Kế hoạch AI bị từ chối: lệnh không khớp quyền, chứa cú pháp shell hoặc thuộc nhóm thao tác bị chặn.", 0xffff8080); return;
             }
-            if ("RAW_ADB_SHELL".equals(scope)) risk = "HIGH";
-            if ("APP_INSTALL_REMOVE".equals(scope) || "DEVICE_SETTINGS".equals(scope)) risk = "HIGH";
+            // The app, not the model, determines minimum risk for sensitive scopes.
+            if ("RAW_ADB_SHELL".equals(scope) || "APP_INSTALL_REMOVE".equals(scope)
+                || "DEVICE_SETTINGS".equals(scope)) risk = "HIGH";
+            else if ("SCREEN_CONTROL".equals(scope) && "LOW".equals(risk)) risk = "MEDIUM";
             if (!isFreshAdbDevice(serial)) { line("Kế hoạch bị hủy: thiết bị đích không còn trực tuyến.", 0xffffca70); return; }
             if (!hasAiDevicePermission(serial, scope)) {
                 line("Kế hoạch bị chặn: chưa cấp quyền " + scope + " cho " + serial + ".", 0xffffca70);
