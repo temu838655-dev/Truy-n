@@ -423,12 +423,29 @@ public class MainActivity extends Activity {
     }
 
     private void showAdbPairDialog() {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        java.util.ArrayList<String> endpoints = new java.util.ArrayList<>(
+            prefs.getStringSet("pairing_endpoints", new java.util.HashSet<>()));
+        java.util.Collections.sort(endpoints);
+        if (endpoints.isEmpty()) {
+            showAdbPairForm("");
+            return;
+        }
+        String[] choices = endpoints.toArray(new String[0]);
+        new AlertDialog.Builder(this).setTitle("Chọn cổng ghép đôi đã quét")
+            .setItems(choices, (d, which) -> showAdbPairForm(choices[which]))
+            .setPositiveButton("NHẬP THỦ CÔNG", (d,w) -> showAdbPairForm(""))
+            .setNegativeButton("HỦY", null).show();
+    }
+
+    private void showAdbPairForm(String presetEndpoint) {
         LinearLayout form = new LinearLayout(this); form.setOrientation(1); form.setPadding(dp(16), dp(8), dp(16), 0);
         EditText endpoint = input("IP: CỔNG GHÉP ĐÔI (ví dụ 192.168.1.20:37123)");
+        if (presetEndpoint != null && !presetEndpoint.isEmpty()) endpoint.setText(presetEndpoint);
         EditText code = input("Mã ghép đôi 6 chữ số"); code.setInputType(2);
         form.addView(endpoint); form.addView(code);
         new AlertDialog.Builder(this).setTitle("Ghép đôi ADB không dây")
-            .setMessage("Trên thiết bị cần điều khiển: bật Developer options → Wireless debugging → Pair device with pairing code. Hai thiết bị phải cùng mạng Wi-Fi. Nhập đúng IP:cổng pairing và mã hiện trên thiết bị đó.")
+            .setMessage("Trên thiết bị đích, mở Developer options → Wireless debugging → Pair device with pairing code. Nhập đúng cổng pairing và mã 6 số đang hiển thị. Cổng pairing khác cổng kết nối ADB.")
             .setView(form).setPositiveButton("GHÉP ĐÔI", (d,w) -> {
                 String ep = endpoint.getText().toString().trim(); String pin = code.getText().toString().trim();
                 if (!isValidAdbEndpoint(ep) || !pin.matches("[0-9]{6}")) { line("IP:cổng hoặc mã ghép đôi không hợp lệ. Cổng phải từ 1 đến 65535.", 0xffff8080); return; }
