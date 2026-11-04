@@ -187,20 +187,44 @@ public class MainActivity extends Activity {
         return result;
     }
 
-    private void runAdbScreenCapture(String serial) {
+    private ScrcpyMirrorView activeMirrorView;
+    private String activeMirrorSerial = "";
+
+    private void runAdbMirrorStart(String serial) {
         if (!isFreshAdbDevice(serial)) {
-            line("Không chụp màn hình: thiết bị ADB không còn trực tuyến.", 0xffffca70);
+            line("Không thể truyền màn hình: thiết bị ADB không còn trực tuyến.", 0xffffca70);
             return;
         }
         new AlertDialog.Builder(this)
-            .setTitle("Chụp màn hình thiết bị")
-            .setMessage("BO Kali AI sẽ yêu cầu ảnh chụp màn hình từ thiết bị ADB đã chọn. Chỉ thực hiện trên thiết bị bạn sở hữu hoặc được chủ thiết bị cho phép.")
-            .setPositiveButton("CHỤP", (d, w) -> {
-                String command = "printf 'BO_SCREEN_BASE64:'; adb -s " + shellQuote(serial)
-                    + " exec-out screencap -p | base64 -w0";
+            .setTitle("Bắt đầu điều khiển trực tiếp")
+            .setMessage("BO Kali AI sẽ tải máy chủ scrcpy chính thức từ GitHub, khởi chạy tạm thời trên thiết bị đã kết nối và truyền hình ảnh cùng thao tác chạm qua ADB. Chỉ tiếp tục khi bạn sở hữu thiết bị hoặc có sự đồng ý của chủ thiết bị.")
+            .setPositiveButton("BẮT ĐẦU", (d, w) -> {
+                activeMirrorSerial = serial;
+                if (activeMirrorView != null) activeMirrorView.setStatus("Đang chuẩn bị máy chủ truyền màn hình...");
+                String serverHash = "84924bd564a1eb6089c872c7521f968058977f91f5ff02514a8c74aff3210f3a";
+                String serverUrl = "https://github.com/Genymobile/scrcpy/releases/download/v4.0/scrcpy-server-v4.0";
+                String remoteStart = "CLASSPATH=/data/local/tmp/bo-kali-scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 4.0 scid=00000001 tunnel_forward=false audio=false video_codec=h264 max_size=1280 video_bit_rate=4000000 max_fps=30 send_device_meta=false send_dummy_byte=false cleanup=true >/dev/null 2>&1 </dev/null &";
+                String serialArg = shellQuote(serial);
+                String command = "set -e; pkg install -y android-tools curl coreutils >/dev/null; "
+                    + "mkdir -p \"$HOME/.bo-kali-ai\"; SERVER=\"$HOME/.bo-kali-ai/scrcpy-server-v4.0\"; "
+                    + "if [ ! -s \"$SERVER\" ] || [ \"$(sha256sum \"$SERVER\" | cut -d' ' -f1)\" != \"" + serverHash + "\" ]; then "
+                    + "curl -fL --retry 3 \"" + serverUrl + "\" -o \"$SERVER.tmp\"; "
+                    + "echo \"" + serverHash + "  $SERVER.tmp\" | sha256sum -c -; mv \"$SERVER.tmp\" \"$SERVER\"; fi; "
+                    + "adb -s " + serialArg + " forward --remove tcp:27183 >/dev/null 2>&1 || true; "
+                    + "adb -s " + serialArg + " push \"$SERVER\" /data/local/tmp/bo-kali-scrcpy-server.jar >/dev/null; "
+                    + "adb -s " + serialArg + " shell " + shellQuote(remoteStart) + "; "
+                    + "sleep 2; adb -s " + serialArg + " forward tcp:27183 localabstract:scrcpy_00000001; "
+                    + "echo BO_SCRCPY_READY:27183";
                 runTermuxCommand(command);
             })
             .setNegativeButton("HỦY", null).show();
+    }
+
+    private void stopAdbMirror(String serial) {
+        if (activeMirrorView != null) activeMirrorView.stop();
+        if (serial != null && !serial.isEmpty()) {
+            runTermuxCommand("adb -s " + shellQuote(serial) + " forward --remove tcp:27183 >/dev/null 2>&1 || true");
+        }
     }
 
     private void showDualWorkspace() {
@@ -281,23 +305,30 @@ public class MainActivity extends Activity {
         devicePane.setBackgroundColor(0xff101f2e);
         TextView deviceTitle = text("MÀN HÌNH PHỤ · THIẾT BỊ", 0xff79c9ff, 13, true);
         devicePane.addView(deviceTitle);
-        ImageView screenPreview = new ImageView(this);
-        screenPreview.setAdjustViewBounds(true);
-        screenPreview.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        screenPreview.setBackgroundColor(0xff05090e);
-        java.io.File savedScreen = getFileStreamPath("adb_screen.png");
-        if (savedScreen.exists()) {
-            android.graphics.Bitmap previewBitmap = BitmapFactory.decodeFile(savedScreen.getAbsolutePath());
-            if (previewBitmap != null) screenPreview.setImageBitmap(previewBitmap);
-        }
-        devicePane.addView(screenPreview, new LinearLayout.LayoutParams(-1, dp(190)));
-        Button capture = button("CHỤP MÀN HÌNH THIẾT BỊ");
-        capture.setOnClickListener(v -> runAdbScreenCapture(serial));
-        devicePane.addView(capture, new LinearLayout.LayoutParams(-1, dp(44)));
+        activeMirrorView = new ScrcpyMirrorView(this);
+        devicePane.addView(activeMirrorView, new LinearLayout.LayoutParams(-1, dp(260)));
+        Button startMirror = button("BẮT ĐẦU TRUYỀN & ĐIỀU KHIỂN TRỰC TIẾP");
+        startMirror.setOnClickListener(v -> runAdbMirrorStart(serial));
+        devicePane.addView(startMirror, new LinearLayout.LayoutParams(-1, dp(48)));
+        LinearLayout remoteKeys = new LinearLayout(this);
+        remoteKeys.setOrientation(LinearLayout.HORIZONTAL);
+        Button keyBack = button("BACK");
+        keyBack.setOnClickListener(v -> activeMirrorView.sendKey(4));
+        Button keyHome = button("HOME");
+        keyHome.setOnClickListener(v -> activeMirrorView.sendKey(3));
+        Button keyRecent = button("RECENT");
+        keyRecent.setOnClickListener(v -> activeMirrorView.sendKey(187));
+        remoteKeys.addView(keyBack, new LinearLayout.LayoutParams(0, dp(40), 1));
+        remoteKeys.addView(keyHome, new LinearLayout.LayoutParams(0, dp(40), 1));
+        remoteKeys.addView(keyRecent, new LinearLayout.LayoutParams(0, dp(40), 1));
+        devicePane.addView(remoteKeys);
+        Button stopMirror = button("DỪNG TRUYỀN MÀN HÌNH");
+        stopMirror.setOnClickListener(v -> stopAdbMirror(serial));
+        devicePane.addView(stopMirror, new LinearLayout.LayoutParams(-1, dp(42)));
         android.content.SharedPreferences devicePrefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
         String alias = devicePrefs.getString("alias_" + serial, "");
         TextView deviceInfo = text("Đã xác nhận ADB: " + (alias.isEmpty() ? serial : alias + " · " + serial)
-            + "\nTrạng thái: device\n\nKhung hiển thị trực tiếp đang được triển khai ở bước tiếp theo. Hiện tại bạn có thể chọn thiết bị và mở ứng dụng từ xa.", WHITE, 12, false);
+            + "\nTrạng thái: device\n\nHình ảnh truyền trực tiếp và thao tác chạm được xử lý qua scrcpy; một số ứng dụng có DRM có thể chặn hình ảnh.", WHITE, 12, false);
         devicePane.addView(deviceInfo);
         Button launch = button("CHỌN / MỞ ỨNG DỤNG");
         launch.setOnClickListener(v -> showAdbLaunchAppDialog(serial));
@@ -1816,14 +1847,16 @@ public class MainActivity extends Activity {
         android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_results", MODE_PRIVATE);
         String pending = prefs.getString("pending_output", null);
         boolean pendingScreenCapture = prefs.getBoolean("pending_screen_capture", false);
+        boolean pendingScrcpyReady = prefs.getBoolean("pending_scrcpy_ready", false);
         if (pending != null && !pending.isEmpty()) {
-            prefs.edit().remove("pending_output").remove("pending_screen_capture").apply();
+            prefs.edit().remove("pending_output").remove("pending_screen_capture").remove("pending_scrcpy_ready").apply();
             lastCommandOutput = pending;
             handleAdbDevicesOutput(pending);
             line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
             for (String part : pending.split("\\n")) line(part, WHITE);
             line("Nhấn GIẢI THÍCH KẾT QUẢ KALI BẰNG AI để phân tích.", 0xff79c9ff);
             if (pendingScreenCapture) showDualWorkspace();
+            if (pendingScrcpyReady && activeMirrorView != null) activeMirrorView.start(27183);
         }
     }
 
@@ -1834,6 +1867,10 @@ public class MainActivity extends Activity {
             lastCommandOutput = intent.getStringExtra("termux_output");
             if (lastCommandOutput == null) lastCommandOutput = "Termux trả về kết quả trống.";
             if (intent.getBooleanExtra("bo_screen_capture", false)) showDualWorkspace();
+            if (intent.getBooleanExtra("bo_scrcpy_ready", false)) {
+                if (activeMirrorView != null) activeMirrorView.start(27183);
+                else line("Máy chủ scrcpy đã sẵn sàng. Hãy mở lại MÀN HÌNH KÉP để xem thiết bị.", GREEN);
+            }
             handleAdbDevicesOutput(lastCommandOutput);
             line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
             for (String part : lastCommandOutput.split("\\n")) line(part, WHITE);
