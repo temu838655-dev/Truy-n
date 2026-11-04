@@ -3287,6 +3287,12 @@ public class MainActivity extends Activity {
             if (!"LOW".equals(risk) && !"MEDIUM".equals(risk) && !"HIGH".equals(risk)) risk = "HIGH";
             boolean knownScope = false;
             for (String allowed : AI_DEVICE_SCOPE_IDS) if (allowed.equals(scope)) knownScope = true;
+            java.util.Set<String> registryGrants = aiDevicePermissions.get(serial);
+            String registryStatus = AiToolRegistry.validateAdbPlan(scope, serial, command, registryGrants);
+            if (!"OK".equals(registryStatus)) {
+                line("Kế hoạch AI bị từ chối bởi bộ kiểm tra công cụ: " + registryStatus, 0xffff8080);
+                return;
+            }
             if (!knownScope || command.isEmpty() || command.length() > 1200 || command.indexOf(0) >= 0
                 || command.contains("\n") || command.contains("\r") || command.contains(";")
                 || command.contains("&") || command.contains("|") || command.contains("<")
