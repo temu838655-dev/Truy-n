@@ -866,7 +866,7 @@ public class MainActivity extends Activity {
     private void showDeviceProfileActions(DeviceHubProfile profile) {
         boolean isHomeAssistant = DeviceHubProfile.HOME_ASSISTANT.equals(profile.platform);
         String[] actions = isHomeAssistant
-            ? new String[]{"MỞ GIAO DIỆN", "LƯU / THAY TOKEN API", "KIỂM TRA TOKEN (HTTPS)", "XÓA TOKEN API", "XÓA PROFILE", "HỦY"}
+            ? new String[]{"MỞ GIAO DIỆN", "LƯU / THAY TOKEN API", "KIỂM TRA TOKEN (HTTPS)", "ĐỌC TRẠNG THÁI ENTITY", "XÓA TOKEN API", "XÓA PROFILE", "HỦY"}
             : new String[]{"KẾT NỐI", "XÓA PROFILE", "HỦY"};
         new AlertDialog.Builder(this).setTitle(profile.name)
             .setItems(actions, (d, which) -> {
@@ -892,9 +892,11 @@ public class MainActivity extends Activity {
                 } else if (isHomeAssistant && which == 2) {
                     testHomeAssistantApi(profile);
                 } else if (isHomeAssistant && which == 3) {
+                    loadHomeAssistantEntities(profile);
+                } else if (isHomeAssistant && which == 4) {
                     HomeAssistantTokenStore.delete(this, profile.id);
                     line("Đã xóa token API của " + profile.name + ".", GREEN);
-                } else if ((isHomeAssistant && which == 4) || (!isHomeAssistant && which == 1)) {
+                } else if ((isHomeAssistant && which == 5) || (!isHomeAssistant && which == 1)) {
                     new AlertDialog.Builder(this)
                         .setTitle("Xóa profile?")
                         .setMessage("Chỉ xóa thông tin kết nối đã lưu trong BO Kali AI. Không xóa dữ liệu trên thiết bị.")
@@ -908,6 +910,93 @@ public class MainActivity extends Activity {
                     connectDeviceProfile(profile);
                 }
             }).show();
+    }
+
+    private void loadHomeAssistantEntities(DeviceHubProfile profile) {
+        if (!HomeAssistantTokenStore.has(this, profile.id)) {
+            line("Profile chưa có token API. Hãy lưu token trước.", 0xffffca70);
+            return;
+        }
+        final String apiUrl;
+        try {
+            String endpoint = profile.host == null ? "" : profile.host.trim();
+            Uri parsed = Uri.parse(endpoint.contains("://")
+                ? endpoint : "https://" + formatEndpointHost(endpoint) + ":" + profile.port);
+            if (!"https".equalsIgnoreCase(parsed.getScheme()) || parsed.getHost() == null
+                    || parsed.getUserInfo() != null || parsed.getPort() > 65535
+                    || parsed.getPort() == 0 || parsed.getFragment() != null) {
+                line("Đọc entity chỉ cho phép HTTPS hợp lệ để bảo vệ token.", 0xffff8080);
+                return;
+            }
+            int port = parsed.getPort() < 0 ? 443 : parsed.getPort();
+            apiUrl = new URL("https", parsed.getHost(), port, "/api/states").toString();
+        } catch (Exception invalid) {
+            line("Địa chỉ Home Assistant không hợp lệ.", 0xffff8080);
+            return;
+        }
+        line("Đang đọc danh sách entity qua HTTPS…", WHITE);
+        new Thread(() -> {
+            HttpURLConnection connection = null;
+            try {
+                String token = HomeAssistantTokenStore.load(this, profile.id);
+                if (token == null || token.isEmpty()) throw new IllegalStateException("Không tìm thấy token.");
+                connection = (HttpURLConnection) new URL(apiUrl).openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(10000);
+                connection.setReadTimeout(15000);
+                connection.setInstanceFollowRedirects(false);
+                connection.setRequestProperty("Authorization", "Bearer " + token);
+                connection.setRequestProperty("Accept", "application/json");
+                int status = connection.getResponseCode();
+                if (status != 200) {
+                    String message = status == 401 || status == 403
+                        ? "Token không được Home Assistant chấp nhận (HTTP " + status + ")."
+                        : "Home Assistant trả HTTP " + status + ".";
+                    runOnUiThread(() -> line(message, 0xffffca70));
+                    return;
+                }
+                BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8));
+                StringBuilder body = new StringBuilder();
+                String row;
+                while ((row = reader.readLine()) != null) {
+                    body.append(row);
+                    if (body.length() > 4 * 1024 * 1024)
+                        throw new IllegalStateException("Phản hồi entity vượt giới hạn 4 MB.");
+                }
+                reader.close();
+                JSONArray entities = new JSONArray(body.toString());
+                final StringBuilder report = new StringBuilder();
+                int count = Math.min(entities.length(), 100);
+                for (int i = 0; i < count; i++) {
+                    JSONObject entity = entities.optJSONObject(i);
+                    if (entity == null) continue;
+                    String id = entity.optString("entity_id", "unknown");
+                    String state = entity.optString("state", "unknown");
+                    JSONObject attrs = entity.optJSONObject("attributes");
+                    String friendly = attrs == null ? "" : attrs.optString("friendly_name", "");
+                    report.append(id).append(" · ").append(state);
+                    if (!friendly.isEmpty() && !friendly.equals(id))
+                        report.append(" · ").append(friendly);
+                    report.append("\\n");
+                }
+                final String result = report.length() == 0
+                    ? "Không tìm thấy entity." : report.toString();
+                final int total = entities.length();
+                runOnUiThread(() -> new AlertDialog.Builder(this)
+                    .setTitle("HOME ASSISTANT · ENTITIES (" + total + ")")
+                    .setMessage(result + (total > count ? "\\n… và " + (total - count) + " entity khác." : ""))
+                    .setPositiveButton("ĐÓNG", null)
+                    .setNeutralButton("SAO CHÉP", (dialog, which) ->
+                        copyText(result, "Đã sao chép danh sách entity hiển thị."))
+                    .show());
+            } catch (Exception error) {
+                String message = error.getMessage() == null ? "Lỗi đọc entity." : error.getMessage();
+                runOnUiThread(() -> line("Không đọc được entity Home Assistant: " + message, 0xffff8080));
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        }, "bo-ha-entities").start();
     }
 
     private void testHomeAssistantApi(DeviceHubProfile profile) {
