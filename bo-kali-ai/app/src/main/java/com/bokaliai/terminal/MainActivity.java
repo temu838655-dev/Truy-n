@@ -4019,12 +4019,7 @@ public class MainActivity extends Activity {
             .setView(form).setPositiveButton("XEM LẠI LỆNH", (d, w) -> {
                 String cmd = remoteCommand.getText().toString().trim();
                 if (cmd.isEmpty()) { line("Chưa nhập lệnh ADB.", 0xffff8080); return; }
-                new AlertDialog.Builder(this).setTitle("Xác nhận ADB Shell")
-                    .setMessage("Thiết bị: " + serialValue + "\nLệnh: adb -s " + serialValue + " shell " + cmd
-                        + "\n\nLệnh có thể thay đổi thiết bị từ xa.")
-                    .setPositiveButton("CHẠY", (x, y) ->
-                        runTermuxCommand("adb -s " + shellQuote(serialValue) + " shell " + shellQuote(cmd)))
-                    .setNegativeButton("HỦY", null).show();
+                reviewAdbShellCommand(serialValue, cmd);
             }).setNegativeButton("HỦY", null).show();
     }
 
@@ -4167,6 +4162,54 @@ public class MainActivity extends Activity {
             .setNegativeButton("HỦY", null).show();
     }
 
+    // Classify ADB shell input before execution; unknown commands are never labeled safe.
+    private String classifyAdbCommandRisk(String command) {
+        String value = command == null ? "" : command.trim().toLowerCase(java.util.Locale.ROOT);
+        if (value.isEmpty() || value.length() > 2048 || value.indexOf('\n') >= 0
+            || value.indexOf('\r') >= 0 || value.indexOf(0) >= 0) return "INVALID";
+        if (java.util.regex.Pattern.compile("(^|[\\s;&|])(?:rm|rmdir|format|wipe|dd|mkfs|reboot|shutdown|fastboot|flash|erase|sideload|push|install|uninstall|disable-user|enable|setprop|mount|umount|chmod|chown|settings\\s+(?:put|delete)|svc|iptables|ip6tables|su)(?:[\\s;&|]|$)")
+                .matcher(value).find()) return "HIGH";
+        if (!value.matches("[a-z0-9_./:= -]+")) return "UNKNOWN";
+        if (value.matches("^(getprop(?:\\s+[a-z0-9_.]+)?|id|whoami|uname(?:\\s+-[a-z]+)?|date|uptime|df(?:\\s+-[a-z]+)?(?:\\s+[/a-z0-9_.-]+)?|free(?:\\s+-[a-z]+)?|ip\\s+(?:addr|address|route|link)(?:\\s+show)?|pm\\s+list\\s+(?:packages|users|features|permissions)(?:\\s+.*)?|dumpsys\\s+(?:battery|power|display|window|deviceidle)|settings\\s+get\\s+(?:global|secure|system)\\s+[a-z0-9_.]+|cmd\\s+package\\s+list\\s+packages)\\s*$"))
+            return "READ_ONLY";
+        return "UNKNOWN";
+    }
+
+    private void reviewAdbShellCommand(String serial, String command) {
+        if (serial == null || !serial.matches("[A-Za-z0-9._:-]+") || !isFreshAdbDevice(serial)) {
+            line("Từ chối chạy: serial không hợp lệ hoặc thiết bị chưa được xác minh trực tuyến trong 90 giây gần nhất. Hãy quét ADB lại.", 0xffffca70);
+            return;
+        }
+        String risk = classifyAdbCommandRisk(command);
+        if ("INVALID".equals(risk)) {
+            line("Lệnh không hợp lệ: tối đa 2.048 ký tự và không cho phép xuống dòng.", 0xffff8080);
+            return;
+        }
+        String label, warning, buttonLabel;
+        int color;
+        if ("READ_ONLY".equals(risk)) {
+            label = "RỦI RO THẤP · lệnh nằm trong danh sách đọc thông tin";
+            warning = "Bộ lọc nhận diện một số lệnh đọc thông tin phổ biến. Vẫn hãy kiểm tra nội dung trước khi chạy.";
+            buttonLabel = "XÁC NHẬN CHẠY"; color = GREEN;
+        } else if ("HIGH".equals(risk)) {
+            label = "RỦI RO CAO · phát hiện lệnh có thể thay đổi/xóa dữ liệu hoặc hệ thống";
+            warning = "Lệnh có thể gỡ ứng dụng, thay đổi cài đặt, ghi phân vùng, xóa dữ liệu hoặc khởi động lại thiết bị.";
+            buttonLabel = "TÔI HIỂU RỦI RO, CHẠY"; color = 0xffff8080;
+        } else {
+            label = "CHƯA PHÂN LOẠI · không thể xác nhận đây là lệnh chỉ đọc";
+            warning = "Lệnh không thuộc danh sách đọc an toàn. Lệnh ghép, script và lệnh lạ có thể làm thay đổi thiết bị.";
+            buttonLabel = "TÔI ĐÃ KIỂM TRA, CHẠY"; color = 0xffffca70;
+        }
+        new AlertDialog.Builder(this).setTitle("Bộ kiểm tra rủi ro ADB")
+            .setMessage("Thiết bị: " + serial + "\nPhân loại: " + label
+                + "\n\nLệnh:\n" + command + "\n\n" + warning
+                + "\n\nBO không thể chứng minh an toàn cho mọi lệnh shell. Quyền thực tế phụ thuộc Android, xác thực ADB và quyền root đã cấp.")
+            .setPositiveButton(buttonLabel, (dialog, which) ->
+                runTermuxCommand("adb -s " + shellQuote(serial) + " shell " + shellQuote(command)))
+            .setNegativeButton("HỦY", null).show();
+        line("Đã phân loại lệnh ADB: " + label, color);
+    }
+
     private void showAdbShellManualDialog() {
         LinearLayout form = new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(dp(16), dp(8), dp(16), 0);
@@ -4181,12 +4224,7 @@ public class MainActivity extends Activity {
                 if (id.isEmpty() || !id.matches("[A-Za-z0-9._:-]+") || cmd.isEmpty()) {
                     line("Cần serial hợp lệ và lệnh ADB.", 0xffff8080); return;
                 }
-                new AlertDialog.Builder(this).setTitle("Xác nhận chạy ADB Shell")
-                    .setMessage("Thiết bị: " + id + "\nLệnh: adb -s " + id + " shell " + cmd
-                        + "\n\nLệnh có thể thay đổi thiết bị từ xa. Chỉ tiếp tục nếu bạn hiểu tác động.")
-                    .setPositiveButton("CHẠY", (dialog, which) ->
-                        runTermuxCommand("adb -s " + shellQuote(id) + " shell " + shellQuote(cmd)))
-                    .setNegativeButton("HỦY", null).show();
+                reviewAdbShellCommand(id, cmd);
             }).setNegativeButton("HỦY", null).show();
     }
 
