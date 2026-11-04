@@ -375,6 +375,7 @@ public class MainActivity extends Activity {
         for (int i = 0; i < profiles.size(); i++) {
             DeviceHubProfile p = profiles.get(i);
             String type = DeviceHubProfile.ANDROID_ADB.equals(p.platform) ? "Android / TV · ADB"
+                : DeviceHubProfile.ROUTER_SSH.equals(p.platform) ? "Router / Modem · SSH"
                 : DeviceHubProfile.SSH.equals(p.platform) ? "SSH · " + p.username
                 : DeviceHubProfile.HOME_ASSISTANT.equals(p.platform) ? "Home Assistant"
                 : "Web / Router / NAS";
