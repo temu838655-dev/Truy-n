@@ -1066,9 +1066,12 @@ public class MainActivity extends Activity {
         countInput.setText("300");
         EditText priorityInput = input("Mức lọc: V, D, I, W, E hoặc F (mặc định V)");
         priorityInput.setText("V");
+        EditText bufferInput = input("Log buffer: main, system, crash, events, radio (mặc định main)");
+        bufferInput.setText("main");
         EditText packageInput = input("Lọc theo package (để trống = tất cả ứng dụng)");
         fields.addView(countInput);
         fields.addView(priorityInput);
+        fields.addView(bufferInput);
         fields.addView(packageInput);
         new AlertDialog.Builder(this)
             .setTitle("Đọc Logcat • " + serial)
@@ -1093,6 +1096,13 @@ public class MainActivity extends Activity {
                     return;
                 }
                 final String selectedPriority = priority;
+                String buffer = bufferInput.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+                if (buffer.isEmpty()) buffer = "main";
+                if (!buffer.matches("main|system|crash|events|radio")) {
+                    line("Log buffer chỉ nhận main, system, crash, events hoặc radio.", 0xffffca70);
+                    return;
+                }
+                final String selectedBuffer = buffer;
                 String packageName = packageInput.getText().toString().trim();
                 if (!packageName.isEmpty() && !packageName.matches("[A-Za-z0-9_]+(\\\\.[A-Za-z0-9_]+)+")) {
                     line("Tên package không hợp lệ. Ví dụ: com.android.settings", 0xffffca70);
@@ -1103,12 +1113,12 @@ public class MainActivity extends Activity {
                 String command;
                 if (selectedPackage.isEmpty()) {
                     command = "adb -s " + shellQuote(serial)
-                        + " logcat -d -v threadtime -t " + count + " " + shellQuote(filter);
+                        + " logcat -b " + selectedBuffer + " -d -v threadtime -t " + count + " " + shellQuote(filter);
                 } else {
                     String pidLookup = "pid=$(adb -s " + shellQuote(serial) + " shell pidof "
                         + shellQuote(selectedPackage) + " 2>/dev/null | tr -d '\\r' | tr ' ' ','); "
                         + "if [ -n \"$pid\" ]; then adb -s " + shellQuote(serial)
-                        + " logcat -d -v threadtime -t " + count + " --pid=\"$pid\" "
+                        + " logcat -b " + selectedBuffer + " -d -v threadtime -t " + count + " --pid=\"$pid\" "
                         + shellQuote(filter)
                         + "; else echo 'Không tìm thấy PID đang chạy cho package " + selectedPackage + "'; fi";
                     command = pidLookup;
@@ -1117,10 +1127,11 @@ public class MainActivity extends Activity {
                     .setTitle("Xác nhận đọc Logcat")
                     .setMessage("Thiết bị: " + serial + "\\nSố dòng tối đa: " + count
                         + "\\nMức lọc: " + selectedPriority
+                        + "\\nLog buffer: " + selectedBuffer
                         + "\\nPackage: " + (selectedPackage.isEmpty() ? "Tất cả ứng dụng" : selectedPackage)
                         + "\\n\\nLệnh chỉ đọc log, không dùng logcat -c. Lọc package dựa trên PID của ứng dụng đang chạy; ứng dụng chưa chạy có thể không có kết quả.")
                     .setPositiveButton("ĐỌC LOG", (x, y) -> {
-                        line("Đang đọc tối đa " + count + " dòng Logcat (mức " + selectedPriority
+                        line("Đang đọc tối đa " + count + " dòng Logcat (buffer " + selectedBuffer + ", mức " + selectedPriority
                             + (selectedPackage.isEmpty() ? "" : ", package " + selectedPackage) + ") từ " + serial + "...", GREEN);
                         getSharedPreferences("bo_kali_results", MODE_PRIVATE).edit()
                             .putString("last_logcat_serial", serial)
