@@ -3417,7 +3417,13 @@ public class MainActivity extends Activity {
                     if (changed) {
                         invalidateScrcpyForNetworkChange(session);
                         activeMirrorView.setStatus(
-                            "Mạng vừa thay đổi · Đang khôi phục luồng màn hình, giữ nguyên ADB...");
+                            "Mạng vừa thay đổi · Đang tìm lại thiết bị ADB đã ghép đôi...");
+                        line("Mạng đã đổi. Đang quét mDNS để tìm endpoint ADB mới; BO không tự kết nối endpoint chưa xác minh.",
+                            0xffffca70);
+                        // The previous IP:port may now belong to another device.
+                        // Discover candidates, then let the user select the intended endpoint.
+                        scanAdbServices();
+                        return;
                     }
                     if (!activeMirrorView.isRunning() && !adbMirrorResumePending) {
                         resumeAdbMirrorAfterUnlock();
