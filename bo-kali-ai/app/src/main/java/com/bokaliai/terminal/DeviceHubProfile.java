@@ -15,6 +15,7 @@ public final class DeviceHubProfile {
     public static final String SSH = "SSH";
     public static final String HOME_ASSISTANT = "HOME_ASSISTANT";
     public static final String WEB = "WEB";
+    public static final String ROUTER_SSH = "ROUTER_SSH";
 
     public final String id;
     public final String name;
@@ -58,7 +59,8 @@ public final class DeviceHubProfile {
 
     public static boolean isSupported(String platform) {
         return ANDROID_ADB.equals(platform) || SSH.equals(platform)
-            || HOME_ASSISTANT.equals(platform) || WEB.equals(platform);
+            || HOME_ASSISTANT.equals(platform) || WEB.equals(platform)
+            || ROUTER_SSH.equals(platform);
     }
 
     public static String save(Context context, String name, String platform,
