@@ -27,9 +27,16 @@ public class AdbKeepAliveService extends Service {
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? ACTION_START : intent.getAction();
         if (ACTION_STOP.equals(action)) {
+            // A delayed STOP from an older session must not tear down a newer session.
+            // MainActivity clears keep_alive before sending an intentional STOP.
+            android.content.SharedPreferences stopSession =
+                getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
+            if (stopSession.getBoolean("keep_alive", false)) {
+                return START_STICKY;
+            }
             releaseLocks();
             stopForeground(true);
-            stopSelf();
+            stopSelf(startId);
             return START_NOT_STICKY;
         }
         android.content.SharedPreferences session =
@@ -38,12 +45,16 @@ public class AdbKeepAliveService extends Service {
         String savedSerial = session.getString("active_serial", "");
         String serial = intent == null ? savedSerial : intent.getStringExtra(EXTRA_SERIAL);
         // Reject stale START intents after the user has stopped the session or switched devices.
-        if (!sessionRequested || serial == null || serial.isEmpty()
-            || !serial.equals(savedSerial)) {
+        if (!sessionRequested) {
             releaseLocks();
             stopForeground(true);
-            stopSelf();
+            stopSelf(startId);
             return START_NOT_STICKY;
+        }
+        // Ignore a delayed START for another device without releasing locks or
+        // stopping the service that may already be protecting the current session.
+        if (serial == null || serial.isEmpty() || !serial.equals(savedSerial)) {
+            return START_STICKY;
         }
         Notification notification = buildNotification(serial);
         if (Build.VERSION.SDK_INT >= 29) {
