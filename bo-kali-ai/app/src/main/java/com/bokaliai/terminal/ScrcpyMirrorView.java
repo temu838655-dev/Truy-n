@@ -128,24 +128,40 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
         Socket control = null;
         try {
             video = new Socket();
+            // Publish connecting sockets so stop()/a new generation can close them
+            // immediately instead of waiting for the connect timeout.
+            videoSocket = video;
+            if (!isCurrentSession(generation)) {
+                closeQuietly(video);
+                if (videoSocket == video) videoSocket = null;
+                return;
+            }
             video.connect(new InetSocketAddress("127.0.0.1", port), 8000);
             video.setTcpNoDelay(true);
             if (!isCurrentSession(generation)) {
                 closeQuietly(video);
+                if (videoSocket == video) videoSocket = null;
                 return;
             }
-            videoSocket = video;
 
             control = new Socket();
+            controlSocket = control;
+            if (!isCurrentSession(generation)) {
+                closeQuietly(video);
+                closeQuietly(control);
+                if (videoSocket == video) videoSocket = null;
+                if (controlSocket == control) controlSocket = null;
+                return;
+            }
             control.connect(new InetSocketAddress("127.0.0.1", port), 8000);
             control.setTcpNoDelay(true);
             if (!isCurrentSession(generation)) {
                 closeQuietly(video);
                 closeQuietly(control);
-                stopSockets();
+                if (videoSocket == video) videoSocket = null;
+                if (controlSocket == control) controlSocket = null;
                 return;
             }
-            controlSocket = control;
             controlOutput = control.getOutputStream();
 
             if (!isCurrentSession(generation)) {
