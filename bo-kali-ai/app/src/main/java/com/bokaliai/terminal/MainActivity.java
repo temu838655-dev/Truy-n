@@ -718,8 +718,10 @@ public class MainActivity extends Activity {
                     if (service.type.startsWith("_http") || service.type.startsWith("_https")
                         || service.type.startsWith("_home-assistant")) {
                         String scheme = service.type.startsWith("_https") ? "https://" : "http://";
+                        // DNS-SD may return an IPv6 literal; bracket it before appending the port.
+                        String endpointHost = formatEndpointHost(service.host);
                         try { startActivity(new Intent(Intent.ACTION_VIEW,
-                            Uri.parse(scheme + service.host + ":" + service.port))); }
+                            Uri.parse(scheme + endpointHost + ":" + service.port))); }
                         catch (Exception error) { line("Không mở được giao diện web.", 0xffff8080); }
                     } else {
                         line("Dịch vụ SSH không có giao diện web. Hãy lưu profile và kết nối bằng SSH.", 0xffffca70);
