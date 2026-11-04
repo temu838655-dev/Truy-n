@@ -6118,7 +6118,7 @@ public class MainActivity extends Activity {
         if (prefs.getBoolean("result_dialog_shown", false)) return;
         prefs.edit().putBoolean("result_dialog_shown", true).commit();
         String review = output.length() > 22000 ? output.substring(0, 22000)
-            + "\\n[Đã cắt phần hiển thị còn lại.]" : output;
+            + "\n[Đã cắt phần hiển thị còn lại.]" : output;
         String expectedCallId = prefs.getString("antigravity_call_id", "");
         android.content.SharedPreferences ag = getSharedPreferences("bo_kali_antigravity_pending_tool", MODE_PRIVATE);
         boolean canReturnToAntigravity = !expectedCallId.isEmpty()
@@ -6137,9 +6137,9 @@ public class MainActivity extends Activity {
         if (canReturnToAntigravity) {
             dialog.setPositiveButton("ĐỒNG Ý GỬI KẾT QUẢ CHO ANTIGRAVITY", (d, w) -> {
                 String bounded = output.length() > 8000 ? output.substring(0, 8000)
-                    + "\\n[Phần review còn lại đã được BO lược bớt khi gửi.]" : output;
+                    + "\n[Phần review còn lại đã được BO lược bớt khi gửi.]" : output;
                 reportAntigravityToolOutcome("codex_review_complete",
-                    "Người dùng đã đồng ý gửi kết quả Codex review. Đây là nhận xét độc lập, không phải xác nhận build/test và không phải phê duyệt PR. Hãy xử lý phát hiện và chờ người dùng duyệt riêng.\\n\\n"
+                    "Người dùng đã đồng ý gửi kết quả Codex review. Đây là nhận xét độc lập, không phải xác nhận build/test và không phải phê duyệt PR. Hãy xử lý phát hiện và chờ người dùng duyệt riêng.\n\n"
                         + bounded);
                 prefs.edit().clear().commit();
             });
