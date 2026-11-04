@@ -4204,6 +4204,7 @@ public class MainActivity extends Activity {
             "KIỂM TRA PHẦN CỨNG / KERNEL / BOOTLOADER",
             "KIỂM TRA WI-FI / BLUETOOTH / USB / ADB",
             "PHÂN TÍCH TƯƠNG THÍCH KALI",
+            "QUẢN LÝ CÔNG CỤ TERMUX / KALI",
             "HƯỚNG DẪN KALI ROOT / ROOTLESS"
         };
         new AlertDialog.Builder(this)
@@ -4219,6 +4220,7 @@ public class MainActivity extends Activity {
                 else if (which == 4) checkDeviceHardwareProfile();
                 else if (which == 5) checkConnectivityHardware();
                 else if (which == 6) checkKaliCompatibility();
+                else if (which == 7) showKaliToolManager();
                 else showKaliInstructions();
             })
             .setNegativeButton("ĐÓNG", null)
@@ -4244,6 +4246,62 @@ public class MainActivity extends Activity {
             "echo '=== END: no system changes made ==='";
         line("Đang thu thập thông tin phần cứng, kernel và trạng thái bootloader (chỉ đọc, không cần root)...", GREEN);
         runTermuxCommand(command);
+    }
+
+    // User-controlled package manager. Every install requires a separate confirmation.
+    private void showKaliToolManager() {
+        final String[] actions = {
+            "KIỂM TRA CÔNG CỤ CƠ BẢN",
+            "CÀI BỘ CÔNG CỤ TERMUX",
+            "CÀI BỘ CÔNG CỤ KALI ROOTLESS"
+        };
+        new AlertDialog.Builder(this)
+            .setTitle("Quản lý công cụ • BO Kali AI")
+            .setMessage("Chỉ quản lý các gói tiện ích phát triển và chẩn đoán cơ bản. Không tự cài đặt. Mỗi lần cài đều hiển thị lệnh và yêu cầu bạn xác nhận.")
+            .setItems(actions, (dialog, which) -> {
+                if (which == 0) checkBasicTools();
+                else if (which == 1) confirmToolInstall(false);
+                else if (which == 2) confirmToolInstall(true);
+            })
+            .setNegativeButton("ĐÓNG", null)
+            .show();
+    }
+
+    private void checkBasicTools() {
+        String command =
+            "echo '=== TERMUX TOOL INVENTORY (READ ONLY) ==='; " +
+            "for x in git python python3 curl wget jq openssh clang make pkg; do " +
+            "if command -v \"$x\" >/dev/null 2>&1; then printf '%s: INSTALLED\\n' \"$x\"; " +
+            "else printf '%s: MISSING\\n' \"$x\"; fi; done; " +
+            "echo '=== KALI TOOL INVENTORY (IF INSTALLED) ==='; " +
+            "if command -v nh >/dev/null 2>&1; then " +
+            "nh bash -lc 'for x in git python3 curl wget jq ip ping dig; do " +
+            "if command -v \"$x\" >/dev/null 2>&1; then printf \"%s: INSTALLED\\\\n\" \"$x\"; " +
+            "else printf \"%s: MISSING\\\\n\" \"$x\"; fi; done' 2>&1; " +
+            "else echo 'NetHunter command nh not found'; fi; " +
+            "echo 'END=Read-only inventory; no packages installed'";
+        line("Đang kiểm tra các tiện ích cơ bản, không cài đặt...", GREEN);
+        runTermuxCommand(command);
+    }
+
+    private void confirmToolInstall(boolean kali) {
+        final String packages = kali
+            ? "git python3 curl wget jq iproute2 dnsutils net-tools"
+            : "git python curl wget jq openssh clang make";
+        final String command = kali
+            ? "nh bash -lc " + shellQuote("apt-get update && apt-get install -y " + packages)
+            : "pkg update && pkg install -y " + packages;
+        new AlertDialog.Builder(this)
+            .setTitle(kali ? "Cài tiện ích trong Kali Rootless?" : "Cài tiện ích trong Termux?")
+            .setMessage("Các gói sẽ được cài:\\n" + packages +
+                "\\n\\nLệnh sẽ chạy trong " + (kali ? "Kali NetHunter Rootless" : "Termux") +
+                ". Cần Internet và dung lượng lưu trữ; thời gian tải tùy mạng. BO Kali AI không tự chạy nếu bạn chưa chọn CÀI ĐẶT.")
+            .setPositiveButton("XÁC NHẬN CÀI", (d, w) -> {
+                line("Đã xác nhận cài gói: " + packages, GREEN);
+                runTermuxCommand(command);
+            })
+            .setNegativeButton("HỦY", null)
+            .show();
     }
 
     // Conservative, read-only compatibility assessment. It never requests root permission.
