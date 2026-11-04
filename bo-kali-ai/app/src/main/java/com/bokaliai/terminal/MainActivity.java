@@ -555,7 +555,32 @@ public class MainActivity extends Activity {
                 line(removed == 0 ? "Chưa chọn endpoint nào để xóa." :
                     "Đã xóa " + removed + " endpoint khỏi danh sách lưu. Kết nối ADB hiện có không bị ngắt.", GREEN);
             })
+            .setNeutralButton("DỌN ENDPOINT CŨ", (dialog, which) -> cleanupOldAdbEndpoints(pairing))
             .setNegativeButton("ĐÓNG", null).show();
+    }
+
+    private void cleanupOldAdbEndpoints(boolean pairing) {
+        final String listKey = pairing ? "pairing_endpoints" : "discovered_endpoints";
+        final String servicePrefix = pairing ? "pairing_service_" : "service_";
+        final String timePrefix = pairing ? "pairing_discovered_at_" : "discovered_at_";
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        java.util.Set<String> current = prefs.getStringSet(listKey, new java.util.HashSet<>());
+        java.util.HashSet<String> remaining = new java.util.HashSet<>(current);
+        long cutoff = System.currentTimeMillis() - 24L * 60L * 60L * 1000L;
+        android.content.SharedPreferences.Editor editor = prefs.edit();
+        int removed = 0;
+        for (String endpoint : current) {
+            long foundAt = prefs.getLong(timePrefix + endpoint, 0L);
+            if (foundAt == 0L || foundAt < cutoff) {
+                remaining.remove(endpoint);
+                editor.remove(servicePrefix + endpoint);
+                editor.remove(timePrefix + endpoint);
+                removed++;
+            }
+        }
+        editor.putStringSet(listKey, remaining).apply();
+        line(removed == 0 ? "Không có endpoint cũ hơn 24 giờ cần dọn." :
+            "Đã dọn " + removed + " endpoint cũ khỏi danh sách lưu. Không ngắt kết nối ADB hiện có.", GREEN);
     }
 
     private void showManualAdbConnectDialog() {
