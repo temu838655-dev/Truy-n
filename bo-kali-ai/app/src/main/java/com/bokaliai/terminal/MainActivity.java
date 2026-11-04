@@ -206,10 +206,34 @@ public class MainActivity extends Activity {
     private String activeMirrorSerial = "";
 
     // Stable per-device scrcpy identity prevents targets from sharing one socket/port.
+    // ADB forward ports are host-wide, so allocate and persist collision-free ports.
     private int scrcpyPortFor(String serial) {
-        int id = serial == null ? 1 : (serial.hashCode() & 0x7fffffff);
-        if (id == 0) id = 1;
-        return 20000 + (id % 40000);
+        if (serial == null || serial.isEmpty()) return 20001;
+        android.content.SharedPreferences ports =
+            getSharedPreferences("bo_kali_scrcpy_ports", MODE_PRIVATE);
+        String key = "port_" + android.util.Base64.encodeToString(
+            serial.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+            android.util.Base64.URL_SAFE | android.util.Base64.NO_WRAP | android.util.Base64.NO_PADDING);
+        int saved = ports.getInt(key, -1);
+        java.util.HashSet<Integer> used = new java.util.HashSet<>();
+        for (java.util.Map.Entry<String, ?> entry : ports.getAll().entrySet()) {
+            if (!entry.getKey().startsWith("port_") || entry.getKey().equals(key)) continue;
+            Object value = entry.getValue();
+            if (value instanceof Integer) used.add((Integer) value);
+        }
+        if (saved >= 20000 && saved <= 59999 && !used.contains(saved)) return saved;
+
+        int seed = serial.hashCode() & 0x7fffffff;
+        int candidate = 20000 + (seed % 40000);
+        for (int attempt = 0; attempt < 40000; attempt++) {
+            int port = 20000 + ((candidate - 20000 + attempt) % 40000);
+            if (!used.contains(port)) {
+                ports.edit().putInt(key, port).apply();
+                return port;
+            }
+        }
+        // Practically unreachable; retain a deterministic fallback for graceful failure.
+        return candidate;
     }
 
     private String scrcpyIdFor(String serial) {
