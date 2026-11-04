@@ -4974,25 +4974,34 @@ public class MainActivity extends Activity {
      * This method never executes a command; processAiDevicePlanOutput shows the
      * existing review/confirmation dialogs and performs the final checks.
      */
+    private String aiProviderDisplayName(String providerId) {
+        if ("claude".equals(providerId)) return "Claude";
+        if ("gemini".equals(providerId)) return "Gemini";
+        if ("openai".equals(providerId)) return "OpenAI";
+        if ("antigravity".equals(providerId)) return "Google Antigravity";
+        return "OpenAI Codex";
+    }
+
     private void acceptAiAdbProposal(JSONObject args, String providerId) {
+        String providerName = aiProviderDisplayName(providerId);
         if (args == null) {
-            line("BO từ chối đề xuất OpenAI: thiếu đối số.", 0xffff8080);
+            line("BO từ chối đề xuất " + providerName + ": thiếu đối số.", 0xffff8080);
             return;
         }
         String serial = args.optString("serial", "").trim();
         String scope = args.optString("scope", "").trim();
         String command = args.optString("command", "").trim();
-        String reason = args.optString("reason", "OpenAI không nêu lý do.");
+        String reason = args.optString("reason", providerName + " không nêu lý do.");
         String risk = args.optString("risk", "HIGH").toUpperCase(java.util.Locale.ROOT);
         if (!"LOW".equals(risk) && !"MEDIUM".equals(risk) && !"HIGH".equals(risk)) risk = "HIGH";
         if (serial.isEmpty() || !isFreshAdbDevice(serial)) {
-            line("BO từ chối đề xuất OpenAI: thiết bị không trực tuyến hoặc serial không hợp lệ.", 0xffff8080);
+            line("BO từ chối đề xuất " + providerName + ": thiết bị không trực tuyến hoặc serial không hợp lệ.", 0xffff8080);
             return;
         }
         java.util.Set<String> grants = aiDevicePermissions.get(serial);
         String validation = AiToolRegistry.validateAdbPlan(scope, serial, command, grants);
         if (!"OK".equals(validation) || !hasAiDevicePermission(serial, scope)) {
-            line("BO từ chối đề xuất OpenAI: " + validation + ". Hãy cấp đúng quyền cho thiết bị rồi yêu cầu lại.", 0xffffca70);
+            line("BO từ chối đề xuất " + providerName + ": " + validation + ". Hãy cấp đúng quyền cho thiết bị rồi yêu cầu lại.", 0xffffca70);
             return;
         }
         String requestId = java.util.UUID.randomUUID().toString();
@@ -5011,7 +5020,7 @@ public class MainActivity extends Activity {
             processAiDevicePlanOutput("BO_AI_PLAN:" + requestId + ":" + plan.toString());
         } catch (org.json.JSONException e) {
             getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE).edit().clear().commit();
-            line("Không thể tạo bản xem xét lệnh OpenAI: " + e.getMessage(), 0xffff8080);
+            line("Không thể tạo bản xem xét lệnh " + providerName + ": " + e.getMessage(), 0xffff8080);
         }
     }
 
