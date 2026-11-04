@@ -2982,11 +2982,12 @@ public class MainActivity extends Activity {
 
     private void showAiDeviceControlMenu() {
         java.util.ArrayList<String> online = getFreshAdbDevices();
-        String[] actions = {"CẤP / ĐIỀU CHỈNH QUYỀN CHO THIẾT BỊ", "THU HỒI TOÀN BỘ QUYỀN AI", "XEM NHẬT KÝ ĐIỀU KHIỂN AI", "HỦY YÊU CẦU AI ĐANG CHỜ", "XEM QUYỀN ĐANG CẤP"};
+        String[] actions = {"CẤP / ĐIỀU CHỈNH QUYỀN CHO THIẾT BỊ", "THU HỒI TOÀN BỘ QUYỀN AI", "XEM NHẬT KÝ ĐIỀU KHIỂN AI", "HỦY YÊU CẦU AI ĐANG CHỜ", "XEM QUYỀN ĐANG CẤP", "XEM NHẬT KÝ LỆNH ADB SHELL"};
         new AlertDialog.Builder(this).setTitle("AI • Quyền điều khiển thiết bị")
             .setMessage("Quyền chỉ tồn tại trong phiên BO hiện tại và gắn với đúng serial ADB. AI không có quyền root, không thể vượt qua xác thực Android. Mỗi thao tác nhạy cảm vẫn cần bạn xác nhận.")
             .setItems(actions, (d, which) -> {
                 if (which == 2) { showAiDeviceAuditLog(); return; }
+                if (which == 5) { showAdbShellAuditLog(); return; }
                 if (which == 4) { showAiDeviceGrantStatus(); return; }
                 if (which == 3) {
                     cancelPendingAiDevicePlanFor(null);
@@ -4175,6 +4176,36 @@ public class MainActivity extends Activity {
         return "UNKNOWN";
     }
 
+    private void appendAdbShellAudit(String serial, String risk, String command) {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_shell_audit", MODE_PRIVATE);
+        String old = prefs.getString("entries", "");
+        String stamp = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+            .format(new java.util.Date());
+        String safeCommand = command == null ? "" : command.replace('\n', ' ').replace('\r', ' ');
+        if (safeCommand.length() > 700) safeCommand = safeCommand.substring(0, 700) + "…";
+        String entry = stamp + " | " + risk + " | " + serial + "\n" + safeCommand;
+        String updated = entry + (old.isEmpty() ? "" : "\n\n" + old);
+        if (updated.length() > 24000) updated = updated.substring(0, 24000);
+        prefs.edit().putString("entries", updated).apply();
+    }
+
+    private void showAdbShellAuditLog() {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_shell_audit", MODE_PRIVATE);
+        String entries = prefs.getString("entries", "");
+        if (entries.isEmpty()) entries = "Chưa có lệnh ADB Shell nào được xác nhận chạy từ BO Kali AI.";
+        new AlertDialog.Builder(this).setTitle("Nhật ký ADB Shell")
+            .setMessage(entries + "\n\nLưu cục bộ trên điện thoại này; không đồng bộ lên máy đích.")
+            .setPositiveButton("ĐÓNG", null)
+            .setNeutralButton("XÓA NHẬT KÝ", (d, w) ->
+                new AlertDialog.Builder(this).setTitle("Xóa nhật ký ADB?")
+                    .setMessage("Chỉ xóa lịch sử cục bộ của BO Kali AI. Không thay đổi thiết bị ADB.")
+                    .setPositiveButton("XÓA", (x, y) -> {
+                        prefs.edit().clear().apply();
+                        line("Đã xóa nhật ký ADB Shell cục bộ.", GREEN);
+                    }).setNegativeButton("HỦY", null).show())
+            .show();
+    }
+
     private void reviewAdbShellCommand(String serial, String command) {
         if (serial == null || !serial.matches("[A-Za-z0-9._:-]+") || !isFreshAdbDevice(serial)) {
             line("Từ chối chạy: serial không hợp lệ hoặc thiết bị chưa được xác minh trực tuyến trong 90 giây gần nhất. Hãy quét ADB lại.", 0xffffca70);
@@ -4200,6 +4231,7 @@ public class MainActivity extends Activity {
             warning = "Lệnh không thuộc danh sách đọc an toàn. Lệnh ghép, script và lệnh lạ có thể làm thay đổi thiết bị.";
             buttonLabel = "TÔI ĐÃ KIỂM TRA, CHẠY"; color = 0xffffca70;
         }
+        appendAdbShellAudit(serial, label, command);
         new AlertDialog.Builder(this).setTitle("Bộ kiểm tra rủi ro ADB")
             .setMessage("Thiết bị: " + serial + "\nPhân loại: " + label
                 + "\n\nLệnh:\n" + command + "\n\n" + warning
