@@ -2799,6 +2799,10 @@ public class MainActivity extends Activity {
                 for (int i = 0; i < selection.length; i++) {
                     if (selection[i]) updated.add(AI_DEVICE_SCOPE_IDS[i]);
                 }
+                // Any permission edit invalidates an outstanding plan for this device.
+                // This prevents a plan created under an older grant set from being replayed
+                // after the owner narrows or changes permissions.
+                cancelPendingAiDevicePlanFor(serial);
                 if (updated.isEmpty()) aiDevicePermissions.remove(serial);
                 else aiDevicePermissions.put(serial, updated);
                 line("Đã cập nhật quyền AI cho " + serial + ": "
