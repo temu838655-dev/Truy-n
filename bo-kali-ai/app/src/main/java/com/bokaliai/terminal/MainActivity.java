@@ -224,9 +224,9 @@ public class MainActivity extends Activity {
                     + "echo \"" + serverHash + "  $SERVER.tmp\" | sha256sum -c -; mv \"$SERVER.tmp\" \"$SERVER\"; fi; "
                     + "adb -s " + serialArg + " forward --remove tcp:27183 >/dev/null 2>&1 || true; "
                     + "adb -s " + serialArg + " push \"$SERVER\" /data/local/tmp/bo-kali-scrcpy-server.jar >/dev/null; "
+                    + "adb -s " + serialArg + " forward tcp:27183 localabstract:scrcpy_00000001; "
                     + "adb -s " + serialArg + " shell " + shellQuote(remoteStart) + "; "
-                    + "sleep 2; adb -s " + serialArg + " forward tcp:27183 localabstract:scrcpy_00000001; "
-                    + "echo BO_SCRCPY_READY:27183";
+                    + "sleep 2; echo BO_SCRCPY_READY:27183";
                 runTermuxCommand(command);
             })
             .setNegativeButton("HỦY", null).show();
