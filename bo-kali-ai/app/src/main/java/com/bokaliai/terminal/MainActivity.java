@@ -835,10 +835,17 @@ public class MainActivity extends Activity {
         }
         dualWorkspaceSerial = serial;
         // A workspace switch replaces the single visible decoder. Stop its local
-        // stream before attaching a new view; the old ADB device stays connected.
+        // stream and remove only that device's port-forward; keep its ADB pairing alive.
         if (activeMirrorView != null && !serial.equals(activeMirrorSerial)) {
             activeMirrorView.stop();
             activeMirrorView = null;
+            String previousSerial = activeMirrorSerial;
+            if (previousSerial != null && !previousSerial.isEmpty()) {
+                int previousPort = scrcpyPortFor(previousSerial);
+                runTermuxCommand("adb -s " + shellQuote(previousSerial)
+                    + " forward --remove tcp:" + previousPort
+                    + " >/dev/null 2>&1 || true; echo BO_SCRCPY_FORWARD_CLOSED");
+            }
         }
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(1);
