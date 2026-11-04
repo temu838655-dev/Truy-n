@@ -12,6 +12,7 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         StringBuilder output = new StringBuilder();
         int exitCode = -1;
         boolean screenCaptureSaved = false;
+        boolean scrcpyReady = false;
 
         if (result == null) {
             output.append("Termux không trả về gói kết quả. Có thể lệnh chưa chạy, Termux quá cũ hoặc quyền RUN_COMMAND chưa được cấp.\n");
@@ -22,6 +23,7 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         } else {
             String stdout = result.getString("stdout", "");
             String stderr = result.getString("stderr", "");
+            scrcpyReady = stdout.contains("BO_SCRCPY_READY:27183");
             exitCode = result.getInt("exitCode", -1);
             int err = result.getInt("err", -1);
             String errmsg = result.getString("errmsg", "");
@@ -100,6 +102,7 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         show.setAction("com.bokaliai.terminal.TERMUX_RESULT");
         show.putExtra("termux_output", output.toString());
         show.putExtra("bo_screen_capture", screenCaptureSaved);
+        show.putExtra("bo_scrcpy_ready", scrcpyReady);
         show.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         try {
             context.startActivity(show);
@@ -107,7 +110,8 @@ public class TermuxResultReceiver extends BroadcastReceiver {
             // Android may prevent background UI launches; the result is stored for the next foreground opening.
             context.getSharedPreferences("bo_kali_results", Context.MODE_PRIVATE)
                 .edit().putString("pending_output", output.toString())
-                .putBoolean("pending_screen_capture", screenCaptureSaved).apply();
+                .putBoolean("pending_screen_capture", screenCaptureSaved)
+                .putBoolean("pending_scrcpy_ready", scrcpyReady).apply();
         }
     }
 }
