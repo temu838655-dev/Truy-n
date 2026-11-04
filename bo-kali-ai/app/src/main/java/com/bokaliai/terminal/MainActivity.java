@@ -2611,6 +2611,8 @@ public class MainActivity extends Activity {
         factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
         factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
         factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        factory.setAttribute(javax.xml.XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        factory.setAttribute(javax.xml.XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
         factory.setXIncludeAware(false);
         factory.setExpandEntityReferences(false);
         return factory.newDocumentBuilder().parse(new java.io.ByteArrayInputStream(xml));
@@ -2695,7 +2697,7 @@ public class MainActivity extends Activity {
 
     private java.util.Map<String, byte[]> readOfficeArchive(byte[] archive) throws Exception {
         java.util.HashMap<String, byte[]> entries = new java.util.HashMap<>();
-        int total = 0;
+        int totalExpanded = 0;
         try (java.util.zip.ZipInputStream zip = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(archive))) {
             java.util.zip.ZipEntry entry;
             byte[] buffer = new byte[8192];
@@ -2707,17 +2709,17 @@ public class MainActivity extends Activity {
                     }
                     boolean wanted = "word/document.xml".equals(name) || "xl/sharedStrings.xml".equals(name)
                         || name.matches("xl/worksheets/sheet[0-9]+\\.xml");
-                    if (wanted) {
-                        java.io.ByteArrayOutputStream data = new java.io.ByteArrayOutputStream();
-                        int count = 0, n;
-                        while ((n = zip.read(buffer)) != -1) {
-                            count += n; total += n;
-                            if (count > 2 * 1024 * 1024 || total > 4 * 1024 * 1024)
-                                throw new IllegalArgumentException("Tệp Office giải nén vượt giới hạn an toàn.");
-                            data.write(buffer, 0, n);
+                    java.io.ByteArrayOutputStream data = wanted ? new java.io.ByteArrayOutputStream() : null;
+                    int entryExpanded = 0, n;
+                    while ((n = zip.read(buffer)) != -1) {
+                        entryExpanded += n;
+                        totalExpanded += n;
+                        if (entryExpanded > 3 * 1024 * 1024 || totalExpanded > 12 * 1024 * 1024) {
+                            throw new IllegalArgumentException("Tệp Office giải nén vượt giới hạn an toàn.");
                         }
-                        entries.put(name, data.toByteArray());
+                        if (data != null) data.write(buffer, 0, n);
                     }
+                    if (data != null) entries.put(name, data.toByteArray());
                 }
                 zip.closeEntry();
             }
