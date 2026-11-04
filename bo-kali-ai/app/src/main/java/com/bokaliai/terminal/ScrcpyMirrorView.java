@@ -32,11 +32,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder.Callback {
     private static final int CODEC_H264 = 0x68323634;
-    // scrcpy video packet flags: CONFIG is bit 63, KEY_FRAME is bit 62,
-    // and the lower 62 bits carry the presentation timestamp.
-    private static final long FLAG_CONFIG = 1L << 63;
-    private static final long FLAG_KEY_FRAME = 1L << 62;
-    private static final long FLAG_PTS_MASK = (1L << 62) - 1;
+    // scrcpy v4.0 frame header: bit 63 distinguishes session packets;
+    // for media packets bit 62 is CONFIG, bit 61 is KEY_FRAME, low 61 bits are PTS.
+    private static final long FLAG_SESSION = 1L << 63;
+    private static final long FLAG_CONFIG = 1L << 62;
+    private static final long FLAG_KEY_FRAME = 1L << 61;
+    private static final long FLAG_PTS_MASK = (1L << 61) - 1;
     private static final int MAX_PACKET = 16 * 1024 * 1024;
 
     private final SurfaceView surfaceView;
@@ -154,33 +155,34 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             int codecId = input.readInt();
             if (codecId != CODEC_H264) throw new IOException("Codec không hỗ trợ: 0x" + Integer.toHexString(codecId));
 
-            // scrcpy sends stream metadata immediately after the codec identifier:
-            // video width and height, followed by 12-byte frame headers.
+            // Stream metadata is sent once after the codec id. Each later capture
+            // session (for example after rotation) starts with a separate 12-byte
+            // session packet whose first bit is set.
             int width = input.readInt();
             int height = input.readInt();
-            if (width <= 0 || height <= 0 || width > 8192 || height > 8192) {
-                throw new IOException("Kích thước video không hợp lệ: " + width + "x" + height);
-            }
-            videoWidth = width;
-            videoHeight = height;
-            post(this::updateVideoSurfaceLayout);
-            Surface surface = surfaceView.getHolder().getSurface();
-            if (!surface.isValid()) throw new IOException("Bề mặt hiển thị đã đóng");
-            MediaFormat format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height);
-            if (Build.VERSION.SDK_INT >= 30) format.setInteger(MediaFormat.KEY_LOW_LATENCY, 1);
-            codec = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
-            codec.configure(format, surface, null, 0);
-            codec.start();
+            codec = createDecoder(width, height);
             decoder = codec;
-            setStatus("Đang xem trực tiếp · " + width + " × " + height + " · Chạm để điều khiển");
 
             while (running.get()) {
                 byte[] header = new byte[12];
                 input.readFully(header);
-                // Device metadata is disabled by the server command. Every frame starts
-                // with the 64-bit PTS/flags field followed by a 32-bit payload size.
-                long ptsAndFlags = ByteBuffer.wrap(header).order(ByteOrder.BIG_ENDIAN).getLong();
-                int packetSize = ByteBuffer.wrap(header, 8, 4).order(ByteOrder.BIG_ENDIAN).getInt();
+                ByteBuffer headerBuffer = ByteBuffer.wrap(header).order(ByteOrder.BIG_ENDIAN);
+                long ptsAndFlags = headerBuffer.getLong();
+                int packetSize = headerBuffer.getInt();
+
+                if ((ptsAndFlags & FLAG_SESSION) != 0) {
+                    int nextWidth = ByteBuffer.wrap(header, 4, 4).order(ByteOrder.BIG_ENDIAN).getInt();
+                    int nextHeight = ByteBuffer.wrap(header, 8, 4).order(ByteOrder.BIG_ENDIAN).getInt();
+                    if (nextWidth <= 0 || nextHeight <= 0 || nextWidth > 8192 || nextHeight > 8192) {
+                        throw new IOException("Kích thước phiên video không hợp lệ");
+                    }
+                    try { codec.stop(); } catch (Exception ignored) { }
+                    codec.release();
+                    codec = createDecoder(nextWidth, nextHeight);
+                    decoder = codec;
+                    continue;
+                }
+
                 if (packetSize < 1 || packetSize > MAX_PACKET) throw new IOException("Gói video quá lớn hoặc không hợp lệ");
                 byte[] packet = new byte[packetSize];
                 input.readFully(packet);
@@ -203,7 +205,7 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
                     target.clear();
                     target.put(packet);
                     boolean config = (ptsAndFlags & FLAG_CONFIG) != 0;
-                    long pts = config ? 0L : (ptsAndFlags & FLAG_PTS_MASK);
+                    long pts = ptsAndFlags & FLAG_PTS_MASK;
                     int codecFlags = config ? MediaCodec.BUFFER_FLAG_CODEC_CONFIG : 0;
                     if ((ptsAndFlags & FLAG_KEY_FRAME) != 0) codecFlags |= MediaCodec.BUFFER_FLAG_KEY_FRAME;
                     codec.queueInputBuffer(inputIndex, 0, packet.length, pts, codecFlags);
@@ -221,6 +223,28 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             }
             if (decoder == codec) decoder = null;
             stopSockets();
+        }
+    }
+
+    private MediaCodec createDecoder(int width, int height) throws IOException {
+        if (width <= 0 || height <= 0 || width > 8192 || height > 8192) {
+            throw new IOException("Kích thước video không hợp lệ: " + width + "x" + height);
+        }
+        videoWidth = width;
+        videoHeight = height;
+        post(this::updateVideoSurfaceLayout);
+        Surface surface = surfaceView.getHolder().getSurface();
+        if (!surface.isValid()) throw new IOException("Bề mặt hiển thị đã đóng");
+        try {
+            MediaFormat format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height);
+            if (Build.VERSION.SDK_INT >= 30) format.setInteger(MediaFormat.KEY_LOW_LATENCY, 1);
+            MediaCodec result = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
+            result.configure(format, surface, null, 0);
+            result.start();
+            setStatus("Đang xem trực tiếp · " + width + " × " + height + " · Chạm để điều khiển");
+            return result;
+        } catch (Exception error) {
+            throw new IOException("Không khởi tạo được bộ giải mã H.264: " + safeMessage(error), error);
         }
     }
 
