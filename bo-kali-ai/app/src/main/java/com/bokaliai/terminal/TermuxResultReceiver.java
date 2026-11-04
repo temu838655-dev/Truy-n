@@ -23,7 +23,7 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         } else {
             String stdout = result.getString("stdout", "");
             String stderr = result.getString("stderr", "");
-            scrcpyReady = stdout.contains("BO_SCRCPY_READY:27183");
+            scrcpyReady = stdout.contains("BO_SCRCPY_READY:");
             exitCode = result.getInt("exitCode", -1);
             int err = result.getInt("err", -1);
             String errmsg = result.getString("errmsg", "");

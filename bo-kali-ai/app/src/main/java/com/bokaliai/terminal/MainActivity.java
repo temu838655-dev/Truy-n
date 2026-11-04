@@ -205,6 +205,19 @@ public class MainActivity extends Activity {
     private ScrcpyMirrorView activeMirrorView;
     private String activeMirrorSerial = "";
 
+    // Stable per-device scrcpy identity prevents targets from sharing one socket/port.
+    private int scrcpyPortFor(String serial) {
+        int id = serial == null ? 1 : (serial.hashCode() & 0x7fffffff);
+        if (id == 0) id = 1;
+        return 20000 + (id % 40000);
+    }
+
+    private String scrcpyIdFor(String serial) {
+        int id = serial == null ? 1 : (serial.hashCode() & 0x7fffffff);
+        if (id == 0) id = 1;
+        return String.format(java.util.Locale.US, "%08x", id);
+    }
+
     private void runAdbMirrorStart(String serial) {
         if (!isFreshAdbDevice(serial)) {
             line("Không thể truyền màn hình: thiết bị ADB không còn trực tuyến.", 0xffffca70);
@@ -223,19 +236,24 @@ public class MainActivity extends Activity {
                 if (activeMirrorView != null) activeMirrorView.setStatus("Đang chuẩn bị máy chủ truyền màn hình...");
                 String serverHash = "84924bd564a1eb6089c872c7521f968058977f91f5ff02514a8c74aff3210f3a";
                 String serverUrl = "https://github.com/Genymobile/scrcpy/releases/download/v4.0/scrcpy-server-v4.0";
-                String remoteStart = "CLASSPATH=/data/local/tmp/bo-kali-scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 4.0 scid=00000001 tunnel_forward=true audio=false video_codec=h264 max_size=1280 video_bit_rate=4000000 max_fps=30 send_device_meta=false send_dummy_byte=false cleanup=true >/dev/null 2>&1 </dev/null &";
+                final int mirrorPort = scrcpyPortFor(serial);
+                final String mirrorId = scrcpyIdFor(serial);
+                getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE).edit()
+                    .putInt("active_port", mirrorPort).putString("active_scrcpy_id", mirrorId).apply();
+                String remoteStart = "CLASSPATH=/data/local/tmp/bo-kali-scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 4.0 scid=" + mirrorId + " tunnel_forward=true audio=false video_codec=h264 max_size=1280 video_bit_rate=4000000 max_fps=30 send_device_meta=false send_dummy_byte=false cleanup=true >/dev/null 2>&1 </dev/null &";
+                String socketName = "scrcpy_" + mirrorId;
                 String serialArg = shellQuote(serial);
                 String command = "set -e; pkg install -y android-tools curl coreutils >/dev/null; "
                     + "mkdir -p \"$HOME/.bo-kali-ai\"; SERVER=\"$HOME/.bo-kali-ai/scrcpy-server-v4.0\"; "
                     + "if [ ! -s \"$SERVER\" ] || [ \"$(sha256sum \"$SERVER\" | cut -d' ' -f1)\" != \"" + serverHash + "\" ]; then "
                     + "curl -fL --retry 3 \"" + serverUrl + "\" -o \"$SERVER.tmp\"; "
                     + "echo \"" + serverHash + "  $SERVER.tmp\" | sha256sum -c -; mv \"$SERVER.tmp\" \"$SERVER\"; fi; "
-                    + "adb -s " + serialArg + " forward --remove tcp:27183 >/dev/null 2>&1 || true; "
+                    + "adb -s " + serialArg + " forward --remove tcp:" + mirrorPort + " >/dev/null 2>&1 || true; "
                     + "adb -s " + serialArg + " push \"$SERVER\" /data/local/tmp/bo-kali-scrcpy-server.jar >/dev/null; "
-                    + "adb -s " + serialArg + " forward tcp:27183 localabstract:scrcpy_00000001; "
+                    + "adb -s " + serialArg + " forward tcp:" + mirrorPort + " localabstract:" + socketName + "; "
                     + "adb -s " + serialArg + " shell " + shellQuote(remoteStart) + "; "
-                    + "if adb -s " + serialArg + " shell " + shellQuote("for i in 1 2 3 4 5; do grep -F 'scrcpy_00000001' /proc/net/unix >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1") + "; then "
-                    + "echo BO_SCRCPY_READY:27183; "
+                    + "if adb -s " + serialArg + " shell " + shellQuote("for i in 1 2 3 4 5; do grep -F '" + socketName + "' /proc/net/unix >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1") + "; then "
+                    + "echo BO_SCRCPY_READY:" + mirrorPort + "; "
                     + "else echo 'BO_SCRCPY_ERROR: Máy chủ scrcpy không mở socket'; exit 1; fi";
                 runTermuxCommand(command);
             })
@@ -263,14 +281,15 @@ public class MainActivity extends Activity {
         stopAdbKeepAlive();
         String stopCommand;
         if (serial != null && !serial.isEmpty()) {
+            int mirrorPort = scrcpyPortFor(serial);
             stopCommand = "adb -s " + shellQuote(serial)
-                + " forward --remove tcp:27183 >/dev/null 2>&1 || true; "
+                + " forward --remove tcp:" + mirrorPort + " >/dev/null 2>&1 || true; "
                 + "adb disconnect " + shellQuote(serial) + " >/dev/null 2>&1 || true; ";
         } else {
-            stopCommand = "adb forward --remove tcp:27183 >/dev/null 2>&1 || true; ";
+            stopCommand = "echo 'BO_ADB_STOPPED: Không có serial để ngắt'; ";
         }
-        // Always stop the local ADB server, even if the selected serial was lost.
-        runTermuxCommand(stopCommand + "adb kill-server >/dev/null 2>&1 || true; echo BO_ADB_STOPPED");
+        // Keep the shared ADB server alive for any other connected devices.
+        runTermuxCommand(stopCommand + "echo BO_ADB_STOPPED");
     }
 
 
@@ -2482,7 +2501,7 @@ public class MainActivity extends Activity {
             if (pendingScrcpyReady) {
                 adbMirrorResumePending = false;
                 adbMirrorResumeRetries = 0;
-                if (activeMirrorView != null) activeMirrorView.start(27183);
+                if (activeMirrorView != null) activeMirrorView.start(getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE).getInt("active_port", scrcpyPortFor(activeMirrorSerial)));
             } else if (pending != null) {
                 adbMirrorResumePending = false;
                 scheduleScrcpyResumeRetry(pending);
@@ -2507,17 +2526,22 @@ public class MainActivity extends Activity {
 
         adbMirrorResumePending = true;
         activeMirrorView.prepareForReconnect();
+        final int mirrorPort = scrcpyPortFor(serial);
+        final String mirrorId = scrcpyIdFor(serial);
+        session.edit().putInt("active_port", mirrorPort).putString("active_scrcpy_id", mirrorId).apply();
         String serialArg = shellQuote(serial);
-        String remoteStart = "CLASSPATH=/data/local/tmp/bo-kali-scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 4.0 scid=00000001 tunnel_forward=true audio=false video_codec=h264 max_size=1280 video_bit_rate=4000000 max_fps=30 send_device_meta=false send_dummy_byte=false cleanup=true >/dev/null 2>&1 </dev/null &";
-        String socketCheck = "grep -F 'scrcpy_00000001' /proc/net/unix >/dev/null 2>&1";
-        String waitForSocket = "for i in 1 2 3 4 5 6 7 8 9 10; do grep -F 'scrcpy_00000001' /proc/net/unix >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1";
+        String remoteStart = "CLASSPATH=/data/local/tmp/bo-kali-scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 4.0 scid=" + mirrorId + " tunnel_forward=true audio=false video_codec=h264 max_size=1280 video_bit_rate=4000000 max_fps=30 send_device_meta=false send_dummy_byte=false cleanup=true >/dev/null 2>&1 </dev/null &";
+        String socketName = "scrcpy_" + mirrorId;
+        String portArg = "tcp:" + mirrorPort;
+        String socketCheck = "grep -F '" + socketName + "' /proc/net/unix >/dev/null 2>&1";
+        String waitForSocket = "for i in 1 2 3 4 5 6 7 8 9 10; do grep -F '" + socketName + "' /proc/net/unix >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1";
         String command = "adb -s " + serialArg + " get-state >/dev/null 2>&1 || { echo 'BO_SCRCPY_ERROR: Thiết bị ADB chưa trực tuyến'; exit 1; }; "
-            + "adb -s " + serialArg + " forward --remove tcp:27183 >/dev/null 2>&1 || true; "
-            + "adb -s " + serialArg + " forward tcp:27183 localabstract:scrcpy_00000001 || exit 1; "
+            + "adb -s " + serialArg + " forward --remove tcp:" + mirrorPort + " >/dev/null 2>&1 || true; "
+            + "adb -s " + serialArg + " forward tcp:" + mirrorPort + " localabstract:" + socketName + " || exit 1; "
             + "if ! adb -s " + serialArg + " shell " + shellQuote(socketCheck) + "; then "
             + "adb -s " + serialArg + " shell " + shellQuote(remoteStart) + "; fi; "
             + "if adb -s " + serialArg + " shell " + shellQuote(waitForSocket) + "; then "
-            + "echo BO_SCRCPY_READY:27183; else echo 'BO_SCRCPY_ERROR: Không khôi phục được socket scrcpy'; exit 1; fi";
+            + "echo BO_SCRCPY_READY:" + mirrorPort + "; else echo 'BO_SCRCPY_ERROR: Không khôi phục được socket scrcpy'; exit 1; fi";
         runTermuxCommand(command);
         line("Đang khôi phục luồng scrcpy sau khi mở khóa; phiên ADB vẫn được giữ nguyên.", 0xff79c9ff);
     }
