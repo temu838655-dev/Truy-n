@@ -500,14 +500,16 @@ public class MainActivity extends Activity {
             "Windows (SSH / OpenSSH Server)",
             "Linux / Kali / macOS (SSH)",
             "Home Assistant",
-            "Router / NAS / giao diện Web"
+            "Router / NAS / giao diện Web",
+            "Modem / Router (SSH terminal)"
         };
         String[] platformValues = {
             DeviceHubProfile.ANDROID_ADB,
             DeviceHubProfile.SSH,
             DeviceHubProfile.SSH,
             DeviceHubProfile.HOME_ASSISTANT,
-            DeviceHubProfile.WEB
+            DeviceHubProfile.WEB,
+            DeviceHubProfile.ROUTER_SSH
         };
         Spinner platform = new Spinner(this);
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, platformLabels);
@@ -532,7 +534,7 @@ public class MainActivity extends Activity {
             @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
                 String defaultPort = position == 0 ? "5555" : position == 3 ? "8123" : position == 4 ? "80" : "22";
                 port.setText(defaultPort);
-                username.setVisibility((position == 1 || position == 2) ? View.VISIBLE : View.GONE);
+                username.setVisibility((position == 1 || position == 2 || position == 5) ? View.VISIBLE : View.GONE);
                 host.setHint(position == 4 ? "http://192.168.1.1 hoặc https://..." : "IP / tên miền");
             }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
@@ -555,7 +557,7 @@ public class MainActivity extends Activity {
                     ? (h.matches("[A-Za-z0-9._:%\\[\\]-]{1,253}") || ((h.startsWith("http://") || h.startsWith("https://")) && h.length() < 512))
                     : h.matches("[A-Za-z0-9._:%\\[\\]-]{1,253}");
                 if (n.isEmpty() || !validHost || p < 1 || p > 65535
-                    || (DeviceHubProfile.SSH.equals(proto) && !u.matches("[A-Za-z0-9._-]{1,64}"))) {
+                    || ((DeviceHubProfile.SSH.equals(proto) || DeviceHubProfile.ROUTER_SSH.equals(proto)) && !u.matches("[A-Za-z0-9._-]{1,64}"))) {
                     line("Thông tin thiết bị chưa hợp lệ. Kiểm tra tên, địa chỉ, cổng và tài khoản SSH.", 0xffff8080);
                     return;
                 }
@@ -593,11 +595,11 @@ public class MainActivity extends Activity {
                 .setNegativeButton("HỦY", null).show();
             return;
         }
-        if (DeviceHubProfile.SSH.equals(profile.platform)) {
+        if ((DeviceHubProfile.SSH.equals(profile.platform) || DeviceHubProfile.ROUTER_SSH.equals(profile.platform))) {
             String command = "pkg install -y openssh && ssh -p " + profile.port
                 + " -o ConnectTimeout=10 " + shellQuote(profile.username + "@" + profile.host);
-            new AlertDialog.Builder(this).setTitle("Kết nối SSH · " + profile.name)
-                .setMessage("Mở phiên SSH trong Termux. Lần đầu có thể cần xác nhận host key và nhập mật khẩu trực tiếp trong Termux. BO Kali AI không lưu mật khẩu.")
+            new AlertDialog.Builder(this).setTitle((DeviceHubProfile.ROUTER_SSH.equals(profile.platform) ? "SSH MODEM / ROUTER · " : "Kết nối SSH · ") + profile.name)
+                .setMessage("Mở phiên SSH trong Termux. Router phải bật SSH Server và cho phép tài khoản này đăng nhập. Lần đầu xác nhận host key; nhập mật khẩu trực tiếp trong Termux. BO Kali AI không lưu mật khẩu. Quyền chạy lệnh phụ thuộc tài khoản và firmware router.")
                 .setPositiveButton("MỞ PHIÊN SSH", (d, w) -> runTermuxInteractiveCommand(command))
                 .setNegativeButton("HỦY", null).show();
             return;
