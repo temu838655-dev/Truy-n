@@ -273,11 +273,15 @@ public class MainActivity extends Activity {
                 adbMirrorResumeRetries = 0;
                 adbMirrorResumePending = false;
                 activeMirrorSerial = serial;
-                startAdbKeepAlive(serial);
                 String scrcpyRequestToken = java.util.UUID.randomUUID().toString();
-                getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE).edit()
+                boolean sessionSaved = getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE).edit()
                     .putString("active_serial", serial).putString("active_request_token", scrcpyRequestToken)
-                    .putBoolean("keep_alive", true).apply();
+                    .putBoolean("keep_alive", true).commit();
+                if (!sessionSaved) {
+                    line("Không thể lưu trạng thái phiên ADB; chưa khởi động dịch vụ nền.", 0xffff7777);
+                    return;
+                }
+                startAdbKeepAlive(serial);
                 if (activeMirrorView != null) activeMirrorView.setStatus("Đang chuẩn bị máy chủ truyền màn hình...");
                 String serverHash = "84924bd564a1eb6089c872c7521f968058977f91f5ff02514a8c74aff3210f3a";
                 String serverUrl = "https://github.com/Genymobile/scrcpy/releases/download/v4.0/scrcpy-server-v4.0";
