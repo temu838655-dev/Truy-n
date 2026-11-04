@@ -211,6 +211,8 @@ public class MainActivity extends Activity {
             .setTitle("Bắt đầu điều khiển trực tiếp")
             .setMessage("BO Kali AI sẽ tải máy chủ scrcpy chính thức từ GitHub, khởi chạy tạm thời trên thiết bị đã kết nối và truyền hình ảnh cùng thao tác chạm qua ADB. Chỉ tiếp tục khi bạn sở hữu thiết bị hoặc có sự đồng ý của chủ thiết bị.")
             .setPositiveButton("BẮT ĐẦU", (d, w) -> {
+                adbMirrorResumeRetries = 0;
+                adbMirrorResumePending = false;
                 activeMirrorSerial = serial;
                 startAdbKeepAlive(serial);
                 getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE).edit()
@@ -2457,6 +2459,25 @@ public class MainActivity extends Activity {
 
 
     private boolean adbMirrorResumePending = false;
+    private int adbMirrorResumeRetries = 0;
+
+    private void scheduleScrcpyResumeRetry(String output) {
+        if (output == null || !output.contains("BO_SCRCPY_ERROR:")) return;
+        if (adbMirrorResumeRetries >= 2) {
+            line("Không thể tự khôi phục scrcpy sau 2 lần thử. ADB vẫn được giữ; hãy kiểm tra Wi-Fi/thiết bị rồi thử truyền lại.", 0xffffca70);
+            return;
+        }
+        adbMirrorResumeRetries++;
+        final int attempt = adbMirrorResumeRetries;
+        line("Khôi phục scrcpy chưa thành công. Sẽ tự thử lại lần " + attempt + "/2 sau 5 giây.", 0xffffca70);
+        mainHandler.postDelayed(() -> {
+            android.content.SharedPreferences session =
+                getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
+            if (!session.getBoolean("keep_alive", false) || activeMirrorView == null
+                || activeMirrorView.isRunning() || adbMirrorResumePending) return;
+            resumeAdbMirrorAfterUnlock();
+        }, 5000L);
+    }
 
     @Override protected void onResume() {
         super.onResume();
@@ -2476,7 +2497,11 @@ public class MainActivity extends Activity {
             if (pendingScreenCapture) showDualWorkspace();
             if (pendingScrcpyReady) {
                 adbMirrorResumePending = false;
+                adbMirrorResumeRetries = 0;
                 if (activeMirrorView != null) activeMirrorView.start(27183);
+            } else if (pending != null) {
+                adbMirrorResumePending = false;
+                scheduleScrcpyResumeRetry(pending);
             }
         }
         resumeAdbMirrorAfterUnlock();
@@ -2522,8 +2547,11 @@ public class MainActivity extends Activity {
             if (intent.getBooleanExtra("bo_screen_capture", false)) showDualWorkspace();
             if (adbMirrorResumePending) adbMirrorResumePending = false;
             if (intent.getBooleanExtra("bo_scrcpy_ready", false)) {
+                adbMirrorResumeRetries = 0;
                 if (activeMirrorView != null) activeMirrorView.start(27183);
                 else line("Máy chủ scrcpy đã sẵn sàng. Hãy mở lại MÀN HÌNH KÉP để xem thiết bị.", GREEN);
+            } else {
+                scheduleScrcpyResumeRetry(lastCommandOutput);
             }
             handleAdbDevicesOutput(lastCommandOutput);
             line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
