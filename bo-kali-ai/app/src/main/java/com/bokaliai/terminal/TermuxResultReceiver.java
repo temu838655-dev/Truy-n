@@ -50,7 +50,7 @@ public class TermuxResultReceiver extends BroadcastReceiver {
             if (exitCode == 0) output.append(" (thành công)");
             else if (exitCode > 0) output.append(" (lệnh kết thúc với lỗi)");
             output.append("\n");
-            if (!stdout.isEmpty()) output.append("STDOUT:\n").append(stdout).append("\n");
+            if (!stdout.isEmpty() && !screenshotPayload) output.append("STDOUT:\n").append(stdout).append("\n");
             if (!stderr.isEmpty()) output.append("STDERR:\n").append(stderr).append("\n");
             if (err != -1 || !errmsg.isEmpty()) {
                 output.append("Lỗi Termux: ").append(errmsg).append(" (").append(err).append(")\n");
