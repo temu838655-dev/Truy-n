@@ -4692,6 +4692,16 @@ public class MainActivity extends Activity {
         }
         questionInput.setText("");
         line("Bạn → " + provider + ": " + q, 0xff79c9ff);
+        final boolean includeImage = "Gemini".equals(provider) ? shareImageGemini
+            : "Claude".equals(provider) ? shareImageClaude
+            : "OpenAI".equals(provider) && shareImageOpenAi;
+        final String imageData = includeImage ? selectedAiImageBase64 : "";
+        final String imageMime = includeImage ? selectedAiImageMime : "";
+        final String imageName = includeImage ? selectedAiImageName : "";
+        if (includeImage && (imageData == null || imageData.isEmpty())) {
+            line("Bạn đã bật quyền ảnh cho " + provider + " nhưng chưa chọn ảnh.", 0xffffca70);
+            return;
+        }
         line(provider + " đang phân tích...", GREEN);
         worker.execute(() -> {
             HttpURLConnection conn = null;
@@ -4703,8 +4713,11 @@ public class MainActivity extends Activity {
                 JSONObject result;
                 int code;
                 if ("Gemini".equals(provider)) {
+                    JSONArray parts = new JSONArray().put(new JSONObject().put("text", prompt));
+                    if (!imageData.isEmpty()) parts.put(new JSONObject().put("inline_data",
+                        new JSONObject().put("mime_type", imageMime).put("data", imageData)));
                     JSONObject body = new JSONObject().put("contents", new JSONArray().put(
-                        new JSONObject().put("parts", new JSONArray().put(new JSONObject().put("text", prompt)))));
+                        new JSONObject().put("parts", parts)));
                     URL url = new URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent");
                     conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("POST");
@@ -4715,11 +4728,15 @@ public class MainActivity extends Activity {
                     code = conn.getResponseCode();
                     result = new JSONObject(readAiHttpResponse(conn, code));
                 } else if ("Claude".equals(provider)) {
+                    JSONArray claudeContent = new JSONArray().put(new JSONObject().put("type", "text").put("text", prompt));
+                    if (!imageData.isEmpty()) claudeContent.put(new JSONObject().put("type", "image")
+                        .put("source", new JSONObject().put("type", "base64")
+                            .put("media_type", imageMime).put("data", imageData)));
                     JSONObject body = new JSONObject()
                         .put("model", "claude-sonnet-5-5")
                         .put("max_tokens", 2048)
                         .put("messages", new JSONArray().put(new JSONObject()
-                            .put("role", "user").put("content", prompt)));
+                            .put("role", "user").put("content", claudeContent)));
                     URL url = new URL("https://api.anthropic.com/v1/messages");
                     conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("POST");
@@ -4731,10 +4748,19 @@ public class MainActivity extends Activity {
                     code = conn.getResponseCode();
                     result = new JSONObject(readAiHttpResponse(conn, code));
                 } else {
+                    Object openAiContent;
+                    if (!imageData.isEmpty()) {
+                        openAiContent = new JSONArray()
+                            .put(new JSONObject().put("type", "text").put("text", prompt))
+                            .put(new JSONObject().put("type", "image_url").put("image_url",
+                                new JSONObject().put("url", "data:" + imageMime + ";base64," + imageData)));
+                    } else {
+                        openAiContent = prompt;
+                    }
                     JSONObject body = new JSONObject()
                         .put("model", "gpt-6.1-sol")
                         .put("messages", new JSONArray().put(new JSONObject()
-                            .put("role", "user").put("content", prompt)));
+                            .put("role", "user").put("content", openAiContent)));
                     URL url = new URL("https://api.openai.com/v1/chat/completions");
                     conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("POST");
