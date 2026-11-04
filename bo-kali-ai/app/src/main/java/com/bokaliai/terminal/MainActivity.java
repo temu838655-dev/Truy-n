@@ -1106,7 +1106,7 @@ public class MainActivity extends Activity {
                         + " logcat -d -v threadtime -t " + count + " " + shellQuote(filter);
                 } else {
                     String pidLookup = "pid=$(adb -s " + shellQuote(serial) + " shell pidof "
-                        + shellQuote(selectedPackage) + " 2>/dev/null | tr -d '\\r'); "
+                        + shellQuote(selectedPackage) + " 2>/dev/null | tr -d '\\r' | tr ' ' ','); "
                         + "if [ -n \"$pid\" ]; then adb -s " + shellQuote(serial)
                         + " logcat -d -v threadtime -t " + count + " --pid=\"$pid\" "
                         + shellQuote(filter)
