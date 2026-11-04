@@ -68,7 +68,7 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 3101);
         }
-        line("BO Kali AI v0.1.0 — Android safe terminal", GREEN);
+        line("BO Kali AI v" + getAppVersionName() + " — Android safe terminal", GREEN);
         line("Đây là bản điều khiển chẩn đoán không root. Chưa chạy shell tùy ý.", WHITE);
         line("Gõ help để xem lệnh khả dụng. Kết nối AI/GitHub trong Cài đặt kết nối.", GREEN);
     }
@@ -1701,6 +1701,6 @@ public class MainActivity extends Activity {
         TextView t = text(s,color,12,false); t.setTypeface(Typeface.MONOSPACE); t.setPadding(2,5,2,5);
         log.addView(t); if(scroll!=null) scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
     }
-    private int dp(int n) { return (int)(n*getResources().getDisplayMetrics().density+0.5f); }
+    private String getAppVersionName() {\n        try {\n            android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);\n            return info.versionName == null ? "unknown" : info.versionName;\n        } catch (Exception e) {\n            return "unknown";\n        }\n    }\n\n    private int dp(int n) { return (int)(n*getResources().getDisplayMetrics().density+0.5f); }
     @Override protected void onDestroy() { super.onDestroy(); worker.shutdownNow(); geminiKey=""; githubToken=""; }
 }
