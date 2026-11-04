@@ -56,6 +56,9 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
     private volatile int videoWidth;
     private volatile int videoHeight;
     private volatile int localPort = -1;
+    // Only auto-start when the user explicitly requested a start before the Surface existed.
+    // A Surface recreated after lock/unlock must wait for MainActivity's ADB/server handshake.
+    private volatile boolean pendingSurfaceStart = false;
 
     public ScrcpyMirrorView(Context context) { this(context, null); }
 
@@ -91,6 +94,7 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
      * The ADB connection and foreground keep-alive service are intentionally untouched.
      */
     public void prepareForReconnect() {
+        pendingSurfaceStart = false;
         stop();
         localPort = -1;
         setStatus("Đang chờ khôi phục luồng scrcpy sau khi mở khóa...");
@@ -104,9 +108,11 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
         stop();
         localPort = port;
         if (!surfaceView.getHolder().getSurface().isValid()) {
+            pendingSurfaceStart = true;
             setStatus("Đang chờ bề mặt hiển thị...");
             return;
         }
+        pendingSurfaceStart = false;
         running.set(true);
         final int generation = sessionGeneration.get();
         setStatus("Đang kết nối luồng video và điều khiển...");
@@ -431,12 +437,18 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
     }
 
     @Override public void surfaceCreated(SurfaceHolder holder) {
-        if (localPort > 0 && !running.get()) start(localPort);
+        // A fresh Surface after screen unlock is not proof that the remote scrcpy
+        // server/ADB forward is ready. Only honor a start explicitly queued while
+        // waiting for the very first Surface; reconnects are coordinated by Activity.
+        if (pendingSurfaceStart && localPort > 0 && !running.get()) start(localPort);
     }
 
     @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) { }
 
-    @Override public void surfaceDestroyed(SurfaceHolder holder) { stop(); }
+    @Override public void surfaceDestroyed(SurfaceHolder holder) {
+        pendingSurfaceStart = false;
+        stop();
+    }
 
     @Override protected void onDetachedFromWindow() {
         stop();

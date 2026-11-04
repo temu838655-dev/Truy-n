@@ -104,17 +104,14 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         show.putExtra("bo_screen_capture", screenCaptureSaved);
         show.putExtra("bo_scrcpy_ready", scrcpyReady);
         show.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        // Persist before attempting to launch the Activity. If the process was not alive,
-        // Android creates it through onCreate/onResume rather than onNewIntent; the result
-        // must therefore already be available in either lifecycle path.
-        resultPrefs.edit().putString("pending_output", output.toString())
-            .putBoolean("pending_screen_capture", screenCaptureSaved)
-            .putBoolean("pending_scrcpy_ready", scrcpyReady).apply();
         try {
             context.startActivity(show);
         } catch (Exception ignored) {
-            // Background activity launches may be blocked. The pending result remains
-            // stored and is consumed the next time the user opens BO Kali AI.
+            // Android may prevent background UI launches; the result is stored for the next foreground opening.
+            context.getSharedPreferences("bo_kali_results", Context.MODE_PRIVATE)
+                .edit().putString("pending_output", output.toString())
+                .putBoolean("pending_screen_capture", screenCaptureSaved)
+                .putBoolean("pending_scrcpy_ready", scrcpyReady).apply();
         }
     }
 }
