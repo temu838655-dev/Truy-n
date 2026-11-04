@@ -181,7 +181,13 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             if (videoSocket == video) videoSocket = null;
             if (controlSocket == control) controlSocket = null;
             if (controlSocket == null) controlOutput = null;
-            if (isCurrentSession(generation)) setStatus("Không mở được luồng scrcpy: " + safeMessage(error));
+            if (sessionGeneration.get() == generation && running.get()) {
+                // A failed TCP connect must not leave the view marked healthy.
+                // The Activity/network lifecycle can then safely request a new handshake.
+                running.set(false);
+                setStatus("Không mở được luồng scrcpy: " + safeMessage(error)
+                    + " · Có thể thử khôi phục lại kết nối");
+            }
         }
     }
 
