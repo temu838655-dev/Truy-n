@@ -1042,7 +1042,7 @@ public class MainActivity extends Activity {
             .setOnClickListener(b -> {
                 actions.dismiss();
                 new AlertDialog.Builder(this).setTitle("Quản lý " + serial)
-                    .setItems(new String[]{"Kiểm tra kết nối thiết bị này", "Sao chép serial ADB", "Đặt / đổi tên gợi nhớ", "Lưu / chạy lệnh thường dùng", "Báo cáo chẩn đoán tổng hợp", "Đọc Logcat gần đây", "Xuất Logcat gần nhất thành TXT", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
+                    .setItems(new String[]{"Kiểm tra kết nối thiết bị này", "Sao chép serial ADB", "Đặt / đổi tên gợi nhớ", "Lưu / chạy lệnh thường dùng", "Báo cáo chẩn đoán tổng hợp", "Đọc Logcat gần đây", "Xuất Logcat gần nhất thành TXT", "Liệt kê ứng dụng bên thứ ba", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
                         if (which == 0) checkSavedAdbDevice(serial);
                         else if (which == 1) copyText(serial, "Đã sao chép serial ADB.");
                         else if (which == 2) showAdbAliasDialog(serial);
@@ -1050,11 +1050,26 @@ public class MainActivity extends Activity {
                         else if (which == 4) showAdbFullDiagnosticReport(serial);
                         else if (which == 5) showAdbLogcatDialog(serial);
                         else if (which == 6) exportLastAdbLogcat(serial);
-                        else if (which == 7) confirmAdbDisconnect(serial);
+                        else if (which == 7) showAdbInstalledApps(serial);
+                        else if (which == 8) confirmAdbDisconnect(serial);
                         else confirmForgetAdbDevice(serial);
                     }).setNegativeButton("ĐÓNG", null).show();
             }));
         actions.show();
+    }
+
+    // Read-only inventory of third-party packages installed on the selected authorized device.
+    private void showAdbInstalledApps(String serial) {
+        new AlertDialog.Builder(this)
+            .setTitle("Liệt kê ứng dụng • " + serial)
+            .setMessage("Đọc danh sách package ứng dụng bên thứ ba và đường dẫn APK nếu Android cho phép. Thao tác chỉ đọc, không gỡ cài đặt hay thay đổi ứng dụng. Kết quả có thể tiết lộ ứng dụng đã cài trên thiết bị.")
+            .setPositiveButton("ĐỌC DANH SÁCH", (d, w) -> {
+                String command = "adb -s " + shellQuote(serial) + " shell pm list packages -3 -f";
+                line("Đang đọc danh sách ứng dụng bên thứ ba trên " + serial + "...", GREEN);
+                runTermuxCommand(command);
+            })
+            .setNegativeButton("HỦY", null)
+            .show();
     }
 
     // Read a bounded recent logcat snapshot; never clears logs or changes device state.
