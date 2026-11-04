@@ -1320,7 +1320,9 @@ public class MainActivity extends Activity {
             "Danh sách ứng dụng bên thứ ba",
             "Màn hình và độ phân giải",
             "Thời gian hoạt động",
-            "Thông tin CPU"
+            "Thông tin CPU",
+            "RAM hệ thống",
+            "Tiến trình đang chạy (tối đa 80)"
         };
         String[] commands = {
             "echo 'MODEL'; getprop ro.product.model; echo 'BRAND'; getprop ro.product.brand; echo 'ANDROID'; getprop ro.build.version.release; echo 'SDK'; getprop ro.build.version.sdk; echo 'BUILD'; getprop ro.build.display.id; echo 'PATCH'; getprop ro.build.version.security_patch",
@@ -1330,7 +1332,9 @@ public class MainActivity extends Activity {
             "pm list packages -3",
             "echo 'DISPLAY'; wm size; wm density; echo 'REFRESH RATE'; dumpsys display | grep -i 'refreshRate\\|fps' | head -20",
             "echo 'UPTIME'; uptime; cat /proc/uptime",
-            "echo 'CPU'; getprop ro.product.cpu.abi; echo 'CORES'; grep -c '^processor' /proc/cpuinfo; echo 'SOC'; getprop ro.soc.model; echo 'HARDWARE'; getprop ro.hardware"
+            "echo 'CPU'; getprop ro.product.cpu.abi; echo 'CORES'; grep -c '^processor' /proc/cpuinfo; echo 'SOC'; getprop ro.soc.model; echo 'HARDWARE'; getprop ro.hardware",
+            "echo 'SYSTEM MEMORY'; cat /proc/meminfo | head -20",
+            "echo 'RUNNING PROCESSES (MAX 80)'; ps -A | head -80"
         };
         new AlertDialog.Builder(this).setTitle("Chẩn đoán chỉ đọc • " + serial)
             .setItems(tools, (d, which) -> {
