@@ -58,8 +58,10 @@ public class MainActivity extends Activity {
     private EditText commandInput, questionInput;
     private String geminiKey = "", claudeKey = "", openAiKey = "", githubToken = "", lastCommandOutput = "";
     private Spinner aiProviderPicker;
-    // Session-only consent: terminal output is never shared with an AI provider unless enabled.
-    private boolean shareRecentTerminalOutputWithAi = false;
+    // Independent, session-only consent for each provider. All default to off.
+    private boolean shareTerminalGemini = false, shareTerminalClaude = false;
+    private boolean shareTerminalOpenAi = false, shareTerminalAntigravity = false;
+    private boolean shareTerminalCodex = false;
     private String pendingExportText = "";
     private static final AtomicInteger TERMUX_REQUEST = new AtomicInteger(2000);
     private NsdManager nsdManager;
@@ -4498,9 +4500,13 @@ public class MainActivity extends Activity {
         catch(Exception e) { line("Lỗi Bluetooth: " + e.getMessage(), 0xffff8080); }
     }
 
-    private String buildAiContextForSharing() {
-        if (!shareRecentTerminalOutputWithAi || lastCommandOutput == null
-            || lastCommandOutput.trim().isEmpty()) return "";
+    private String buildAiContextForSharing(String provider) {
+        boolean allowed = "Gemini".equals(provider) ? shareTerminalGemini
+            : "Claude".equals(provider) ? shareTerminalClaude
+            : "OpenAI".equals(provider) ? shareTerminalOpenAi
+            : "Antigravity".equals(provider) ? shareTerminalAntigravity
+            : "Codex".equals(provider) && shareTerminalCodex;
+        if (!allowed || lastCommandOutput == null || lastCommandOutput.trim().isEmpty()) return "";
         String output = lastCommandOutput;
         if (output.length() > 12000) output = output.substring(0, 12000)
             + "\n[Đã rút gọn còn 12.000 ký tự.]";
@@ -4527,7 +4533,7 @@ public class MainActivity extends Activity {
                 String prompt = "Bạn là trợ lý BO Kali AI. Trả lời bằng tiếng Việt dễ hiểu. "
                     + "Giải thích lệnh, từng tham số, quyền cần có và rủi ro. Không tự nhận đã chạy lệnh. "
                     + "Chỉ hướng dẫn quản trị thiết bị/mạng do người dùng sở hữu hoặc được ủy quyền. "
-                    + "Yêu cầu: " + q + buildAiContextForSharing();
+                    + "Yêu cầu: " + q + buildAiContextForSharing(provider);
                 JSONObject result;
                 int code;
                 if ("Gemini".equals(provider)) {
@@ -4674,7 +4680,7 @@ public class MainActivity extends Activity {
                 String q = prompt.getText().toString().trim();
                 if (q.isEmpty()) return;
                 line("Bạn → Antigravity: " + q, 0xff79c9ff);
-                String context = buildAiContextForSharing();
+                String context = buildAiContextForSharing("Antigravity");
                 String agentPrompt = "Bạn là Google Antigravity Agent hỗ trợ người dùng BO Kali AI. "
                     + "Trả lời bằng tiếng Việt. Phân biệt rõ phân tích, lệnh đề xuất và thao tác đã thực sự chạy. "
                     + "Không tuyên bố đã điều khiển thiết bị nếu chưa có công cụ tương ứng. "
@@ -4794,7 +4800,7 @@ public class MainActivity extends Activity {
                 String prompt = "Trả lời bằng tiếng Việt. Làm việc trong đúng workspace được chỉ định. "
                     + "Không truy cập bí mật, không xuất token/khóa, không xóa dữ liệu hoặc chạy lệnh phá hủy. "
                     + "Nếu thiếu thông tin, hãy hỏi lại. Báo cáo rõ tệp đã đọc/sửa và kiểm tra đã chạy. "
-                    + request + buildAiContextForSharing();
+                    + request + buildAiContextForSharing("Codex");
                 String script = "export PATH=\"$HOME/.codex/bin:$HOME/.local/bin:$PATH\"; "
                     + "if ! command -v codex >/dev/null 2>&1; then echo 'Chưa cài Codex CLI. Hãy cài trước.'; exit 127; fi; "
                     + "if ! git -C " + shellQuote(dir) + " rev-parse --show-toplevel >/dev/null 2>&1; then "
@@ -4815,6 +4821,15 @@ public class MainActivity extends Activity {
             .setNegativeButton("HỦY", null).show();
     }
 
+    private android.widget.CheckBox createAiShareCheckbox(String label, boolean checked) {
+        android.widget.CheckBox box = new android.widget.CheckBox(this);
+        box.setText("Cho phép " + label + " đọc kết quả terminal gần nhất");
+        box.setTextColor(WHITE);
+        box.setButtonTintList(android.content.res.ColorStateList.valueOf(GREEN));
+        box.setChecked(checked);
+        return box;
+    }
+
     private void connectionSettings() {
         LinearLayout box = new LinearLayout(this); box.setPadding(24,8,24,8); box.setOrientation(1);
         EditText gem = input("Gemini API key (Google AI Studio)");
@@ -4825,12 +4840,15 @@ public class MainActivity extends Activity {
         openAi.setText(openAiKey); box.addView(openAi);
         EditText gh = input("GitHub Personal Access Token (chỉ lưu trong bộ nhớ phiên này)");
         gh.setText(githubToken); box.addView(gh);
-        android.widget.CheckBox shareOutput = new android.widget.CheckBox(this);
-        shareOutput.setText("Cho phép Gemini / Claude / OpenAI / Antigravity / Codex nhận kết quả terminal gần nhất (tối đa 12.000 ký tự)");
-        shareOutput.setTextColor(WHITE);
-        shareOutput.setButtonTintList(android.content.res.ColorStateList.valueOf(GREEN));
-        shareOutput.setChecked(shareRecentTerminalOutputWithAi);
-        box.addView(shareOutput);
+        box.addView(text("QUYỀN CHIA SẺ DỮ LIỆU TERMINAL (mỗi AI cấp riêng, mặc định tắt)", 0xff79c9ff, 12, true));
+        android.widget.CheckBox shareGemini = createAiShareCheckbox("Gemini", shareTerminalGemini);
+        android.widget.CheckBox shareClaude = createAiShareCheckbox("Claude", shareTerminalClaude);
+        android.widget.CheckBox shareOpenAi = createAiShareCheckbox("OpenAI", shareTerminalOpenAi);
+        android.widget.CheckBox shareAntigravity = createAiShareCheckbox("Google Antigravity", shareTerminalAntigravity);
+        android.widget.CheckBox shareCodex = createAiShareCheckbox("OpenAI Codex", shareTerminalCodex);
+        box.addView(shareGemini); box.addView(shareClaude); box.addView(shareOpenAi);
+        box.addView(shareAntigravity); box.addView(shareCodex);
+        box.addView(text("Chỉ chia sẻ kết quả terminal gần nhất, tối đa 12.000 ký tự. Không tự động chia sẻ ảnh, tệp khác hoặc GitHub token.", 0xff91a9bd, 11, false));
         new AlertDialog.Builder(this).setTitle("Kết nối AI / GitHub")
             .setMessage("Gemini: dùng API key từ Google AI Studio. GitHub: đọc cần Contents: read; ghi cần Contents: read and write (fine-grained) hoặc repo (classic). Token chỉ giữ trong bộ nhớ phiên. Quyền chia sẻ kết quả terminal là tùy chọn, mặc định tắt và chỉ có hiệu lực trong phiên app này.")
             .setView(box)
@@ -4839,7 +4857,11 @@ public class MainActivity extends Activity {
                 claudeKey = claude.getText().toString().trim();
                 openAiKey = openAi.getText().toString().trim();
                 githubToken = gh.getText().toString().trim();
-                shareRecentTerminalOutputWithAi = shareOutput.isChecked();
+                shareTerminalGemini = shareGemini.isChecked();
+                shareTerminalClaude = shareClaude.isChecked();
+                shareTerminalOpenAi = shareOpenAi.isChecked();
+                shareTerminalAntigravity = shareAntigravity.isChecked();
+                shareTerminalCodex = shareCodex.isChecked();
                 if(githubToken.isEmpty()) { line("Đã cập nhật khóa Gemini / Claude / OpenAI trong bộ nhớ phiên (nếu có). Chưa nhập GitHub token.", GREEN); return; }
                 checkGithub();
             }).setNegativeButton("Hủy", null).show();
