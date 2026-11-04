@@ -2387,7 +2387,7 @@ public class MainActivity extends Activity {
             intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home");
             intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
             intent.putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", resultPending);
-            intent.putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "BO Kali AI - ADB do người dùng xác nhận");
+            intent.putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "BO Kali AI - tác vụ do người dùng yêu cầu");
             startService(intent);
             line("Đã gửi tác vụ ADB đến Termux. Đang chờ kết quả...", GREEN);
         } catch (SecurityException e) { line("Termux chưa bật allow-external-apps hoặc chưa cấp quyền RUN_COMMAND.", 0xffffca70); openTermux(); }
@@ -3266,9 +3266,9 @@ public class MainActivity extends Activity {
             "if [ -x \"$PREFIX/bin/bash\" ]; then echo 'TERMUX_SHELL=OK'; else echo 'TERMUX_SHELL=MISSING'; fi; " +
             "echo '=== NETHUNTER LAUNCHER ==='; " +
             "if command -v nh >/dev/null 2>&1; then command -v nh; echo 'NETHUNTER_LAUNCHER=FOUND'; " +
-            "echo '=== KALI ROOTFS ==='; nh bash -lc 'echo KALI_SHELL=OK; id; uname -m; " +
-            "if [ -r /etc/os-release ]; then . /etc/os-release; echo KALI_OS=\\$PRETTY_NAME; " +
-            "else echo KALI_OS_FILE=MISSING; fi'; " +
+            "echo '=== KALI ROOTFS ==='; " +
+            "if nh bash -lc 'if [ -r /etc/os-release ]; then . /etc/os-release; printf \"KALI_OS=%s\\\\n\" \"$PRETTY_NAME\"; else echo KALI_OS_FILE=MISSING; exit 2; fi; id; uname -m'; then " +
+            "echo 'KALI_ROOTFS=READY'; else echo 'KALI_ROOTFS=ERROR'; fi; " +
             "else echo 'NETHUNTER_LAUNCHER=MISSING'; echo 'Kali chưa được cài hoặc lệnh nh chưa có trong PATH.'; fi; " +
             "echo '=== TERMUX STORAGE ==='; df -h \"$HOME\" 2>&1 | tail -n 2; " +
             "echo '=== TERMUX ARCH ==='; uname -m";
