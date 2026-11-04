@@ -3256,14 +3256,23 @@ public class MainActivity extends Activity {
             line("Nhập lệnh Kali trước. Ví dụ: uname -a hoặc ip addr", 0xffffca70);
             return;
         }
+        if (command.length() > 8192 || command.indexOf(0) >= 0) {
+            line("Lệnh quá dài hoặc chứa ký tự không hợp lệ (tối đa 8.192 ký tự).", 0xffff8080);
+            return;
+        }
         new AlertDialog.Builder(this)
             .setTitle("Xác nhận chạy lệnh Kali")
-            .setMessage("Lệnh sẽ chạy trong Kali Rootless qua Termux:\\n\\n" + command + "\\n\\nChỉ chạy lệnh bạn hiểu và trên thiết bị bạn có quyền quản lý. Kết quả sẽ được đưa về BO Kali AI.")
-            .setPositiveButton("Chạy lệnh", (d,w) -> runKaliCommand(command))
+            .setMessage("Lệnh sẽ chạy trong Kali NetHunter Rootless qua Termux:\n\n" + command
+                + "\n\nChỉ chạy lệnh bạn hiểu và trên thiết bị bạn có quyền quản lý. Kết quả sẽ được gửi về BO Kali AI.")
+            .setPositiveButton("Chạy lệnh", (d, w) -> runKaliCommand(command))
             .setNegativeButton("Hủy", null).show();
     }
 
     private void runKaliCommand(String command) {
+        if (command == null || command.trim().isEmpty() || command.length() > 8192 || command.indexOf(0) >= 0) {
+            line("Lệnh Kali không hợp lệ hoặc vượt giới hạn 8.192 ký tự.", 0xffff8080);
+            return;
+        }
         try {
             int request = TERMUX_REQUEST.incrementAndGet();
             Intent callback = new Intent(this, TermuxResultReceiver.class);
@@ -3272,13 +3281,16 @@ public class MainActivity extends Activity {
             Intent intent = new Intent("com.termux.RUN_COMMAND");
             intent.setClassName("com.termux", "com.termux.app.RunCommandService");
             intent.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash");
-            intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[]{"-lc", "nh " + shellQuote(command)});
+            // NetHunter accepts a command after "nh". Pass it as a bash -lc payload
+            // so spaces, pipes and multi-word commands remain one safely quoted argument.
+            String kaliCommand = "nh bash -lc " + shellQuote(command);
+            intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[]{"-lc", kaliCommand});
             intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home");
             intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
             intent.putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", resultPending);
             intent.putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "BO Kali AI - lệnh do người dùng xác nhận");
             startService(intent);
-            line("Đã gửi lệnh Kali: " + command, GREEN);
+            line("Đã gửi lệnh vào môi trường Kali: " + command, GREEN);
             commandInput.setText("");
         } catch (SecurityException e) {
             line("Termux chưa cấp quyền RUN_COMMAND hoặc chưa bật allow-external-apps. Mở Hướng dẫn.", 0xffffca70);
@@ -3287,7 +3299,6 @@ public class MainActivity extends Activity {
             line("Không gửi được lệnh Kali: " + e.getMessage(), 0xffff8080);
         }
     }
-
     private String shellQuote(String value) {
         return "'" + value.replace("'", "'\\''") + "'";
     }
