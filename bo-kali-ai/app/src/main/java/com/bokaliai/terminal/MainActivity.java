@@ -61,6 +61,11 @@ public class MainActivity extends Activity {
     private static final AtomicInteger TERMUX_REQUEST = new AtomicInteger(2000);
     private NsdManager nsdManager;
     private WifiManager.MulticastLock hubMulticastLock;
+    private final java.util.ArrayDeque<Runnable> adbResolveQueue = new java.util.ArrayDeque<>();
+    private final java.util.HashSet<String> adbResolveQueuedKeys = new java.util.HashSet<>();
+    private boolean adbResolveInFlight = false;
+    private int adbResolveTaskToken = 0;
+    private Runnable adbResolveTimeout;
     private NsdManager.DiscoveryListener adbDiscoveryListener;
     private NsdManager.DiscoveryListener adbPairingDiscoveryListener;
     private boolean adbPairingScanActive = false;
@@ -595,9 +600,10 @@ public class MainActivity extends Activity {
     }
 
     private void releaseHubMulticastLock() {
+        if (hubDiscoveryActive || adbScanActive || adbPairingScanActive
+            || adbResolveInFlight || !adbResolveQueue.isEmpty()) return;
         WifiManager.MulticastLock lock = hubMulticastLock;
         hubMulticastLock = null;
-        if (hubDiscoveryActive || adbScanActive || adbPairingScanActive) return;
         if (lock != null) {
             try { if (lock.isHeld()) lock.release(); } catch (RuntimeException ignored) { }
         }
@@ -1134,8 +1140,110 @@ public class MainActivity extends Activity {
     }
 
     // Find the pairing-code service advertised while the target pairing dialog is open.
+    private void enqueueAdbServiceResolve(NsdServiceInfo service, boolean pairing) {
+        if (service == null) return;
+        String name = service.getServiceName();
+        String type = service.getServiceType();
+        if (name == null || type == null) return;
+        String key = (pairing ? "pair:" : "connect:") + type + "|" + name;
+        if (adbResolveQueuedKeys.contains(key)) return;
+        if (adbResolveQueue.size() >= 64) {
+            line("Đã đạt giới hạn 64 dịch vụ ADB trong một lượt quét; bỏ qua mục mới.", 0xffffca70);
+            return;
+        }
+        adbResolveQueuedKeys.add(key);
+        adbResolveQueue.offer(() -> resolveAdbServiceNow(service, pairing, key));
+        resolveNextAdbService();
+    }
+
+    private void resolveNextAdbService() {
+        if (adbResolveInFlight || adbResolveQueue.isEmpty()) {
+            if (!adbResolveInFlight && adbResolveQueue.isEmpty()) releaseHubMulticastLock();
+            return;
+        }
+        Runnable task = adbResolveQueue.poll();
+        if (task == null) return;
+        adbResolveInFlight = true;
+        int token = ++adbResolveTaskToken;
+        adbResolveTimeout = () -> {
+            if (!adbResolveInFlight || token != adbResolveTaskToken) return;
+            adbResolveInFlight = false;
+            adbResolveTimeout = null;
+            line("Hết thời gian phân giải một dịch vụ ADB; tiếp tục xử lý hàng đợi.", 0xffffca70);
+            task.run();
+        };
+        // The task starts the NSD resolver. The timeout only invalidates the current
+        // callback and advances the queue; task.run() is invoked below once.
+        mainHandler.postDelayed(adbResolveTimeout, 5000L);
+        task.run();
+    }
+
+    private void finishAdbServiceResolve(String key, int token) {
+        if (!adbResolveInFlight || token != adbResolveTaskToken) return;
+        if (adbResolveTimeout != null) mainHandler.removeCallbacks(adbResolveTimeout);
+        adbResolveTimeout = null;
+        adbResolveInFlight = false;
+        adbResolveQueuedKeys.remove(key);
+        resolveNextAdbService();
+    }
+
+    private void resolveAdbServiceNow(NsdServiceInfo service, boolean pairing, String key) {
+        final int token = adbResolveTaskToken;
+        final String name = service.getServiceName();
+        try {
+            nsdManager.resolveService(service, new NsdManager.ResolveListener() {
+                @Override public void onResolveFailed(NsdServiceInfo info, int error) {
+                    if (token != adbResolveTaskToken || !adbResolveInFlight) return;
+                    line((pairing ? "Không phân giải được dịch vụ pairing: " : "Không đọc được ADB endpoint ")
+                        + name + ", mã " + error, 0xffffca70);
+                    finishAdbServiceResolve(key, token);
+                }
+                @Override public void onServiceResolved(NsdServiceInfo info) {
+                    if (token != adbResolveTaskToken || !adbResolveInFlight) return;
+                    InetAddress host = info.getHost();
+                    String endpoint = host == null ? "" : formatAdbEndpoint(host, info.getPort());
+                    if (!isValidAdbEndpoint(endpoint)) {
+                        line("Dịch vụ ADB trả về địa chỉ/cổng không hợp lệ: " + name, 0xffffca70);
+                        finishAdbServiceResolve(key, token);
+                        return;
+                    }
+                    android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+                    if (pairing) {
+                        java.util.Set<String> saved = new java.util.HashSet<>(prefs.getStringSet("pairing_endpoints", new java.util.HashSet<>()));
+                        boolean added = saved.add(endpoint);
+                        prefs.edit().putStringSet("pairing_endpoints", saved)
+                            .putString("pairing_service_" + endpoint, name)
+                            .putLong("pairing_discovered_at_" + endpoint, System.currentTimeMillis()).apply();
+                        if (added) {
+                            line("Đã tìm thấy cổng ghép đôi: " + name + " — " + endpoint, GREEN);
+                            line("Cổng này dùng cho adb pair; cổng KẾT NỐI IP là một cổng khác.", 0xff79c9ff);
+                        }
+                    } else {
+                        java.util.Set<String> saved = new java.util.HashSet<>(prefs.getStringSet("discovered_endpoints", new java.util.HashSet<>()));
+                        boolean added = saved.add(endpoint);
+                        prefs.edit().putStringSet("discovered_endpoints", saved)
+                            .putString("service_" + endpoint, name)
+                            .putLong("discovered_at_" + endpoint, System.currentTimeMillis()).apply();
+                        if (added) {
+                            line("Tìm thấy ADB: " + name + " — " + endpoint, GREEN);
+                            line("Đã lưu endpoint kết nối; nếu thiết bị chưa ghép đôi, hãy dùng GHÉP ĐÔI ADB với cổng pairing riêng.", WHITE);
+                            line("Mở KẾT NỐI IP để chọn endpoint vừa tìm thấy.", 0xff79c9ff);
+                        }
+                    }
+                    finishAdbServiceResolve(key, token);
+                }
+            });
+        } catch (Exception error) {
+            if (token == adbResolveTaskToken && adbResolveInFlight) {
+                line("Lỗi phân giải dịch vụ ADB " + name + ": " + error.getMessage(), 0xffffca70);
+                finishAdbServiceResolve(key, token);
+            }
+        }
+    }
+
     private void scanAdbPairingServices() {
-        if (adbPairingScanActive) { line("Đang quét cổng ghép đôi, vui lòng chờ.", 0xffffca70); return; }
+        if (adbPairingScanActive || adbScanActive || adbResolveInFlight || !adbResolveQueue.isEmpty()) { line("Đang có một lượt quét/phân giải ADB khác. Hãy đợi lượt đó kết thúc.", 0xffffca70); return; }
+        adbResolveQueuedKeys.clear();
         nsdManager = (NsdManager) getSystemService(Context.NSD_SERVICE);
         if (nsdManager == null) { line("Thiết bị không hỗ trợ Network Service Discovery.", 0xffff8080); return; }
         adbPairingScanActive = true;
@@ -1143,24 +1251,7 @@ public class MainActivity extends Activity {
         line("Đang tìm dịch vụ ADB pairing trên mạng Wi-Fi...", GREEN);
         adbPairingDiscoveryListener = new NsdManager.DiscoveryListener() {
             @Override public void onDiscoveryStarted(String type) { line("Đang quét " + type, 0xff79c9ff); }
-            @Override public void onServiceFound(NsdServiceInfo service) {
-                final String name = service.getServiceName();
-                nsdManager.resolveService(service, new NsdManager.ResolveListener() {
-                    @Override public void onResolveFailed(NsdServiceInfo info, int error) { line("Không phân giải được dịch vụ pairing: " + error, 0xffffca70); }
-                    @Override public void onServiceResolved(NsdServiceInfo info) {
-                        InetAddress host = info.getHost();
-                        String address = host == null ? "" : host.getHostAddress();
-                        String endpoint = host == null ? "" : formatAdbEndpoint(host, info.getPort());
-                        if (!isValidAdbEndpoint(endpoint)) { line("Dịch vụ pairing có địa chỉ không hợp lệ: " + name, 0xffffca70); return; }
-                        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
-                        java.util.Set<String> saved = new java.util.HashSet<>(prefs.getStringSet("pairing_endpoints", new java.util.HashSet<>()));
-                        saved.add(endpoint);
-                        prefs.edit().putStringSet("pairing_endpoints", saved).putString("pairing_service_" + endpoint, name).putLong("pairing_discovered_at_" + endpoint, System.currentTimeMillis()).apply();
-                        line("Đã tìm thấy cổng ghép đôi: " + name + " — " + endpoint, GREEN);
-                        line("Cổng này dùng cho adb pair; cổng KẾT NỐI IP là một cổng khác.", 0xff79c9ff);
-                    }
-                });
-            }
+            @Override public void onServiceFound(NsdServiceInfo service) { enqueueAdbServiceResolve(service, true); }
             @Override public void onServiceLost(NsdServiceInfo service) { line("Dịch vụ pairing đã ngừng quảng bá: " + service.getServiceName(), 0xffffca70); }
             @Override public void onStartDiscoveryFailed(String type, int error) { adbPairingScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} releaseHubMulticastLock(); line("Quét pairing thất bại, mã " + error, 0xffff8080); }
             @Override public void onStopDiscoveryFailed(String type, int error) { adbPairingScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} releaseHubMulticastLock(); }
@@ -1186,7 +1277,8 @@ public class MainActivity extends Activity {
 
     // Discovers Wireless Debugging endpoints; discovery alone does not pair or authenticate.
     private void scanAdbServices() {
-        if (adbScanActive) { line("Đang quét ADB, vui lòng chờ.", 0xffffca70); return; }
+        if (adbScanActive || adbPairingScanActive || adbResolveInFlight || !adbResolveQueue.isEmpty()) { line("Đang có một lượt quét/phân giải ADB khác. Hãy đợi lượt đó kết thúc.", 0xffffca70); return; }
+        adbResolveQueuedKeys.clear();
         nsdManager = (NsdManager) getSystemService(Context.NSD_SERVICE);
         if (nsdManager == null) { line("Thiết bị không hỗ trợ Network Service Discovery.", 0xffff8080); return; }
         adbScanActive = true;
@@ -1195,24 +1287,7 @@ public class MainActivity extends Activity {
         line("Tìm thấy endpoint chưa có nghĩa là đã ghép đôi.", 0xffffca70);
         adbDiscoveryListener = new NsdManager.DiscoveryListener() {
             @Override public void onDiscoveryStarted(String type) { line("Đang quét " + type, 0xff79c9ff); }
-            @Override public void onServiceFound(NsdServiceInfo service) {
-                final String serviceName = service.getServiceName();
-                nsdManager.resolveService(service, new NsdManager.ResolveListener() {
-                    @Override public void onResolveFailed(NsdServiceInfo info, int error) { line("Không đọc được ADB endpoint " + serviceName + ", mã " + error, 0xffffca70); }
-                    @Override public void onServiceResolved(NsdServiceInfo info) {
-                        InetAddress host = info.getHost();
-                        String ip = host == null ? "IP không rõ" : host.getHostAddress();
-                        String endpoint = host == null ? "" : formatAdbEndpoint(host, info.getPort());
-                        android.content.SharedPreferences saved = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
-                        java.util.Set<String> endpoints = new java.util.HashSet<>(saved.getStringSet("discovered_endpoints", new java.util.HashSet<>()));
-                        endpoints.add(endpoint);
-                        saved.edit().putStringSet("discovered_endpoints", endpoints).putString("service_" + endpoint, serviceName).putLong("discovered_at_" + endpoint, System.currentTimeMillis()).apply();
-                        line("Tìm thấy ADB: " + serviceName + " — " + endpoint, GREEN);
-                        line("Đã lưu endpoint kết nối; nếu thiết bị chưa ghép đôi, hãy dùng GHÉP ĐÔI ADB với cổng pairing riêng.", WHITE);
-                        line("Mở KẾT NỐI IP để chọn endpoint vừa tìm thấy.", 0xff79c9ff);
-                    }
-                });
-            }
+            @Override public void onServiceFound(NsdServiceInfo service) { enqueueAdbServiceResolve(service, false); }
             @Override public void onServiceLost(NsdServiceInfo service) { line("Mất dịch vụ: " + service.getServiceName(), 0xffffca70); }
             @Override public void onStartDiscoveryFailed(String type, int error) { adbScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} releaseHubMulticastLock(); line("Quét ADB thất bại, mã " + error, 0xffff8080); }
             @Override public void onStopDiscoveryFailed(String type, int error) { adbScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} releaseHubMulticastLock(); }
