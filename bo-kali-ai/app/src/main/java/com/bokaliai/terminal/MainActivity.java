@@ -869,14 +869,20 @@ public class MainActivity extends Activity {
 
     private String redactNetworkIdentifiers(String value) {
         if (value == null) return "";
-        String redacted = value.replaceAll(
-            "(?m)^([\\\\t ]*[A-Za-z0-9._:-]+)([\\\\t ]+(?:device|offline|unauthorized)\\\\b)",
-            "$1".replaceAll("[^\\\\t ]", "*") + "$2");
-        redacted = redacted.replaceAll(
-            "(?<![0-9])(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})(?:\\\\.(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})){3}(?![0-9])",
+        java.util.regex.Pattern serialPattern = java.util.regex.Pattern.compile(
+            "(?m)^([A-Za-z0-9._:-]+)(\\s+(?:device|offline|unauthorized)\\b)");
+        java.util.regex.Matcher serialMatcher = serialPattern.matcher(value);
+        StringBuffer serialSafe = new StringBuffer();
+        while (serialMatcher.find()) {
+            serialMatcher.appendReplacement(serialSafe,
+                java.util.regex.Matcher.quoteReplacement("[SERIAL ĐÃ ẨN]" + serialMatcher.group(2)));
+        }
+        serialMatcher.appendTail(serialSafe);
+        String redacted = serialSafe.toString().replaceAll(
+            "(?<![0-9])(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})(?:\\.(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})){3}(?![0-9])",
             "[IP ĐÃ ẨN]");
         redacted = redacted.replaceAll(
-            "(?i)\\\\b(?:[0-9a-f]{1,4}:){2,}[0-9a-f:]{0,}[0-9a-f]\\\\b",
+            "(?i)\\b(?:[0-9a-f]{1,4}:){2,}[0-9a-f:]{0,}[0-9a-f]\\b",
             "[IPv6 ĐÃ ẨN]");
         return redacted;
     }
