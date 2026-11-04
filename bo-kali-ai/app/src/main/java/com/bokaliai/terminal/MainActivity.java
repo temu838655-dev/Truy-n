@@ -481,6 +481,8 @@ public class MainActivity extends Activity {
     private boolean hubDiscoveryActive = false;
     private boolean hubResolvingService = false;
     private int hubResolveGeneration = 0;
+    private int hubResolveTaskToken = 0;
+    private Runnable hubResolveTimeout;
     private long hubResolveDrainDeadline = 0L;
     private Runnable hubScanTimeout;
 
@@ -509,6 +511,9 @@ public class MainActivity extends Activity {
             return;
         }
         hubResolveGeneration++;
+        if (hubResolveTimeout != null) mainHandler.removeCallbacks(hubResolveTimeout);
+        hubResolveTimeout = null;
+        hubResolveTaskToken++;
         hubResolveDrainDeadline = 0L;
         hubDiscoveredServices.clear();
         hubResolveQueue.clear();
@@ -550,22 +555,44 @@ public class MainActivity extends Activity {
         mainHandler.postDelayed(hubScanTimeout, 10000);
     }
 
+    private void finishHubServiceResolve(int generation, int taskToken) {
+        if (generation != hubResolveGeneration || taskToken != hubResolveTaskToken
+            || !hubResolvingService) return;
+        if (hubResolveTimeout != null) mainHandler.removeCallbacks(hubResolveTimeout);
+        hubResolveTimeout = null;
+        hubResolvingService = false;
+        hubResolveTaskToken++;
+        resolveNextHubService();
+    }
+
     private void resolveNextHubService() {
         if (!hubDiscoveryActive || hubResolvingService || hubResolveQueue.isEmpty() || nsdManager == null) return;
         final int generation = hubResolveGeneration;
+        final int taskToken = ++hubResolveTaskToken;
         NsdServiceInfo next = hubResolveQueue.poll();
         if (next == null) return;
         hubResolvingService = true;
+        hubResolveTimeout = () -> {
+            if (generation != hubResolveGeneration || taskToken != hubResolveTaskToken
+                || !hubResolvingService) return;
+            hubResolveTimeout = null;
+            hubResolvingService = false;
+            hubResolveTaskToken++;
+            line("Hết thời gian phân giải dịch vụ mạng "
+                + next.getServiceName() + "; bỏ qua mục này và tiếp tục quét.", 0xffffca70);
+            resolveNextHubService();
+        };
+        mainHandler.postDelayed(hubResolveTimeout, 5000L);
         try {
             nsdManager.resolveService(next, new NsdManager.ResolveListener() {
                 @Override public void onResolveFailed(NsdServiceInfo failed, int errorCode) {
-                    if (generation != hubResolveGeneration) return;
-                    hubResolvingService = false;
-                    resolveNextHubService();
+                    if (generation != hubResolveGeneration || taskToken != hubResolveTaskToken
+                        || !hubResolvingService) return;
+                    finishHubServiceResolve(generation, taskToken);
                 }
                 @Override public void onServiceResolved(NsdServiceInfo resolved) {
-                    if (generation != hubResolveGeneration) return;
-                    hubResolvingService = false;
+                    if (generation != hubResolveGeneration || taskToken != hubResolveTaskToken
+                        || !hubResolvingService) return;
                     if (hubDiscoveryActive && resolved != null) {
                         InetAddress address = resolved.getHost();
                         if (address != null && resolved.getPort() > 0 && hubDiscoveredServices.size() < 64) {
@@ -578,12 +605,17 @@ public class MainActivity extends Activity {
                             hubDiscoveredServices.put(key, found);
                         }
                     }
-                    resolveNextHubService();
+                    finishHubServiceResolve(generation, taskToken);
                 }
             });
         } catch (Exception error) {
-            if (generation != hubResolveGeneration) return;
+            if (generation != hubResolveGeneration || taskToken != hubResolveTaskToken) return;
+            if (hubResolveTimeout != null) mainHandler.removeCallbacks(hubResolveTimeout);
+            hubResolveTimeout = null;
             hubResolvingService = false;
+            hubResolveTaskToken++;
+            line("Không phân giải được dịch vụ mạng " + next.getServiceName()
+                + ": " + error.getMessage(), 0xffffca70);
             // Avoid a tight retry loop if the platform rejects resolveService synchronously.
             mainHandler.postDelayed(() -> {
                 if (generation == hubResolveGeneration) resolveNextHubService();
@@ -604,6 +636,9 @@ public class MainActivity extends Activity {
         hubDiscoveryListeners.clear();
         hubDiscoveryActive = false;
         hubResolveGeneration++;
+        if (hubResolveTimeout != null) mainHandler.removeCallbacks(hubResolveTimeout);
+        hubResolveTimeout = null;
+        hubResolveTaskToken++;
         hubResolveQueue.clear();
         hubSeenServiceKeys.clear();
         hubResolvingService = false;
