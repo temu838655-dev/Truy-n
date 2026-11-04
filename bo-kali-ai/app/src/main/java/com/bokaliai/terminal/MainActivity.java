@@ -866,7 +866,7 @@ public class MainActivity extends Activity {
     private void showDeviceProfileActions(DeviceHubProfile profile) {
         boolean isHomeAssistant = DeviceHubProfile.HOME_ASSISTANT.equals(profile.platform);
         String[] actions = isHomeAssistant
-            ? new String[]{"MỞ GIAO DIỆN", "LƯU / THAY TOKEN API", "XÓA TOKEN API", "XÓA PROFILE", "HỦY"}
+            ? new String[]{"MỞ GIAO DIỆN", "LƯU / THAY TOKEN API", "KIỂM TRA TOKEN (HTTPS)", "XÓA TOKEN API", "XÓA PROFILE", "HỦY"}
             : new String[]{"KẾT NỐI", "XÓA PROFILE", "HỦY"};
         new AlertDialog.Builder(this).setTitle(profile.name)
             .setItems(actions, (d, which) -> {
@@ -890,9 +890,11 @@ public class MainActivity extends Activity {
                             }
                         }).setNegativeButton("HỦY", null).show();
                 } else if (isHomeAssistant && which == 2) {
+                    testHomeAssistantApi(profile);
+                } else if (isHomeAssistant && which == 3) {
                     HomeAssistantTokenStore.delete(this, profile.id);
                     line("Đã xóa token API của " + profile.name + ".", GREEN);
-                } else if ((isHomeAssistant && which == 3) || (!isHomeAssistant && which == 1)) {
+                } else if ((isHomeAssistant && which == 4) || (!isHomeAssistant && which == 1)) {
                     new AlertDialog.Builder(this)
                         .setTitle("Xóa profile?")
                         .setMessage("Chỉ xóa thông tin kết nối đã lưu trong BO Kali AI. Không xóa dữ liệu trên thiết bị.")
@@ -906,6 +908,59 @@ public class MainActivity extends Activity {
                     connectDeviceProfile(profile);
                 }
             }).show();
+    }
+
+    private void testHomeAssistantApi(DeviceHubProfile profile) {
+        if (!HomeAssistantTokenStore.has(this, profile.id)) {
+            line("Profile chưa có token API. Hãy lưu token trước.", 0xffffca70);
+            return;
+        }
+        final String endpoint = profile.host == null ? "" : profile.host.trim();
+        final String apiUrl;
+        try {
+            Uri parsed = Uri.parse(endpoint.contains("://")
+                ? endpoint : "https://" + formatEndpointHost(endpoint) + ":" + profile.port);
+            if (!"https".equalsIgnoreCase(parsed.getScheme())
+                    || parsed.getHost() == null || parsed.getUserInfo() != null
+                    || parsed.getPort() > 65535 || parsed.getPort() == 0
+                    || parsed.getFragment() != null) {
+                line("Kiểm tra API token chỉ cho phép HTTPS hợp lệ để tránh gửi token qua mạng không mã hóa.", 0xffff8080);
+                return;
+            }
+            int port = parsed.getPort() < 0 ? 443 : parsed.getPort();
+            apiUrl = new java.net.URL("https", parsed.getHost(), port, "/api/").toString();
+        } catch (Exception invalid) {
+            line("Địa chỉ Home Assistant không hợp lệ.", 0xffff8080);
+            return;
+        }
+        line("Đang kiểm tra kết nối HTTPS tới Home Assistant…", WHITE);
+        new Thread(() -> {
+            HttpURLConnection connection = null;
+            try {
+                String token = HomeAssistantTokenStore.load(this, profile.id);
+                if (token == null || token.isEmpty()) throw new IllegalStateException("Không tìm thấy token.");
+                connection = (HttpURLConnection) new URL(apiUrl).openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(8000);
+                connection.setReadTimeout(8000);
+                connection.setInstanceFollowRedirects(false);
+                connection.setRequestProperty("Authorization", "Bearer " + token);
+                connection.setRequestProperty("Accept", "application/json");
+                int status = connection.getResponseCode();
+                if (status == 200) {
+                    runOnUiThread(() -> line("Home Assistant xác thực token thành công (HTTP 200).", GREEN));
+                } else if (status == 401 || status == 403) {
+                    runOnUiThread(() -> line("Home Assistant từ chối token (HTTP " + status + "). Kiểm tra hoặc thay token.", 0xffff8080));
+                } else {
+                    runOnUiThread(() -> line("Home Assistant trả về HTTP " + status + ". Kiểm tra URL và quyền API.", 0xffffca70));
+                }
+            } catch (Exception error) {
+                String message = error.getMessage() == null ? "Lỗi kết nối" : error.getMessage();
+                runOnUiThread(() -> line("Không kiểm tra được Home Assistant: " + message, 0xffff8080));
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        }, "bo-ha-token-test").start();
     }
 
     private String formatEndpointHost(String host) {
