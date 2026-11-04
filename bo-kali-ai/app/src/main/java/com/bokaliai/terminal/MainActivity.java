@@ -466,7 +466,9 @@ public class MainActivity extends Activity {
 
     private final java.util.ArrayList<NsdManager.DiscoveryListener> hubDiscoveryListeners = new java.util.ArrayList<>();
     private final java.util.LinkedHashMap<String, HubDiscoveredService> hubDiscoveredServices = new java.util.LinkedHashMap<>();
+    private final java.util.ArrayDeque<NsdServiceInfo> hubResolveQueue = new java.util.ArrayDeque<>();
     private boolean hubDiscoveryActive = false;
+    private boolean hubResolvingService = false;
     private Runnable hubScanTimeout;
 
     private void scanUniversalNetworkServices() {
@@ -480,6 +482,8 @@ public class MainActivity extends Activity {
             return;
         }
         hubDiscoveredServices.clear();
+        hubResolveQueue.clear();
+        hubResolvingService = false;
         hubDiscoveryListeners.clear();
         hubDiscoveryActive = true;
         line("Đang tìm dịch vụ SSH, HTTP/HTTPS và Home Assistant trong mạng Wi-Fi cục bộ...", GREEN);
@@ -488,24 +492,14 @@ public class MainActivity extends Activity {
             NsdManager.DiscoveryListener listener = new NsdManager.DiscoveryListener() {
                 @Override public void onDiscoveryStarted(String type) { }
                 @Override public void onServiceFound(NsdServiceInfo service) {
-                    if (service == null || service.getServiceName() == null) return;
-                    if (!service.getServiceType().contains(serviceType.substring(0, serviceType.length() - 1))) return;
-                    try {
-                        nsdManager.resolveService(service, new NsdManager.ResolveListener() {
-                            @Override public void onResolveFailed(NsdServiceInfo failed, int errorCode) { }
-                            @Override public void onServiceResolved(NsdServiceInfo resolved) {
-                                InetAddress address = resolved.getHost();
-                                if (address == null || resolved.getPort() <= 0) return;
-                                String host = address.getHostAddress();
-                                HubDiscoveredService found = new HubDiscoveredService(
-                                    resolved.getServiceName(), serviceType, host, resolved.getPort());
-                                String key = serviceType + "|" + host + "|" + resolved.getPort();
-                                runOnUiThread(() -> {
-                                    if (hubDiscoveryActive) hubDiscoveredServices.put(key, found);
-                                });
-                            }
-                        });
-                    } catch (Exception ignored) { }
+                    if (service == null || service.getServiceName() == null || !hubDiscoveryActive) return;
+                    String actualType = service.getServiceType();
+                    if (actualType == null || !actualType.contains(serviceType.substring(0, serviceType.length() - 1))) return;
+                    // Android's legacy NSD resolver permits only one outstanding resolve at a time.
+                    if (hubResolveQueue.size() < 64) {
+                        hubResolveQueue.offer(service);
+                        resolveNextHubService();
+                    }
                 }
                 @Override public void onServiceLost(NsdServiceInfo service) { }
                 @Override public void onDiscoveryStopped(String type) { }
@@ -524,6 +518,40 @@ public class MainActivity extends Activity {
         mainHandler.postDelayed(hubScanTimeout, 10000);
     }
 
+    private void resolveNextHubService() {
+        if (!hubDiscoveryActive || hubResolvingService || hubResolveQueue.isEmpty() || nsdManager == null) return;
+        NsdServiceInfo next = hubResolveQueue.poll();
+        if (next == null) return;
+        hubResolvingService = true;
+        try {
+            nsdManager.resolveService(next, new NsdManager.ResolveListener() {
+                @Override public void onResolveFailed(NsdServiceInfo failed, int errorCode) {
+                    hubResolvingService = false;
+                    resolveNextHubService();
+                }
+                @Override public void onServiceResolved(NsdServiceInfo resolved) {
+                    hubResolvingService = false;
+                    if (hubDiscoveryActive && resolved != null) {
+                        InetAddress address = resolved.getHost();
+                        if (address != null && resolved.getPort() > 0 && hubDiscoveredServices.size() < 64) {
+                            String host = address.getHostAddress();
+                            String type = resolved.getServiceType();
+                            if (type == null) type = "";
+                            HubDiscoveredService found = new HubDiscoveredService(
+                                resolved.getServiceName(), type, host, resolved.getPort());
+                            String key = type + "|" + host + "|" + resolved.getPort();
+                            hubDiscoveredServices.put(key, found);
+                        }
+                    }
+                    resolveNextHubService();
+                }
+            });
+        } catch (Exception error) {
+            hubResolvingService = false;
+            mainHandler.post(resolveNextHubService);
+        }
+    }
+
     private void stopHubDiscovery() {
         if (hubScanTimeout != null) {
             mainHandler.removeCallbacks(hubScanTimeout);
@@ -536,6 +564,8 @@ public class MainActivity extends Activity {
         }
         hubDiscoveryListeners.clear();
         hubDiscoveryActive = false;
+        hubResolveQueue.clear();
+        hubResolvingService = false;
     }
 
     private void finishUniversalNetworkScan() {
