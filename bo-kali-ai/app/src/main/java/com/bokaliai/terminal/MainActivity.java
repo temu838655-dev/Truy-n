@@ -1701,6 +1701,15 @@ public class MainActivity extends Activity {
         TextView t = text(s,color,12,false); t.setTypeface(Typeface.MONOSPACE); t.setPadding(2,5,2,5);
         log.addView(t); if(scroll!=null) scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
     }
-    private String getAppVersionName() {\n        try {\n            android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);\n            return info.versionName == null ? "unknown" : info.versionName;\n        } catch (Exception e) {\n            return "unknown";\n        }\n    }\n\n    private int dp(int n) { return (int)(n*getResources().getDisplayMetrics().density+0.5f); }
+    private String getAppVersionName() {
+        try {
+            android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return info.versionName == null ? "unknown" : info.versionName;
+        } catch (Exception e) {
+            return "unknown";
+        }
+    }
+
+    private int dp(int n) { return (int)(n*getResources().getDisplayMetrics().density+0.5f); }
     @Override protected void onDestroy() { super.onDestroy(); worker.shutdownNow(); geminiKey=""; githubToken=""; }
 }
