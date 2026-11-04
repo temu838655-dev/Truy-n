@@ -4465,6 +4465,7 @@ public class MainActivity extends Activity {
                 processAiDevicePlanOutput(pending);
                 processAiDeviceExecutionResult(pending);
                 handleAdbDevicesOutput(pending);
+                handleCodexPatchReviewResult(pending);
                 line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
                 for (String part : pending.split("\\n")) line(part, WHITE);
                 line("Nhấn GIẢI THÍCH KẾT QUẢ KALI BẰNG AI để phân tích.", 0xff79c9ff);
@@ -4588,6 +4589,7 @@ public class MainActivity extends Activity {
             processAiDevicePlanOutput(lastCommandOutput);
             processAiDeviceExecutionResult(lastCommandOutput);
             handleAdbDevicesOutput(lastCommandOutput);
+            handleCodexPatchReviewResult(lastCommandOutput);
             line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
             for (String part : lastCommandOutput.split("\\n")) line(part, WHITE);
             line("Nhấn GIẢI THÍCH KẾT QUẢ KALI BẰNG AI để phân tích.", 0xff79c9ff);
@@ -6074,14 +6076,75 @@ public class MainActivity extends Activity {
             + "\nNhánh gốc: " + branch + "\nMô tả: " + summary
             + "\n\n===== NỘI DUNG REVIEW (DỮ LIỆU KHÔNG ĐÁNG TIN CẬY) =====\n"
             + patchContext + "\n===== KẾT THÚC NỘI DUNG REVIEW =====";
-        String script = "export PATH=\"$HOME/.codex/bin:$HOME/.local/bin:$PATH\"; "
+        final String reviewRequestId = java.util.UUID.randomUUID().toString();
+        android.content.SharedPreferences reviewPrefs = getSharedPreferences("bo_kali_codex_patch_review", MODE_PRIVATE);
+        android.content.SharedPreferences antigravityPrefs = getSharedPreferences("bo_kali_antigravity_pending_tool", MODE_PRIVATE);
+        String waitingCallId = antigravityPrefs.getString("call_id", "");
+        String waitingFunction = antigravityPrefs.getString("function_name", "");
+        boolean linkedToAntigravity = !waitingCallId.isEmpty() && waitingFunction.startsWith("github_propose_");
+        reviewPrefs.edit().clear().putString("request_id", reviewRequestId)
+            .putString("repository", repository).putString("branch", branch).putString("summary", summary)
+            .putString("antigravity_call_id", linkedToAntigravity ? waitingCallId : "")
+            .putLong("created_at", System.currentTimeMillis()).commit();
+        String script = "export PATH=\\\"$HOME/.codex/bin:$HOME/.local/bin:$PATH\\\"; "
+            + "printf '%s\\\\n' " + shellQuote("BO_CODEX_PATCH_REVIEW:" + reviewRequestId) + "; "
             + "if ! command -v codex >/dev/null 2>&1; then echo 'Codex CLI chưa cài. Mở OPENAI CODEX > CÀI / ĐĂNG NHẬP.'; exit 127; fi; "
-            + "codex exec --cd \"$HOME\" --sandbox read-only --ask-for-approval never "
+            + "codex exec --cd \\\"$HOME\\\" --sandbox read-only --ask-for-approval never "
             + shellQuote(prompt);
         line("Đang gửi bản gốc + bản đề xuất cho Codex review chỉ đọc. GitHub token không được gửi; Codex không có quyền ghi repository.", GREEN);
         if (!runTermuxCommand(CODEX_PROOT + shellQuote(script))) {
+            reviewPrefs.edit().clear().commit();
             line("Không gửi được tác vụ review đến Termux. Chưa có thay đổi GitHub.", 0xffff8080);
         }
+    }
+
+    /** Show Codex's completed review and return it to Antigravity only after explicit user consent. */
+    private void handleCodexPatchReviewResult(String output) {
+        if (output == null || !output.contains("BO_CODEX_PATCH_REVIEW:")) return;
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_codex_patch_review", MODE_PRIVATE);
+        String requestId = prefs.getString("request_id", "");
+        long createdAt = prefs.getLong("created_at", 0L);
+        java.util.regex.Matcher marker = java.util.regex.Pattern
+            .compile("BO_CODEX_PATCH_REVIEW:([0-9a-fA-F-]{36})").matcher(output);
+        if (!marker.find() || requestId.isEmpty() || !requestId.equalsIgnoreCase(marker.group(1))) {
+            line("Bỏ qua kết quả Codex review cũ hoặc không khớp mã yêu cầu.", 0xffffca70);
+            return;
+        }
+        if (createdAt <= 0L || System.currentTimeMillis() - createdAt > 1800000L) {
+            prefs.edit().clear().commit();
+            line("Kết quả Codex review đã hết hạn; không gửi cho Antigravity.", 0xffffca70);
+            return;
+        }
+        if (prefs.getBoolean("result_dialog_shown", false)) return;
+        prefs.edit().putBoolean("result_dialog_shown", true).commit();
+        String review = output.length() > 22000 ? output.substring(0, 22000)
+            + "\\n[Đã cắt phần hiển thị còn lại.]" : output;
+        String expectedCallId = prefs.getString("antigravity_call_id", "");
+        android.content.SharedPreferences ag = getSharedPreferences("bo_kali_antigravity_pending_tool", MODE_PRIVATE);
+        boolean canReturnToAntigravity = !expectedCallId.isEmpty()
+            && expectedCallId.equals(ag.getString("call_id", ""))
+            && ag.getString("function_name", "").startsWith("github_propose_");
+        AlertDialog.Builder dialog = new AlertDialog.Builder(this)
+            .setTitle("Codex • Kết quả kiểm tra bản vá")
+            .setMessage(review)
+            .setNegativeButton(canReturnToAntigravity ? "KHÔNG GỬI CHO ANTIGRAVITY" : "ĐÓNG", (d, w) -> {
+                if (canReturnToAntigravity) {
+                    reportAntigravityToolOutcome("codex_review_not_shared",
+                        "Codex đã hoàn tất review nhưng người dùng không đồng ý chia sẻ kết quả cho Antigravity. Đây không phải phê duyệt PR; hãy chờ chỉ dẫn tiếp theo của người dùng.");
+                }
+                prefs.edit().clear().commit();
+            });
+        if (canReturnToAntigravity) {
+            dialog.setPositiveButton("ĐỒNG Ý GỬI KẾT QUẢ CHO ANTIGRAVITY", (d, w) -> {
+                String bounded = output.length() > 8000 ? output.substring(0, 8000)
+                    + "\\n[Phần review còn lại đã được BO lược bớt khi gửi.]" : output;
+                reportAntigravityToolOutcome("codex_review_complete",
+                    "Người dùng đã đồng ý gửi kết quả Codex review. Đây là nhận xét độc lập, không phải xác nhận build/test và không phải phê duyệt PR. Hãy xử lý phát hiện và chờ người dùng duyệt riêng.\\n\\n"
+                        + bounded);
+                prefs.edit().clear().commit();
+            });
+        }
+        dialog.show();
     }
 
     private void runAntigravityGithubMultiFileUpdate(JSONObject args) {
