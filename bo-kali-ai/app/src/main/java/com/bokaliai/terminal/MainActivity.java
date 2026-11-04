@@ -1060,15 +1060,32 @@ public class MainActivity extends Activity {
 
     // Read-only inventory of third-party packages installed on the selected authorized device.
     private void showAdbInstalledApps(String serial) {
+        final String[] labels = {
+            "Ứng dụng người dùng (bên thứ ba)",
+            "Ứng dụng hệ thống",
+            "Tất cả ứng dụng"
+        };
+        final String[] flags = {"-3", "-s", ""};
         new AlertDialog.Builder(this)
-            .setTitle("Liệt kê ứng dụng • " + serial)
-            .setMessage("Đọc danh sách package ứng dụng bên thứ ba và đường dẫn APK nếu Android cho phép. Thao tác chỉ đọc, không gỡ cài đặt hay thay đổi ứng dụng. Kết quả có thể tiết lộ ứng dụng đã cài trên thiết bị.")
-            .setPositiveButton("ĐỌC DANH SÁCH", (d, w) -> {
-                String command = "adb -s " + shellQuote(serial) + " shell pm list packages -3 -f";
-                line("Đang đọc danh sách ứng dụng bên thứ ba trên " + serial + "...", GREEN);
-                runTermuxCommand(command);
+            .setTitle("Danh sách ứng dụng • " + serial)
+            .setItems(labels, (dialog, which) -> {
+                final String selectedLabel = labels[which];
+                final String selectedFlag = flags[which];
+                String command = "adb -s " + shellQuote(serial)
+                    + " shell pm list packages -f"
+                    + (selectedFlag.isEmpty() ? "" : " " + selectedFlag);
+                new AlertDialog.Builder(this)
+                    .setTitle("Xác nhận đọc danh sách")
+                    .setMessage("Thiết bị: " + serial + "\\nLoại: " + selectedLabel
+                        + "\\n\\nChỉ đọc tên package và đường dẫn APK nếu Android cho phép. Không cài, gỡ hoặc thay đổi ứng dụng. Danh sách có thể chứa thông tin riêng tư.")
+                    .setPositiveButton("ĐỌC", (d, w) -> {
+                        line("Đang đọc " + selectedLabel.toLowerCase() + " trên " + serial + "...", GREEN);
+                        runTermuxCommand(command);
+                    })
+                    .setNegativeButton("HỦY", null)
+                    .show();
             })
-            .setNegativeButton("HỦY", null)
+            .setNegativeButton("ĐÓNG", null)
             .show();
     }
 
