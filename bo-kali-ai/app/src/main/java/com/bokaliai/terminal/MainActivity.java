@@ -161,8 +161,14 @@ public class MainActivity extends Activity {
                     @Override public void onServiceResolved(NsdServiceInfo info) {
                         InetAddress host = info.getHost();
                         String ip = host == null ? "IP không rõ" : host.getHostAddress();
-                        line("Tìm thấy ADB: " + serviceName + " — " + ip + ":" + info.getPort(), GREEN);
-                        line("Để ghép đôi Android 11+, cần mã ghép đôi và cổng pairing riêng.", WHITE);
+                        String endpoint = ip + ":" + info.getPort();
+                        android.content.SharedPreferences saved = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+                        java.util.Set<String> endpoints = new java.util.HashSet<>(saved.getStringSet("discovered_endpoints", new java.util.HashSet<>()));
+                        endpoints.add(endpoint);
+                        saved.edit().putStringSet("discovered_endpoints", endpoints).putString("service_" + endpoint, serviceName).apply();
+                        line("Tìm thấy ADB: " + serviceName + " — " + endpoint, GREEN);
+                        line("Đã lưu endpoint kết nối; nếu thiết bị chưa ghép đôi, hãy dùng GHÉP ĐÔI ADB với cổng pairing riêng.", WHITE);
+                        line("Mở KẾT NỐI IP để chọn endpoint vừa tìm thấy.", 0xff79c9ff);
                     }
                 });
             }
@@ -382,20 +388,57 @@ public class MainActivity extends Activity {
             .setMessage("Trên thiết bị cần điều khiển: bật Developer options → Wireless debugging → Pair device with pairing code. Hai thiết bị phải cùng mạng Wi-Fi. Nhập đúng IP:cổng pairing và mã hiện trên thiết bị đó.")
             .setView(form).setPositiveButton("GHÉP ĐÔI", (d,w) -> {
                 String ep = endpoint.getText().toString().trim(); String pin = code.getText().toString().trim();
-                if (!ep.matches("[A-Za-z0-9.:-]+:[0-9]{1,5}") || !pin.matches("[0-9]{6}")) { line("IP:cổng hoặc mã ghép đôi không hợp lệ.", 0xffff8080); return; }
+                if (!isValidAdbEndpoint(ep) || !pin.matches("[0-9]{6}")) { line("IP:cổng hoặc mã ghép đôi không hợp lệ. Cổng phải từ 1 đến 65535.", 0xffff8080); return; }
                 runTermuxCommand("pkg install -y android-tools && adb pair " + shellQuote(ep) + " " + shellQuote(pin));
             }).setNegativeButton("HỦY", null).show();
     }
 
     private void showAdbConnectDialog() {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        java.util.ArrayList<String> discovered = new java.util.ArrayList<>(
+            prefs.getStringSet("discovered_endpoints", new java.util.HashSet<>()));
+        java.util.Collections.sort(discovered);
+        String[] choices = discovered.toArray(new String[0]);
+        AlertDialog.Builder builder = new AlertDialog.Builder(this).setTitle("Kết nối ADB");
+        if (choices.length > 0) {
+            builder.setItems(choices, (d, which) -> connectAdbEndpoint(choices[which]));
+            builder.setPositiveButton("NHẬP IP:CỔNG", (d, w) -> showManualAdbConnectDialog());
+            builder.setNegativeButton("ĐÓNG", null).show();
+        } else {
+            showManualAdbConnectDialog();
+        }
+    }
+
+    private void showManualAdbConnectDialog() {
         EditText endpoint = input("IP:CỔNG KẾT NỐI (không phải cổng pairing)");
-        new AlertDialog.Builder(this).setTitle("Kết nối ADB")
-            .setMessage("Sau khi ghép đôi thành công, quay lại Wireless debugging để xem IP address & port. Nhập endpoint kết nối hiển thị ở màn hình chính Wireless debugging.")
+        new AlertDialog.Builder(this).setTitle("Nhập endpoint ADB")
+            .setMessage("Dùng cổng kết nối hiển thị trên màn hình Wireless debugging, không dùng cổng Pair device.")
             .setView(endpoint).setPositiveButton("KẾT NỐI", (d,w) -> {
                 String ep = endpoint.getText().toString().trim();
-                if (!ep.matches("[A-Za-z0-9.:-]+:[0-9]{1,5}")) { line("Địa chỉ IP:cổng không hợp lệ.", 0xffff8080); return; }
-                runTermuxCommand("pkg install -y android-tools && adb connect " + shellQuote(ep) + " ; adb devices -l");
+                if (!isValidAdbEndpoint(ep)) { line("Địa chỉ IP:cổng không hợp lệ. Cổng phải từ 1 đến 65535.", 0xffff8080); return; }
+                connectAdbEndpoint(ep);
             }).setNegativeButton("HỦY", null).show();
+    }
+
+    private boolean isValidAdbEndpoint(String endpoint) {
+        if (endpoint == null || !endpoint.matches("[A-Za-z0-9.:-]+:[0-9]{1,5}")) return false;
+        int colon = endpoint.lastIndexOf(':');
+        try {
+            int port = Integer.parseInt(endpoint.substring(colon + 1));
+            return port >= 1 && port <= 65535;
+        } catch (Exception e) { return false; }
+    }
+
+    private void connectAdbEndpoint(String endpoint) {
+        if (!isValidAdbEndpoint(endpoint)) {
+            line("Endpoint ADB không hợp lệ hoặc cổng ngoài phạm vi 1–65535.", 0xffff8080);
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle("Xác nhận kết nối ADB")
+            .setMessage("Kết nối tới " + endpoint + "? Đây là cổng kết nối, không phải cổng ghép đôi. Thiết bị phải được ghép đôi và cho phép Wireless debugging.")
+            .setPositiveButton("KẾT NỐI", (d, w) ->
+                runTermuxCommand("pkg install -y android-tools && adb connect " + shellQuote(endpoint) + " && adb devices -l"))
+            .setNegativeButton("HỦY", null).show();
     }
 
     private void runTermuxCommand(String command) {
