@@ -858,7 +858,7 @@ public class MainActivity extends Activity {
                     line("Không mở được ứng dụng chia sẻ: " + e.getMessage(), 0xffff8080);
                 }
             })
-            .setNeutralButton("SAO CHÉP", (d, w) -> copyText(report, "Đã sao chép kết quả Termux."));
+            .setNeutralButton("SAO CHÉP", (d, w) -> copyText(report, "Đã sao chép kết quả Termux."))
             .setNegativeButton("HỦY", null)
             .show();
     }
