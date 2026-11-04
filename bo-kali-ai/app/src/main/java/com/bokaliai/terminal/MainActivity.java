@@ -453,7 +453,8 @@ public class MainActivity extends Activity {
             long found = prefs.getLong("pairing_discovered_at_" + ep, 0L);
             String when = found == 0L ? "chưa rõ thời điểm" :
                 new java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(new java.util.Date(found));
-            choices[i] = ep + (service.isEmpty() ? "" : "  ·  " + service) + "  ·  thấy lần cuối " + when;
+            boolean stale = found == 0L || System.currentTimeMillis() - found > 10L * 60L * 1000L;
+            choices[i] = ep + (service.isEmpty() ? "" : "  ·  " + service) + "  ·  thấy lần cuối " + when + (stale ? "  ·  CÓ THỂ CŨ" : "  ·  MỚI");
         }
         new AlertDialog.Builder(this).setTitle("Chọn cổng ghép đôi đã quét")
             .setItems(choices, (d, which) -> showAdbPairForm(endpoints.get(which)))
@@ -594,6 +595,25 @@ public class MainActivity extends Activity {
             line("Endpoint ADB không hợp lệ hoặc cổng ngoài phạm vi 1–65535.", 0xffff8080);
             return;
         }
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        long foundAt = prefs.getLong("discovered_at_" + endpoint, 0L);
+        long age = foundAt == 0L ? Long.MAX_VALUE : Math.max(0L, System.currentTimeMillis() - foundAt);
+        if (age > 10L * 60L * 1000L) {
+            String ageText = foundAt == 0L ? "Không có thời điểm quét được lưu." :
+                "Lần cuối tìm thấy cách đây " + android.text.format.DateUtils.getRelativeTimeSpanString(
+                    foundAt, System.currentTimeMillis(), android.text.format.DateUtils.MINUTE_IN_MILLIS) + ".";
+            new AlertDialog.Builder(this).setTitle("Endpoint có thể đã cũ")
+                .setMessage(endpoint + "\\n" + ageText +
+                    "\\nĐịa chỉ hoặc cổng có thể đã thay đổi sau khi thiết bị khởi động lại hoặc đổi mạng. Bạn nên quét ADB lại trước.")
+                .setPositiveButton("VẪN THỬ KẾT NỐI", (d, w) -> confirmAdbEndpointConnection(endpoint))
+                .setNeutralButton("QUÉT LẠI", (d, w) -> scanAdbServices())
+                .setNegativeButton("HỦY", null).show();
+            return;
+        }
+        confirmAdbEndpointConnection(endpoint);
+    }
+
+    private void confirmAdbEndpointConnection(String endpoint) {
         new AlertDialog.Builder(this).setTitle("Xác nhận kết nối ADB")
             .setMessage("Kết nối tới " + endpoint + "? Đây là cổng kết nối, không phải cổng ghép đôi. Thiết bị phải được ghép đôi và cho phép Wireless debugging.")
             .setPositiveButton("KẾT NỐI", (d, w) ->
