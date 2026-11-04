@@ -543,15 +543,84 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void showUniversalDualWorkspace() {
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setPadding(dp(8), dp(8), dp(8), dp(8));
+        page.setBackgroundColor(BG);
+
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        Button back = button("QUAY LẠI");
+        back.setOnClickListener(v -> setContentView(root));
+        top.addView(back, new LinearLayout.LayoutParams(0, dp(44), 1));
+        Button add = button("THÊM THIẾT BỊ");
+        add.setOnClickListener(v -> showAddDeviceProfileDialog());
+        top.addView(add, new LinearLayout.LayoutParams(0, dp(44), 1));
+        page.addView(top);
+
+        LinearLayout split = new LinearLayout(this);
+        split.setOrientation(LinearLayout.HORIZONTAL);
+        split.setWeightSum(2f);
+
+        LinearLayout codePane = new LinearLayout(this);
+        codePane.setOrientation(LinearLayout.VERTICAL);
+        codePane.setPadding(dp(7), dp(8), dp(7), dp(8));
+        codePane.setBackgroundColor(PANEL);
+        codePane.addView(text("MÀN HÌNH CHÍNH · CODE / KALI / AI", GREEN, 13, true));
+        codePane.addView(text("Khu vực làm việc độc lập, không cần thiết bị ngoài kết nối.", WHITE, 11, false));
+        Button terminal = button("MỞ CODE / TERMINAL");
+        terminal.setOnClickListener(v -> setContentView(root));
+        codePane.addView(terminal, new LinearLayout.LayoutParams(-1, dp(48)));
+        Button kali = button("MỞ KALI SHELL");
+        kali.setOnClickListener(v -> kaliShellMenu());
+        codePane.addView(kali, new LinearLayout.LayoutParams(-1, dp(44)));
+        Button ai = button("HỎI AI");
+        ai.setOnClickListener(v -> { setContentView(root); questionInput.requestFocus(); });
+        codePane.addView(ai, new LinearLayout.LayoutParams(-1, dp(44)));
+        split.addView(codePane, new LinearLayout.LayoutParams(0, -1, 1f));
+
+        LinearLayout devicePane = new LinearLayout(this);
+        devicePane.setOrientation(LinearLayout.VERTICAL);
+        devicePane.setPadding(dp(7), dp(8), dp(7), dp(8));
+        devicePane.setBackgroundColor(0xff101f2e);
+        devicePane.addView(text("MÀN HÌNH PHỤ · THIẾT BỊ", 0xff79c9ff, 13, true));
+        devicePane.addView(text("Chưa có Android ADB đang trực tuyến. Chọn profile để mở giao thức tương ứng.", WHITE, 11, false));
+        Button scanLan = button("QUÉT MẠNG LAN");
+        scanLan.setOnClickListener(v -> scanUniversalNetworkServices());
+        devicePane.addView(scanLan, new LinearLayout.LayoutParams(-1, dp(42)));
+        Button scanAdb = button("QUÉT ANDROID / TV");
+        scanAdb.setOnClickListener(v -> runTermuxCommand("pkg install -y android-tools && adb devices -l"));
+        devicePane.addView(scanAdb, new LinearLayout.LayoutParams(-1, dp(42)));
+
+        ScrollView profileScroll = new ScrollView(this);
+        LinearLayout profileList = new LinearLayout(this);
+        profileList.setOrientation(LinearLayout.VERTICAL);
+        java.util.ArrayList<DeviceHubProfile> profiles = DeviceHubProfile.load(this);
+        if (profiles.isEmpty()) {
+            profileList.addView(text("Chưa có profile. Thêm Android, PC, máy chủ, Home Assistant, router hoặc NAS.", 0xffb4c7d8, 11, false));
+        } else {
+            for (DeviceHubProfile profile : profiles) {
+                Button item = button(profile.name + "\\n" + profile.host + ":" + profile.port);
+                item.setOnClickListener(v -> showDeviceProfileActions(profile));
+                profileList.addView(item, new LinearLayout.LayoutParams(-1, dp(58)));
+            }
+        }
+        profileScroll.addView(profileList);
+        devicePane.addView(profileScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        Button hub = button("QUẢN LÝ PROFILE");
+        hub.setOnClickListener(v -> showUniversalDeviceHub());
+        devicePane.addView(hub, new LinearLayout.LayoutParams(-1, dp(44)));
+        split.addView(devicePane, new LinearLayout.LayoutParams(0, -1, 1f));
+
+        page.addView(split, new LinearLayout.LayoutParams(-1, 0, 1f));
+        setContentView(page);
+    }
+
     private void showDualWorkspace() {
         java.util.ArrayList<String> connected = getFreshAdbDevices();
         if (connected.isEmpty()) {
-            new AlertDialog.Builder(this)
-                .setTitle("Chưa có thiết bị Android ADB")
-                .setMessage("Bạn vẫn có thể quản lý máy tính Windows/Linux/macOS qua SSH, mở giao diện Home Assistant, router hoặc NAS. Thêm thiết bị trong Trung tâm thiết bị đa nền tảng.")
-                .setPositiveButton("MỞ TRUNG TÂM THIẾT BỊ", (d, w) -> showUniversalDeviceHub())
-                .setNeutralButton("QUÉT ADB", (d, w) -> runTermuxCommand("pkg install -y android-tools && adb devices -l"))
-                .setNegativeButton("ĐÓNG", null).show();
+            showUniversalDualWorkspace();
             return;
         }
         final String[] deviceLabels = new String[connected.size()];
