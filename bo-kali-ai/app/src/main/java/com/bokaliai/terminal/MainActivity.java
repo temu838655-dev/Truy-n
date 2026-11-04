@@ -804,9 +804,19 @@ public class MainActivity extends Activity {
                 catch (Exception error) { p = -1; }
                 String proto = platformValues[selected];
                 boolean web = DeviceHubProfile.WEB.equals(proto);
-                boolean validHost = web
-                    ? (h.matches("[A-Za-z0-9._:%\\[\\]-]{1,253}") || ((h.startsWith("http://") || h.startsWith("https://")) && h.length() < 512))
-                    : h.matches("[A-Za-z0-9._:%\\[\\]-]{1,253}");
+                boolean validHost = h.matches("[A-Za-z0-9._:%\\[\\]-]{1,253}");
+                if (web && (h.startsWith("http://") || h.startsWith("https://"))) {
+                    try {
+                        Uri webUri = Uri.parse(h);
+                        String scheme = webUri.getScheme();
+                        validHost = ("http".equals(scheme) || "https".equals(scheme))
+                            && webUri.getHost() != null && !webUri.getHost().isEmpty()
+                            && webUri.getUserInfo() == null
+                            && webUri.getPort() <= 65535;
+                    } catch (Exception invalidUrl) {
+                        validHost = false;
+                    }
+                }
                 if (n.isEmpty() || !validHost || p < 1 || p > 65535
                     || ((DeviceHubProfile.SSH.equals(proto) || DeviceHubProfile.ROUTER_SSH.equals(proto)) && !u.matches("[A-Za-z0-9._-]{1,64}"))) {
                     line("Thông tin thiết bị chưa hợp lệ. Kiểm tra tên, địa chỉ, cổng và tài khoản SSH.", 0xffff8080);
