@@ -5173,6 +5173,11 @@ public class MainActivity extends Activity {
                                     saveAntigravityPendingTool(interactionId, environmentId, callId, functionName);
                                     runAntigravityGithubReadTool(functionName, args);
                                 });
+                            } else if ("github_propose_file_update".equals(functionName)) {
+                                runOnUiThread(() -> {
+                                    saveAntigravityPendingTool(interactionId, environmentId, callId, functionName);
+                                    runAntigravityGithubProposedUpdate(args);
+                                });
                             } else {
                                 runOnUiThread(() -> line("BO từ chối công cụ Antigravity chưa được hỗ trợ: " + functionName, 0xffff8080));
                             }
@@ -5919,6 +5924,100 @@ public class MainActivity extends Activity {
                 }
             });
         }
+    }
+
+    /** Fetch base file and show the exact proposed replacement before any GitHub write. */
+    private void runAntigravityGithubProposedUpdate(JSONObject args) {
+        if (githubToken == null || githubToken.trim().isEmpty()) {
+            reportAntigravityToolOutcome("github_auth_missing", "BO chưa có GitHub token trong phiên; không thể tải tệp gốc.");
+            return;
+        }
+        String repository = args.optString("repository", "").trim();
+        String path = args.optString("path", "").trim();
+        String branch = args.optString("branch", "main").trim();
+        String content = args.optString("content", "");
+        String summary = args.optString("summary", "Update " + path).trim();
+        if (!repository.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+                || !AiToolRegistry.validRepoPath(path) || branch.isEmpty()
+                || branch.length() > 200 || branch.matches(".*[\\r\\n\\u0000].*")
+                || content.isEmpty() || content.length() > 60000
+                || summary.isEmpty() || summary.length() > 120) {
+            reportAntigravityToolOutcome("invalid_github_update", "Thông số cập nhật GitHub không hợp lệ hoặc vượt giới hạn 60.000 ký tự.");
+            return;
+        }
+        line("BO đang tải phiên bản gốc để kiểm tra đề xuất GitHub...", GREEN);
+        worker.execute(() -> {
+            try {
+                String apiPath = "/repos/" + repository + "/contents/" + githubEncodedPath(path)
+                    + "?ref=" + java.net.URLEncoder.encode(branch, "UTF-8");
+                JSONObject original = githubApi("GET", apiPath, null);
+                String originalSha = original.optString("sha", "");
+                String encoded = original.optString("content", "").replace("\\n", "").replace("\\r", "");
+                if (originalSha.isEmpty() || encoded.isEmpty())
+                    throw new IllegalStateException("Không lấy được SHA/nội dung tệp gốc; từ chối đề xuất cập nhật.");
+                String oldContent = new String(android.util.Base64.decode(encoded, android.util.Base64.DEFAULT), StandardCharsets.UTF_8);
+                if (oldContent.length() > 60000) throw new IllegalStateException("Tệp gốc vượt giới hạn xem xét 60.000 ký tự.");
+                String preview = "Repository: " + repository + "\\nNhánh: " + branch + "\\nTệp: " + path
+                    + "\\nSHA gốc: " + originalSha + "\\nCommit: " + summary
+                    + "\\n\\n--- NỘI DUNG HIỆN TẠI (đầu tối đa 3.500 ký tự) ---\\n"
+                    + oldContent.substring(0, Math.min(3500, oldContent.length()))
+                    + "\\n\\n--- NỘI DUNG ĐỀ XUẤT (đầu tối đa 3.500 ký tự) ---\\n"
+                    + content.substring(0, Math.min(3500, content.length()))
+                    + (content.length() > 3500 ? "\\n[Phần còn lại đã được giữ trong bộ nhớ để commit sau khi duyệt.]" : "")
+                    + "\\n\\nBO sẽ so sánh SHA một lần nữa trước khi commit. Nếu tệp đã đổi, thao tác sẽ bị hủy.";
+                runOnUiThread(() -> new AlertDialog.Builder(this)
+                    .setTitle("Antigravity • Duyệt bản vá GitHub")
+                    .setMessage(preview)
+                    .setPositiveButton("DUYỆT VÀ COMMIT", (dialog, which) ->
+                        commitAntigravityGithubUpdate(repository, branch, path, content, summary, originalSha))
+                    .setNegativeButton("TỪ CHỐI", (dialog, which) ->
+                        reportAntigravityToolOutcome("github_update_rejected",
+                            "Người dùng từ chối bản vá GitHub. Không có tệp hoặc commit nào được thay đổi."))
+                    .setOnCancelListener(dialog ->
+                        reportAntigravityToolOutcome("github_update_cancelled",
+                            "Người dùng đóng hộp thoại duyệt. Không có tệp hoặc commit nào được thay đổi."))
+                    .show());
+            } catch (Exception e) {
+                reportAntigravityToolOutcome("github_update_review_failed",
+                    "BO không thể tải/kiểm tra tệp gốc; không ghi gì lên GitHub: " + e.getMessage());
+            }
+        });
+    }
+
+    private void commitAntigravityGithubUpdate(String repository, String branch, String path,
+                                               String content, String summary, String expectedSha) {
+        line("Đã duyệt bản vá. BO đang xác minh SHA lần cuối trước khi commit...", GREEN);
+        worker.execute(() -> {
+            try {
+                String apiPath = "/repos/" + repository + "/contents/" + githubEncodedPath(path);
+                JSONObject latest = githubApi("GET", apiPath + "?ref="
+                    + java.net.URLEncoder.encode(branch, "UTF-8"), null);
+                String latestSha = latest.optString("sha", "");
+                if (!expectedSha.equals(latestSha)) {
+                    reportAntigravityToolOutcome("github_update_conflict",
+                        "Tệp đã thay đổi sau khi hiển thị bản duyệt. BO đã hủy commit để tránh ghi đè. Hãy đọc lại tệp và tạo bản vá mới.");
+                    runOnUiThread(() -> line("GitHub thay đổi trong lúc duyệt; đã hủy commit an toàn.", 0xffffca70));
+                    return;
+                }
+                JSONObject payload = new JSONObject()
+                    .put("message", summary)
+                    .put("content", android.util.Base64.encodeToString(content.getBytes(StandardCharsets.UTF_8), android.util.Base64.NO_WRAP))
+                    .put("branch", branch)
+                    .put("sha", expectedSha);
+                JSONObject response = githubApi("PUT", apiPath, payload);
+                JSONObject commit = response.optJSONObject("commit");
+                String commitSha = commit == null ? "" : commit.optString("sha", "");
+                reportAntigravityToolOutcome("github_update_committed",
+                    "BO đã commit bản vá sau khi người dùng xác nhận. Repository: " + repository
+                        + "; branch: " + branch + "; path: " + path
+                        + (commitSha.isEmpty() ? "" : "; commit: " + commitSha));
+                runOnUiThread(() -> line("Đã commit bản vá GitHub theo xác nhận của bạn."
+                    + (commitSha.isEmpty() ? "" : " Commit: " + commitSha), GREEN));
+            } catch (Exception e) {
+                reportAntigravityToolOutcome("github_update_failed", "Commit GitHub thất bại: " + e.getMessage());
+                runOnUiThread(() -> line("Commit GitHub thất bại: " + e.getMessage(), 0xffff8080));
+            }
+        });
     }
 
     private JSONObject githubApi(String method, String path, JSONObject body) throws Exception {
