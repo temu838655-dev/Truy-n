@@ -74,6 +74,20 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
         post(() -> statusView.setText(value == null ? "" : value));
     }
 
+    public boolean isRunning() {
+        return running.get();
+    }
+
+    /**
+     * Close only the local video/control sockets before a fresh server handshake.
+     * The ADB connection and foreground keep-alive service are intentionally untouched.
+     */
+    public void prepareForReconnect() {
+        stop();
+        localPort = -1;
+        setStatus("Đang chờ khôi phục luồng scrcpy sau khi mở khóa...");
+    }
+
     public void start(int port) {
         if (port < 1 || port > 65535) {
             setStatus("Cổng truyền màn hình không hợp lệ");
