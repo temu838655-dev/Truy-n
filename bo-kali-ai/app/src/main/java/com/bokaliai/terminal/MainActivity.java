@@ -1062,14 +1062,17 @@ public class MainActivity extends Activity {
         LinearLayout fields = new LinearLayout(this);
         fields.setOrientation(1);
         fields.setPadding(24, 8, 24, 8);
+        android.content.SharedPreferences filterPrefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
         EditText countInput = input("Số dòng log (50–1000, mặc định 300)");
-        countInput.setText("300");
+        countInput.setText(filterPrefs.getString("logcat_count_" + serial, "300"));
         EditText priorityInput = input("Mức lọc: V, D, I, W, E hoặc F (mặc định V)");
-        priorityInput.setText("V");
+        priorityInput.setText(filterPrefs.getString("logcat_priority_" + serial, "V"));
         EditText bufferInput = input("Log buffer: main, system, crash, events, radio (mặc định main)");
-        bufferInput.setText("main");
+        bufferInput.setText(filterPrefs.getString("logcat_buffer_" + serial, "main"));
         EditText tagInput = input("Lọc theo Log tag (để trống = mọi tag)");
+        tagInput.setText(filterPrefs.getString("logcat_tag_" + serial, ""));
         EditText packageInput = input("Lọc theo package (để trống = tất cả ứng dụng)");
+        packageInput.setText(filterPrefs.getString("logcat_package_" + serial, ""));
         fields.addView(countInput);
         fields.addView(priorityInput);
         fields.addView(bufferInput);
@@ -1143,6 +1146,13 @@ public class MainActivity extends Activity {
                         line("Đang đọc tối đa " + count + " dòng Logcat (buffer " + selectedBuffer + ", mức " + selectedPriority
                             + (selectedTag.isEmpty() ? "" : ", tag " + selectedTag)
                             + (selectedPackage.isEmpty() ? "" : ", package " + selectedPackage) + ") từ " + serial + "...", GREEN);
+                        filterPrefs.edit()
+                            .putString("logcat_count_" + serial, String.valueOf(count))
+                            .putString("logcat_priority_" + serial, selectedPriority)
+                            .putString("logcat_buffer_" + serial, selectedBuffer)
+                            .putString("logcat_tag_" + serial, selectedTag)
+                            .putString("logcat_package_" + serial, selectedPackage)
+                            .apply();
                         getSharedPreferences("bo_kali_results", MODE_PRIVATE).edit()
                             .putString("last_logcat_serial", serial)
                             .putLong("last_logcat_requested_at", System.currentTimeMillis() - 1)
