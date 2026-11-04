@@ -4909,7 +4909,14 @@ public class MainActivity extends Activity {
                                 runOnUiThread(() -> line("BO từ chối công cụ Claude không được hỗ trợ.", 0xffff8080));
                             } else {
                                 JSONObject args = call.optJSONObject("arguments");
+                                String toolUseId = call.optString("tool_use_id", "");
+                                JSONArray assistantContent = result.optJSONArray("content");
                                 runOnUiThread(() -> acceptAiAdbProposal(args, "claude"));
+                                if (assistantContent != null && !toolUseId.isEmpty()) {
+                                    requestClaudeToolFollowUp(apiKey, claudeContent, assistantContent,
+                                        toolUseId,
+                                        "BO đã nhận đề xuất và chuyển sang bước kiểm tra/duyệt của người dùng. Chưa có lệnh ADB nào được thực thi. Không được báo rằng thiết bị đã thay đổi.");
+                                }
                             }
                         }
                     } else {
@@ -4965,6 +4972,55 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> line(error, 0xffff8080));
             } finally {
                 if (conn != null) conn.disconnect();
+            }
+        });
+    }
+
+    /**
+     * Complete the Claude Messages tool-use round trip with a truthful, non-execution
+     * status. The actual ADB command remains behind BO's independent review dialogs.
+     */
+    private void requestClaudeToolFollowUp(String apiKey, JSONArray originalUserContent,
+                                           JSONArray assistantContent, String toolUseId,
+                                           String toolResultText) {
+        worker.execute(() -> {
+            HttpURLConnection followConn = null;
+            try {
+                JSONArray toolResult = new JSONArray().put(new JSONObject()
+                    .put("type", "tool_result")
+                    .put("tool_use_id", toolUseId)
+                    .put("content", toolResultText));
+                JSONArray messages = new JSONArray()
+                    .put(new JSONObject().put("role", "user").put("content", originalUserContent))
+                    .put(new JSONObject().put("role", "assistant").put("content", assistantContent))
+                    .put(new JSONObject().put("role", "user").put("content", toolResult));
+                JSONObject body = new JSONObject()
+                    .put("model", "claude-sonnet-5-5")
+                    .put("max_tokens", 2048)
+                    .put("tools", AiToolRegistry.claudeProposalTools())
+                    .put("tool_choice", new JSONObject().put("type", "none"))
+                    .put("messages", messages);
+                URL url = new URL("https://api.anthropic.com/v1/messages");
+                followConn = (HttpURLConnection) url.openConnection();
+                followConn.setRequestMethod("POST");
+                followConn.setRequestProperty("x-api-key", apiKey);
+                followConn.setRequestProperty("anthropic-version", "2023-06-01");
+                followConn.setConnectTimeout(20000);
+                followConn.setReadTimeout(60000);
+                followConn.setDoOutput(true);
+                followConn.setRequestProperty("Content-Type", "application/json");
+                try (OutputStream os = followConn.getOutputStream()) {
+                    os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                }
+                int followCode = followConn.getResponseCode();
+                JSONObject followResult = new JSONObject(readAiHttpResponse(followConn, followCode));
+                String answer = extractAiAnswer("Claude", followResult, followCode);
+                runOnUiThread(() -> line("Claude: " + answer, WHITE));
+            } catch (Exception e) {
+                String error = "Không hoàn tất phản hồi công cụ Claude: " + e.getMessage();
+                runOnUiThread(() -> line(error, 0xffff8080));
+            } finally {
+                if (followConn != null) followConn.disconnect();
             }
         });
     }
