@@ -249,12 +249,146 @@ public class MainActivity extends Activity {
             .setTitle("TRUNG TÂM THIẾT BỊ ĐA NỀN TẢNG")
             .setMessage(message)
             .setPositiveButton("THÊM THIẾT BỊ", (d, w) -> showAddDeviceProfileDialog())
-            .setNeutralButton("QUÉT ANDROID / TV", (d, w) -> runTermuxCommand("pkg install -y android-tools && adb devices -l"))
+            .setNeutralButton("QUÉT MẠNG LAN", (d, w) -> scanUniversalNetworkServices())
             .setNegativeButton("ĐÓNG", null);
         if (!profiles.isEmpty()) {
             builder.setItems(labels, (d, which) -> showDeviceProfileActions(profiles.get(which)));
         }
         builder.show();
+    }
+
+    private static final class HubDiscoveredService {
+        final String name;
+        final String type;
+        final String host;
+        final int port;
+        HubDiscoveredService(String name, String type, String host, int port) {
+            this.name = name; this.type = type; this.host = host; this.port = port;
+        }
+        String label() { return name + " · " + host + ":" + port + " · " + type; }
+    }
+
+    private final java.util.ArrayList<NsdManager.DiscoveryListener> hubDiscoveryListeners = new java.util.ArrayList<>();
+    private final java.util.LinkedHashMap<String, HubDiscoveredService> hubDiscoveredServices = new java.util.LinkedHashMap<>();
+    private boolean hubDiscoveryActive = false;
+
+    private void scanUniversalNetworkServices() {
+        if (hubDiscoveryActive) {
+            line("Đang quét dịch vụ mạng cục bộ. Vui lòng đợi.", 0xffffca70);
+            return;
+        }
+        nsdManager = (NsdManager) getSystemService(Context.NSD_SERVICE);
+        if (nsdManager == null) {
+            line("Thiết bị không hỗ trợ Network Service Discovery.", 0xffff8080);
+            return;
+        }
+        hubDiscoveredServices.clear();
+        hubDiscoveryListeners.clear();
+        hubDiscoveryActive = true;
+        line("Đang tìm dịch vụ SSH, HTTP/HTTPS và Home Assistant trong mạng Wi-Fi cục bộ...", GREEN);
+        String[] serviceTypes = {"_ssh._tcp.", "_http._tcp.", "_https._tcp.", "_home-assistant._tcp."};
+        for (String serviceType : serviceTypes) {
+            NsdManager.DiscoveryListener listener = new NsdManager.DiscoveryListener() {
+                @Override public void onDiscoveryStarted(String type) { }
+                @Override public void onServiceFound(NsdServiceInfo service) {
+                    if (service == null || service.getServiceName() == null) return;
+                    if (!service.getServiceType().contains(serviceType.substring(0, serviceType.length() - 1))) return;
+                    try {
+                        nsdManager.resolveService(service, new NsdManager.ResolveListener() {
+                            @Override public void onResolveFailed(NsdServiceInfo failed, int errorCode) { }
+                            @Override public void onServiceResolved(NsdServiceInfo resolved) {
+                                InetAddress address = resolved.getHost();
+                                if (address == null || resolved.getPort() <= 0) return;
+                                String host = address.getHostAddress();
+                                HubDiscoveredService found = new HubDiscoveredService(
+                                    resolved.getServiceName(), serviceType, host, resolved.getPort());
+                                String key = serviceType + "|" + host + "|" + resolved.getPort();
+                                runOnUiThread(() -> hubDiscoveredServices.put(key, found));
+                            }
+                        });
+                    } catch (Exception ignored) { }
+                }
+                @Override public void onServiceLost(NsdServiceInfo service) { }
+                @Override public void onDiscoveryStopped(String type) { }
+                @Override public void onStartDiscoveryFailed(String type, int errorCode) {
+                    try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) { }
+                }
+                @Override public void onStopDiscoveryFailed(String type, int errorCode) {
+                    try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) { }
+                }
+            };
+            hubDiscoveryListeners.add(listener);
+            try { nsdManager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener); }
+            catch (Exception error) { line("Không quét được " + serviceType + ": " + error.getMessage(), 0xffffca70); }
+        }
+        mainHandler.postDelayed(() -> finishUniversalNetworkScan(), 10000);
+    }
+
+    private void finishUniversalNetworkScan() {
+        for (NsdManager.DiscoveryListener listener : new java.util.ArrayList<>(hubDiscoveryListeners)) {
+            try { nsdManager.stopServiceDiscovery(listener); } catch (Exception ignored) { }
+        }
+        hubDiscoveryListeners.clear();
+        hubDiscoveryActive = false;
+        if (hubDiscoveredServices.isEmpty()) {
+            new AlertDialog.Builder(this).setTitle("Không tìm thấy dịch vụ được quảng bá")
+                .setMessage("Không có SSH/HTTP/Home Assistant nào được phát hiện qua mDNS trong mạng hiện tại. Một số thiết bị không quảng bá dịch vụ hoặc chặn multicast. Bạn vẫn có thể thêm IP thủ công.")
+                .setPositiveButton("THÊM THỦ CÔNG", (d, w) -> showAddDeviceProfileDialog())
+                .setNegativeButton("ĐÓNG", null).show();
+            return;
+        }
+        java.util.ArrayList<HubDiscoveredService> found = new java.util.ArrayList<>(hubDiscoveredServices.values());
+        String[] labels = new String[found.size()];
+        for (int i = 0; i < found.size(); i++) labels[i] = found.get(i).label();
+        new AlertDialog.Builder(this).setTitle("DỊCH VỤ ĐÃ TÌM THẤY · " + found.size())
+            .setItems(labels, (d, which) -> showDiscoveredServiceActions(found.get(which)))
+            .setPositiveButton("QUÉT LẠI", (d, w) -> scanUniversalNetworkServices())
+            .setNegativeButton("ĐÓNG", null).show();
+        line("Quét mạng hoàn tất: tìm thấy " + found.size() + " dịch vụ mDNS. Đây là phát hiện dịch vụ, chưa phải quyền điều khiển.", GREEN);
+    }
+
+    private void showDiscoveredServiceActions(HubDiscoveredService service) {
+        String[] actions = {"LƯU THÀNH THIẾT BỊ", "MỞ GIAO DIỆN WEB", "HỦY"};
+        new AlertDialog.Builder(this).setTitle(service.label())
+            .setItems(actions, (d, which) -> {
+                if (which == 0) {
+                    boolean ssh = service.type.startsWith("_ssh");
+                    boolean ha = service.type.startsWith("_home-assistant");
+                    EditText displayName = input("Tên thiết bị");
+                    displayName.setText(service.name);
+                    EditText user = input("Tài khoản SSH");
+                    LinearLayout form = new LinearLayout(this);
+                    form.setOrientation(1);
+                    form.setPadding(dp(18), dp(8), dp(18), 0);
+                    form.addView(displayName);
+                    if (ssh) form.addView(user);
+                    new AlertDialog.Builder(this).setTitle("LƯU PROFILE")
+                        .setMessage(service.host + ":" + service.port)
+                        .setView(form)
+                        .setPositiveButton("LƯU", (x, y) -> {
+                            String n = displayName.getText().toString().trim();
+                            String u = user.getText().toString().trim();
+                            if (n.isEmpty() || (ssh && !u.matches("[A-Za-z0-9._-]{1,64}"))) {
+                                line("Tên hoặc tài khoản SSH không hợp lệ.", 0xffff8080);
+                                return;
+                            }
+                            String platform = ssh ? DeviceHubProfile.SSH
+                                : ha ? DeviceHubProfile.HOME_ASSISTANT : DeviceHubProfile.WEB;
+                            DeviceHubProfile.save(this, n, platform, service.host, service.port, u);
+                            line("Đã lưu dịch vụ mDNS " + n + ". Cần xác thực trước khi sử dụng.", GREEN);
+                        }).setNegativeButton("HỦY", null).show();
+                } else if (which == 1) {
+                    if (service.type.startsWith("_http") || service.type.startsWith("_https")
+                        || service.type.startsWith("_home-assistant")) {
+                        String scheme = service.type.startsWith("_https") ? "https://" : "http://";
+                        try { startActivity(new Intent(Intent.ACTION_VIEW,
+                            Uri.parse(scheme + service.host + ":" + service.port))); }
+                        catch (Exception error) { line("Không mở được giao diện web.", 0xffff8080); }
+                    } else {
+                        line("Dịch vụ SSH không có giao diện web. Hãy lưu profile và kết nối bằng SSH.", 0xffffca70);
+                    }
+                }
+            }).show();
     }
 
     private void showAddDeviceProfileDialog() {
@@ -319,7 +453,7 @@ public class MainActivity extends Activity {
                 String proto = platformValues[selected];
                 boolean web = DeviceHubProfile.WEB.equals(proto);
                 boolean validHost = web
-                    ? (h.startsWith("http://") || h.startsWith("https://")) && h.length() < 512
+                    ? (h.matches("[A-Za-z0-9._:%\\[\\]-]{1,253}") || ((h.startsWith("http://") || h.startsWith("https://")) && h.length() < 512))
                     : h.matches("[A-Za-z0-9._:%\\[\\]-]{1,253}");
                 if (n.isEmpty() || !validHost || p < 1 || p > 65535
                     || (DeviceHubProfile.SSH.equals(proto) && !u.matches("[A-Za-z0-9._-]{1,64}"))) {
@@ -370,9 +504,9 @@ public class MainActivity extends Activity {
             return;
         }
         String target = profile.host;
-        if (DeviceHubProfile.HOME_ASSISTANT.equals(profile.platform)) {
+        if (DeviceHubProfile.HOME_ASSISTANT.equals(profile.platform) || DeviceHubProfile.WEB.equals(profile.platform)) {
             if (!target.startsWith("http://") && !target.startsWith("https://")) {
-                target = "http://" + target + (profile.port == 8123 ? ":8123" : ":" + profile.port);
+                target = "http://" + target + ":" + profile.port;
             }
         }
         try {
