@@ -741,15 +741,23 @@ public class MainActivity extends Activity {
                     String alias = prefs.getString("alias_" + serial, "");
                     summary.append("\n• ").append(alias.isEmpty() ? serial : alias + " (" + serial + ")");
                     String quoted = shellQuote(serial);
-                    command.append("echo '\\n===== ").append(serial.replace("'", "")).append(" ====='; ")
-                        .append("adb -s ").append(quoted).append(" get-state; ")
-                        .append("adb -s ").append(quoted).append(" shell getprop ro.product.model; ");
+                    String remoteReadOnly = "echo MODEL:; getprop ro.product.model; "
+                        + "echo BRAND:; getprop ro.product.brand; "
+                        + "echo ANDROID:; getprop ro.build.version.release; "
+                        + "echo SDK:; getprop ro.build.version.sdk; "
+                        + "echo SECURITY_PATCH:; getprop ro.build.version.security_patch; "
+                        + "echo BATTERY:; dumpsys battery | grep -E 'level:|temperature:' | head -n 2; "
+                        + "echo STORAGE_DATA:; df -h /data | tail -n 1";
+                    command.append("printf '\\n===== DEVICE ").append(serial).append(" =====\\n'; ")
+                        .append("adb -s ").append(quoted).append(" get-state 2>&1; ")
+                        .append("adb -s ").append(quoted).append(" shell ").append(shellQuote(remoteReadOnly))
+                        .append(" 2>&1; ");
                 }
-                command.append("echo '\\n===== ADB DEVICES ====='; adb devices -l");
+                command.append("printf '\\n===== ADB DEVICES =====\\n'; adb devices -l");
                 new AlertDialog.Builder(this).setTitle("Xác nhận kiểm tra hàng loạt")
-                    .setMessage("Sẽ chỉ đọc trạng thái kết nối và model của " + selected.size()
-                        + " thiết bị:" + summary
-                        + "\n\nKhông cài ứng dụng, không thay đổi cài đặt và không xóa dữ liệu trên thiết bị.")
+                    .setMessage("Sẽ đọc trạng thái, model, hãng, phiên bản Android, SDK, bản vá bảo mật, pin và dung lượng /data của "
+                        + selected.size() + " thiết bị:" + summary
+                        + "\\n\\nChỉ đọc dữ liệu. Không cài ứng dụng, không đổi cài đặt và không xóa dữ liệu trên thiết bị.")
                     .setPositiveButton("CHẠY KIỂM TRA", (d, w) -> runTermuxCommand(command.toString()))
                     .setNegativeButton("HỦY", null).show();
             }).setNegativeButton("HỦY", null).show();
