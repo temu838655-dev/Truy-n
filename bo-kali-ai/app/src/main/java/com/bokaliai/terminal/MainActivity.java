@@ -104,6 +104,9 @@ public class MainActivity extends Activity {
         shellAdb.setOnClickListener(v -> showAdbShellDialog());
         adbRow.addView(shellAdb, new LinearLayout.LayoutParams(0, dp(42), 1));
         root.addView(adbRow);
+        Button shareReport = button("CHIA SẺ KẾT QUẢ / BÁO CÁO");
+        shareReport.setOnClickListener(v -> shareLastTermuxReport());
+        root.addView(shareReport, new LinearLayout.LayoutParams(-1, dp(42)));
         Button firmware = button("FIRMWARE / OTA");
         firmware.setOnClickListener(v -> showFirmwareManager());
         root.addView(firmware, new LinearLayout.LayoutParams(-1, dp(44)));
@@ -832,6 +835,23 @@ public class MainActivity extends Activity {
             return;
         }
         copyText(lastCommandOutput, "Đã sao chép kết quả ADB / Kali gần nhất vào clipboard.");
+    }
+
+    private void shareLastTermuxReport() {
+        String report = getSharedPreferences("bo_kali_results", MODE_PRIVATE).getString("last_output", "");
+        if (report == null || report.trim().isEmpty()) {
+            line("Chưa có kết quả Termux để chia sẻ. Hãy chạy một lệnh ADB/Kali trước.", 0xffffca70);
+            return;
+        }
+        Intent share = new Intent(Intent.ACTION_SEND);
+        share.setType("text/plain");
+        share.putExtra(Intent.EXTRA_SUBJECT, "BO Kali AI - Báo cáo thiết bị");
+        share.putExtra(Intent.EXTRA_TEXT, report);
+        try {
+            startActivity(Intent.createChooser(share, "Chia sẻ báo cáo chẩn đoán"));
+        } catch (Exception e) {
+            line("Không mở được ứng dụng chia sẻ: " + e.getMessage(), 0xffff8080);
+        }
     }
 
     private void copyText(String value, String message) {
