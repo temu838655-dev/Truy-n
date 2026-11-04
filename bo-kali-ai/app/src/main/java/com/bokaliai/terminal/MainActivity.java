@@ -1042,14 +1042,15 @@ public class MainActivity extends Activity {
             .setOnClickListener(b -> {
                 actions.dismiss();
                 new AlertDialog.Builder(this).setTitle("Quản lý " + serial)
-                    .setItems(new String[]{"Kiểm tra kết nối thiết bị này", "Sao chép serial ADB", "Đặt / đổi tên gợi nhớ", "Lưu / chạy lệnh thường dùng", "Báo cáo chẩn đoán tổng hợp", "Đọc Logcat gần đây", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
+                    .setItems(new String[]{"Kiểm tra kết nối thiết bị này", "Sao chép serial ADB", "Đặt / đổi tên gợi nhớ", "Lưu / chạy lệnh thường dùng", "Báo cáo chẩn đoán tổng hợp", "Đọc Logcat gần đây", "Xuất Logcat gần nhất thành TXT", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
                         if (which == 0) checkSavedAdbDevice(serial);
                         else if (which == 1) copyText(serial, "Đã sao chép serial ADB.");
                         else if (which == 2) showAdbAliasDialog(serial);
                         else if (which == 3) showAdbCommandPreset(serial);
                         else if (which == 4) showAdbFullDiagnosticReport(serial);
                         else if (which == 5) showAdbLogcatDialog(serial);
-                        else if (which == 6) confirmAdbDisconnect(serial);
+                        else if (which == 6) exportLastAdbLogcat(serial);
+                        else if (which == 7) confirmAdbDisconnect(serial);
                         else confirmForgetAdbDevice(serial);
                     }).setNegativeButton("ĐÓNG", null).show();
             }));
@@ -1100,10 +1101,46 @@ public class MainActivity extends Activity {
                         + "\\n\\nLệnh chỉ đọc log, không dùng logcat -c. Kết quả gần nhất sẽ được lưu trong BO Kali AI; hãy kiểm tra trước khi chia sẻ.")
                     .setPositiveButton("ĐỌC LOG", (x, y) -> {
                         line("Đang đọc tối đa " + count + " dòng Logcat (mức " + selectedPriority + ") từ " + serial + "...", GREEN);
+                        getSharedPreferences("bo_kali_results", MODE_PRIVATE).edit()
+                            .putString("last_logcat_serial", serial)
+                            .putLong("last_logcat_requested_at", System.currentTimeMillis() - 1)
+                            .apply();
                         runTermuxCommand(command);
                     })
                     .setNegativeButton("HỦY", null)
                     .show();
+            })
+            .setNegativeButton("HỦY", null)
+            .show();
+    }
+
+    // Export only the most recent result that arrived after a Logcat request for this device.
+    private void exportLastAdbLogcat(String serial) {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_results", MODE_PRIVATE);
+        String savedSerial = prefs.getString("last_logcat_serial", "");
+        long requestedAt = prefs.getLong("last_logcat_requested_at", 0L);
+        long outputAt = prefs.getLong("last_output_at", 0L);
+        String report = prefs.getString("last_output", "");
+        if (!serial.equals(savedSerial) || requestedAt <= 0L || outputAt < requestedAt
+                || report == null || report.trim().isEmpty()) {
+            line("Chưa có kết quả Logcat mới cho thiết bị này. Hãy chọn Đọc Logcat gần đây và đợi Termux trả kết quả.", 0xffffca70);
+            return;
+        }
+        new AlertDialog.Builder(this)
+            .setTitle("Xuất Logcat • " + serial)
+            .setMessage("Logcat có thể chứa dữ liệu riêng tư, mã phiên hoặc thông tin mạng. Bạn có thể xuất nguyên bản hoặc ẩn IP và serial ADB. Việc ẩn tự động không loại bỏ mọi dữ liệu nhạy cảm.")
+            .setItems(new String[]{"Xuất nguyên bản", "Ẩn IP và serial ADB rồi xuất"}, (d, which) -> {
+                pendingExportText = which == 0 ? report : redactNetworkIdentifiers(report);
+                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("text/plain");
+                intent.putExtra(Intent.EXTRA_TITLE, "bo-kali-logcat.txt");
+                try {
+                    startActivityForResult(intent, REQ_RESULT_EXPORT);
+                } catch (Exception e) {
+                    pendingExportText = "";
+                    line("Không mở được trình lưu Logcat: " + e.getMessage(), 0xffff8080);
+                }
             })
             .setNegativeButton("HỦY", null)
             .show();
