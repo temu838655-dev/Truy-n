@@ -30,7 +30,17 @@ public class AdbKeepAliveService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
-        String serial = intent == null ? "" : intent.getStringExtra(EXTRA_SERIAL);
+        android.content.SharedPreferences session =
+            getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
+        boolean sessionRequested = session.getBoolean("keep_alive", false);
+        String serial = intent == null
+            ? session.getString("active_serial", "")
+            : intent.getStringExtra(EXTRA_SERIAL);
+        if (intent == null && !sessionRequested) {
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+        if (serial == null) serial = "";
         Notification notification = buildNotification(serial);
         if (Build.VERSION.SDK_INT >= 29) {
             startForeground(NOTIFICATION_ID, notification,
@@ -65,14 +75,14 @@ public class AdbKeepAliveService extends Service {
             return new Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
                 .setContentTitle("BO Kali AI · ADB đang hoạt động")
-                .setContentText(detail + " · Nhấn Dừng trong ứng dụng để ngắt")
+                .setContentText(detail + " · Vẫn giữ ADB khi khóa màn hình · Dừng trong ứng dụng để ngắt")
                 .setCategory(Notification.CATEGORY_SERVICE)
                 .setOngoing(true).setOnlyAlertOnce(true).build();
         }
         return new Notification.Builder(this)
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
             .setContentTitle("BO Kali AI · ADB đang hoạt động")
-            .setContentText(detail + " · Nhấn Dừng trong ứng dụng để ngắt")
+            .setContentText(detail + " · Vẫn giữ ADB khi khóa màn hình · Dừng trong ứng dụng để ngắt")
             .setOngoing(true).build();
     }
 
