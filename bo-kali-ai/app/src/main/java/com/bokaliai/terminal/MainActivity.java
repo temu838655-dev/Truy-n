@@ -3470,19 +3470,27 @@ public class MainActivity extends Activity {
         super.onNewIntent(intent);
         setIntent(intent);
         if (intent != null && "com.bokaliai.terminal.TERMUX_RESULT".equals(intent.getAction())) {
-            // This callback consumes the same result that was persisted by the receiver.
-            // Clear it here so a later onResume does not replay the transcript twice.
-            getSharedPreferences("bo_kali_results", MODE_PRIVATE).edit()
-                .remove("pending_output").remove("pending_screen_capture")
-                .remove("pending_scrcpy_ready").remove("pending_scrcpy_token").apply();
-            lastCommandOutput = intent.getStringExtra("termux_output");
+            // Drain accumulated pending results, not just this callback's payload.
+            android.content.SharedPreferences resultPrefs =
+                getSharedPreferences("bo_kali_results", MODE_PRIVATE);
+            String pendingOutput = resultPrefs.getString("pending_output", null);
+            boolean pendingScreenCapture = resultPrefs.getBoolean("pending_screen_capture", false);
+            boolean pendingScrcpyReady = resultPrefs.getBoolean("pending_scrcpy_ready", false);
+            String pendingScrcpyToken = resultPrefs.getString("pending_scrcpy_token", "");
+            resultPrefs.edit().remove("pending_output").remove("pending_screen_capture")
+                .remove("pending_scrcpy_ready").remove("pending_scrcpy_token").commit();
+            lastCommandOutput = pendingOutput != null && !pendingOutput.isEmpty()
+                ? pendingOutput : intent.getStringExtra("termux_output");
             if (lastCommandOutput == null) lastCommandOutput = "Termux trả về kết quả trống.";
-            if (intent.getBooleanExtra("bo_screen_capture", false)) showDualWorkspace();
+            boolean screenCapture = pendingScreenCapture || intent.getBooleanExtra("bo_screen_capture", false);
+            boolean scrcpyReadyResult = pendingScrcpyReady || intent.getBooleanExtra("bo_scrcpy_ready", false);
+            String resultToken = !pendingScrcpyToken.isEmpty() ? pendingScrcpyToken
+                : intent.getStringExtra("bo_scrcpy_token");
+            if (screenCapture) showDualWorkspace();
             if (adbMirrorResumePending) adbMirrorResumePending = false;
-            if (intent.getBooleanExtra("bo_scrcpy_ready", false)) {
+            if (scrcpyReadyResult) {
                 android.content.SharedPreferences session =
                     getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
-                String resultToken = intent.getStringExtra("bo_scrcpy_token");
                 boolean currentRequest = resultToken != null && !resultToken.isEmpty()
                     && resultToken.equals(session.getString("active_request_token", ""));
                 adbMirrorResumePending = false;
@@ -3500,7 +3508,6 @@ public class MainActivity extends Activity {
             } else {
                 android.content.SharedPreferences session =
                     getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
-                String resultToken = intent.getStringExtra("bo_scrcpy_token");
                 if (resultToken != null && resultToken.equals(session.getString("active_request_token", ""))) {
                     scheduleScrcpyResumeRetry(lastCommandOutput);
                 }
