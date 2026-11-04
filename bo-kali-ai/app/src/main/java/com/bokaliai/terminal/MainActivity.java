@@ -6086,10 +6086,10 @@ public class MainActivity extends Activity {
             .putString("repository", repository).putString("branch", branch).putString("summary", summary)
             .putString("antigravity_call_id", linkedToAntigravity ? waitingCallId : "")
             .putLong("created_at", System.currentTimeMillis()).commit();
-        String script = "export PATH=\\\"$HOME/.codex/bin:$HOME/.local/bin:$PATH\\\"; "
-            + "printf '%s\\\\n' " + shellQuote("BO_CODEX_PATCH_REVIEW:" + reviewRequestId) + "; "
+        String script = "export PATH=\"$HOME/.codex/bin:$HOME/.local/bin:$PATH\"; "
+            + "printf '%s\\n' " + shellQuote("BO_CODEX_PATCH_REVIEW:" + reviewRequestId) + "; "
             + "if ! command -v codex >/dev/null 2>&1; then echo 'Codex CLI chưa cài. Mở OPENAI CODEX > CÀI / ĐĂNG NHẬP.'; exit 127; fi; "
-            + "codex exec --cd \\\"$HOME\\\" --sandbox read-only --ask-for-approval never "
+            + "codex exec --cd \"$HOME\" --sandbox read-only --ask-for-approval never "
             + shellQuote(prompt);
         line("Đang gửi bản gốc + bản đề xuất cho Codex review chỉ đọc. GitHub token không được gửi; Codex không có quyền ghi repository.", GREEN);
         if (!runTermuxCommand(CODEX_PROOT + shellQuote(script))) {
