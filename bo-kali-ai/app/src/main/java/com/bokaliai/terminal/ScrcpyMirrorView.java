@@ -314,10 +314,8 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
                 }
             } else if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP
                 || action == MotionEvent.ACTION_POINTER_DOWN || action == MotionEvent.ACTION_POINTER_UP) {
-                int scrcpyAction = action == MotionEvent.ACTION_POINTER_DOWN ? 5
-                    : action == MotionEvent.ACTION_POINTER_UP ? 6
-                    : action == MotionEvent.ACTION_DOWN ? 0 : 1;
-                writeTouch(output, scrcpyAction, event, actionIndex, width, height);
+                // Preserve the pointer-index bits for ACTION_POINTER_DOWN/UP.
+                writeTouch(output, event.getAction(), event, actionIndex, width, height);
             }
             return true;
         } catch (IOException error) {
@@ -333,11 +331,14 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
         int x = Math.min(width - 1, Math.max(0, Math.round(xRatio * width)));
         int y = Math.min(height - 1, Math.max(0, Math.round(yRatio * height)));
         int pressure = Math.round(Math.max(0f, Math.min(1f, event.getPressure(index))) * 65535f);
-        ByteBuffer message = ByteBuffer.allocate(28).order(ByteOrder.BIG_ENDIAN);
+        // scrcpy v4.0 INJECT_TOUCH_EVENT is exactly 32 bytes:
+        // type, action, pointer id, position, pressure, action button, buttons.
+        ByteBuffer message = ByteBuffer.allocate(32).order(ByteOrder.BIG_ENDIAN);
         message.put((byte) 2).put((byte) action).putLong(event.getPointerId(index));
         message.putInt(x).putInt(y).putShort((short) Math.min(width, 65535));
         message.putShort((short) Math.min(height, 65535)).putShort((short) pressure);
-        message.putInt(0);
+        message.putInt(0); // action_button
+        message.putInt(0); // buttons
         synchronized (output) {
             output.write(message.array());
             output.flush();
