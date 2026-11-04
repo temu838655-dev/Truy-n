@@ -1,31 +1,41 @@
 name: Build BO Kali AI APK
 
-# Build only when explicitly requested after the full implementation is ready.
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "bo-kali-ai/**"
+      - ".github/workflows/build-bo-kali-ai.yml"
+  pull_request:
+    paths:
+      - "bo-kali-ai/**"
+      - ".github/workflows/build-bo-kali-ai.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: bo-kali-ai-main-build
+  group: bo-kali-ai-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
+    name: Verify and build Android app
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Set up Java
+      - name: Set up Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Gradle
+      - name: Set up Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.13"
@@ -35,16 +45,15 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Build debug APK
+      - name: Run unit tests, Android lint, and assemble debug APK
         working-directory: bo-kali-ai
-        run: gradle --no-daemon assembleDebug --stacktrace
+        run: gradle --no-daemon testDebugUnitTest lintDebug assembleDebug --stacktrace
 
-      - name: Generate APK SHA-256 checksum
-        run: sha256sum bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk > bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk.sha256
-
-      - name: Write update metadata
+      - name: Generate APK SHA-256 checksum and update metadata
         run: |
-          mkdir -p bo-kali-ai/app/build/outputs/apk/debug
+          APK="bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          sha256sum "$APK" > "$APK.sha256"
           cat > bo-kali-ai/app/build/outputs/apk/debug/bo-kali-ai-update.json <<EOF
           {
             "versionCode": $GITHUB_RUN_NUMBER,
@@ -54,28 +63,33 @@ jobs:
           }
           EOF
 
-      - name: Upload APK
+      - name: Upload APK and verification reports
         uses: actions/upload-artifact@v4
         with:
           name: BO-KALI-AI-DEBUG-APK
           path: |
             bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk
             bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk.sha256
+            bo-kali-ai/app/build/outputs/apk/debug/bo-kali-ai-update.json
+            bo-kali-ai/app/build/reports/lint-results-debug.html
           if-no-files-found: error
           retention-days: 14
 
       - name: Publish latest APK to GitHub Releases
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="bo-kali-ai-latest"
+          APK="bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk"
+          CHECKSUM="$APK.sha256"
+          METADATA="bo-kali-ai/app/build/outputs/apk/debug/bo-kali-ai-update.json"
           git tag -f "$TAG" "$GITHUB_SHA"
           git push origin "refs/tags/$TAG" --force
+          NOTES="APK mới nhất từ main. Version code: $GITHUB_RUN_NUMBER; Version name: 0.1.$GITHUB_RUN_NUMBER. Mã nguồn: $GITHUB_SHA. Unit tests, lint và assembleDebug đã hoàn tất thành công."
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --title "BO Kali AI — bản mới nhất" --notes "APK mới nhất từ main. Version code: $GITHUB_RUN_NUMBER; Version name: 0.1.$GITHUB_RUN_NUMBER. Mã nguồn: $GITHUB_SHA" --prerelease
+            gh release edit "$TAG" --title "BO Kali AI — bản mới nhất" --notes "$NOTES" --prerelease
           else
-            gh release create "$TAG" "bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk" --title "BO Kali AI — bản mới nhất" --notes "APK mới nhất từ main. Version code: $GITHUB_RUN_NUMBER; Version name: 0.1.$GITHUB_RUN_NUMBER. Mã nguồn: $GITHUB_SHA" --prerelease
+            gh release create "$TAG" --title "BO Kali AI — bản mới nhất" --notes "$NOTES" --prerelease
           fi
-          gh release upload "$TAG" "bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk" "bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk.sha256" "bo-kali-ai/app/build/outputs/apk/debug/bo-kali-ai-update.json" --clobber
-
-# Keep the BO Kali AI workflow in sync with main source updates.
+          gh release upload "$TAG" "$APK" "$CHECKSUM" "$METADATA" --clobber
