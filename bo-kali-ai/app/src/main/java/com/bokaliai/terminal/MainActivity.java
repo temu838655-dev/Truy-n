@@ -2889,6 +2889,7 @@ public class MainActivity extends Activity {
             String command = plan.optString("command", "").trim();
             String reason = plan.optString("reason", "AI không nêu lý do.");
             String risk = plan.optString("risk", "HIGH").toUpperCase(java.util.Locale.ROOT);
+            if (!"LOW".equals(risk) && !"MEDIUM".equals(risk) && !"HIGH".equals(risk)) risk = "HIGH";
             boolean knownScope = false;
             for (String allowed : AI_DEVICE_SCOPE_IDS) if (allowed.equals(scope)) knownScope = true;
             if (!knownScope || command.isEmpty() || command.length() > 1200 || command.indexOf(0) >= 0
