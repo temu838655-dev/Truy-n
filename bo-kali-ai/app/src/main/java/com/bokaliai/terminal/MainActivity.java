@@ -266,8 +266,8 @@ public class MainActivity extends Activity {
         String detail = gateway.isEmpty()
             ? "Chưa lấy được địa chỉ gateway. Hãy kết nối điện thoại vào Wi-Fi của modem rồi thử lại. Nếu Android đang dùng dữ liệu di động, hãy chuyển sang Wi-Fi."
             : "Wi-Fi hiện tại: " + (wifiName.isEmpty() ? "(Android ẩn tên mạng)" : wifiName)
-                + "\\nGateway/modem thường là: " + gateway
-                + "\\nĐây là địa chỉ mạng nội bộ, không phải mật khẩu quản trị.";
+                + "\nGateway/modem thường là: " + gateway
+                + "\nĐây là địa chỉ mạng nội bộ, không phải mật khẩu quản trị.";
         String[] actions = gateway.isEmpty()
             ? new String[]{"NHẬP IP MODEM THỦ CÔNG", "ĐÓNG"}
             : new String[]{"MỞ TRANG QUẢN TRỊ HTTP", "MỞ TRANG QUẢN TRỊ HTTPS",
