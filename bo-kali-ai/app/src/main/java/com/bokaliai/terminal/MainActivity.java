@@ -118,6 +118,9 @@ public class MainActivity extends Activity {
         Button deviceHub = button("TRUNG TÂM THIẾT BỊ ĐA NỀN TẢNG");
         deviceHub.setOnClickListener(v -> showUniversalDeviceHub());
         root.addView(deviceHub, new LinearLayout.LayoutParams(-1, dp(46)));
+        Button routerWifi = button("KẾT NỐI MODEM / ROUTER WI-FI");
+        routerWifi.setOnClickListener(v -> showWifiRouterManager());
+        root.addView(routerWifi, new LinearLayout.LayoutParams(-1, dp(46)));
         root.addView(adbRow);
         Button batchAdb = button("KIỂM TRA NHIỀU THIẾT BỊ");
         batchAdb.setOnClickListener(v -> showAdbBatchCheck());
@@ -231,6 +234,102 @@ public class MainActivity extends Activity {
         if (serial != null && !serial.isEmpty()) {
             runTermuxCommand("adb -s " + shellQuote(serial) + " forward --remove tcp:27183 >/dev/null 2>&1 || true");
         }
+    }
+
+
+    // Router management starts from the active Wi-Fi DHCP gateway. It never guesses
+    // credentials or attempts to bypass the router's administrator authentication.
+    private String getWifiGatewayAddress() {
+        try {
+            WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wifi == null || !wifi.isWifiEnabled()) return "";
+            android.net.wifi.DhcpInfo dhcp = wifi.getDhcpInfo();
+            if (dhcp == null || dhcp.gateway == 0) return "";
+            int g = dhcp.gateway;
+            return (g & 0xff) + "." + ((g >> 8) & 0xff) + "."
+                + ((g >> 16) & 0xff) + "." + ((g >> 24) & 0xff);
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private void showWifiRouterManager() {
+        String gateway = getWifiGatewayAddress();
+        String wifiName = "";
+        try {
+            WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wifi != null && wifi.isWifiEnabled() && Build.VERSION.SDK_INT < 31) {
+                android.net.wifi.WifiInfo info = wifi.getConnectionInfo();
+                if (info != null && info.getSSID() != null) wifiName = info.getSSID().replace("\"", "");
+            }
+        } catch (Exception ignored) { }
+        String detail = gateway.isEmpty()
+            ? "Chưa lấy được địa chỉ gateway. Hãy kết nối điện thoại vào Wi-Fi của modem rồi thử lại. Nếu Android đang dùng dữ liệu di động, hãy chuyển sang Wi-Fi."
+            : "Wi-Fi hiện tại: " + (wifiName.isEmpty() ? "(Android ẩn tên mạng)" : wifiName)
+                + "\\nGateway/modem thường là: " + gateway
+                + "\\nĐây là địa chỉ mạng nội bộ, không phải mật khẩu quản trị.";
+        String[] actions = gateway.isEmpty()
+            ? new String[]{"NHẬP IP MODEM THỦ CÔNG", "ĐÓNG"}
+            : new String[]{"MỞ TRANG QUẢN TRỊ HTTP", "MỞ TRANG QUẢN TRỊ HTTPS",
+                "LƯU MODEM VÀO DANH SÁCH", "NHẬP IP MODEM KHÁC", "ĐÓNG"};
+        new AlertDialog.Builder(this).setTitle("QUẢN LÝ MODEM / ROUTER WI-FI")
+            .setMessage(detail)
+            .setItems(actions, (dialog, which) -> {
+                if (gateway.isEmpty()) {
+                    if (which == 0) promptRouterAddress();
+                    return;
+                }
+                if (which == 0) openRouterAdmin("http://" + gateway);
+                else if (which == 1) openRouterAdmin("https://" + gateway);
+                else if (which == 2) saveRouterProfile(gateway);
+                else if (which == 3) promptRouterAddress();
+            })
+            .setPositiveButton("KIỂM TRA LẠI", (d, w) -> showWifiRouterManager())
+            .setNegativeButton("ĐÓNG", null).show();
+        if (!gateway.isEmpty()) line("Đã đọc gateway Wi-Fi: " + gateway + ". Chưa xác thực vào modem.", GREEN);
+    }
+
+    private void openRouterAdmin(String address) {
+        try {
+            Intent browser = new Intent(Intent.ACTION_VIEW, Uri.parse(address));
+            startActivity(browser);
+            line("Đã mở địa chỉ quản trị modem. Hãy đăng nhập bằng tài khoản quản trị do bạn sở hữu.", GREEN);
+        } catch (Exception error) {
+            line("Không mở được trang quản trị: " + error.getMessage(), 0xffff8080);
+        }
+    }
+
+    private void saveRouterProfile(String gateway) {
+        DeviceHubProfile.save(this, "Modem Wi-Fi (" + gateway + ")",
+            DeviceHubProfile.WEB, gateway, 80, "");
+        line("Đã lưu địa chỉ modem. Profile chỉ lưu IP/cổng, không lưu mật khẩu.", GREEN);
+    }
+
+    private void promptRouterAddress() {
+        EditText address = input("IP modem, ví dụ 192.168.1.1");
+        address.setSingleLine(true);
+        String gateway = getWifiGatewayAddress();
+        if (!gateway.isEmpty()) address.setText(gateway);
+        new AlertDialog.Builder(this).setTitle("ĐỊA CHỈ MODEM / ROUTER")
+            .setMessage("Nhập IP hoặc hostname của modem bạn có quyền quản trị.")
+            .setView(address)
+            .setPositiveButton("MỞ HTTP", (d, w) -> {
+                String host = address.getText().toString().trim();
+                if (!host.matches("[A-Za-z0-9._:-]{1,253}")) {
+                    line("Địa chỉ modem không hợp lệ.", 0xffff8080);
+                    return;
+                }
+                openRouterAdmin("http://" + host);
+            })
+            .setNeutralButton("MỞ HTTPS", (d, w) -> {
+                String host = address.getText().toString().trim();
+                if (!host.matches("[A-Za-z0-9._:-]{1,253}")) {
+                    line("Địa chỉ modem không hợp lệ.", 0xffff8080);
+                    return;
+                }
+                openRouterAdmin("https://" + host);
+            })
+            .setNegativeButton("HỦY", null).show();
     }
 
     private void showUniversalDeviceHub() {
