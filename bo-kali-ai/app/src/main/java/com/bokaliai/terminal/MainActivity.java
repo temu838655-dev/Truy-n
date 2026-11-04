@@ -470,6 +470,7 @@ public class MainActivity extends Activity {
     private boolean hubDiscoveryActive = false;
     private boolean hubResolvingService = false;
     private int hubResolveGeneration = 0;
+    private long hubResolveDrainDeadline = 0L;
     private Runnable hubScanTimeout;
 
     private void scanUniversalNetworkServices() {
@@ -483,6 +484,7 @@ public class MainActivity extends Activity {
             return;
         }
         hubResolveGeneration++;
+        hubResolveDrainDeadline = android.os.SystemClock.elapsedRealtime() + 8000L;
         hubDiscoveredServices.clear();
         hubResolveQueue.clear();
         hubResolvingService = false;
@@ -576,6 +578,13 @@ public class MainActivity extends Activity {
     }
 
     private void finishUniversalNetworkScan() {
+        // Let already discovered services finish resolving before clearing the queue.
+        if (hubDiscoveryActive && (!hubResolveQueue.isEmpty() || hubResolvingService)
+            && android.os.SystemClock.elapsedRealtime() < hubResolveDrainDeadline) {
+            hubScanTimeout = this::finishUniversalNetworkScan;
+            mainHandler.postDelayed(hubScanTimeout, 750L);
+            return;
+        }
         stopHubDiscovery();
         if (hubDiscoveredServices.isEmpty()) {
             new AlertDialog.Builder(this).setTitle("Không tìm thấy dịch vụ được quảng bá")
