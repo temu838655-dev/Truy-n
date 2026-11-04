@@ -757,7 +757,7 @@ public class MainActivity extends Activity {
                 new AlertDialog.Builder(this).setTitle("Xác nhận kiểm tra hàng loạt")
                     .setMessage("Sẽ đọc trạng thái, model, hãng, phiên bản Android, SDK, bản vá bảo mật, pin và dung lượng /data của "
                         + selected.size() + " thiết bị:" + summary
-                        + "\\n\\nChỉ đọc dữ liệu. Không cài ứng dụng, không đổi cài đặt và không xóa dữ liệu trên thiết bị.")
+                        + "\n\nChỉ đọc dữ liệu. Không cài ứng dụng, không đổi cài đặt và không xóa dữ liệu trên thiết bị.")
                     .setPositiveButton("CHẠY KIỂM TRA", (d, w) -> runTermuxCommand(command.toString()))
                     .setNegativeButton("HỦY", null).show();
             }).setNegativeButton("HỦY", null).show();
