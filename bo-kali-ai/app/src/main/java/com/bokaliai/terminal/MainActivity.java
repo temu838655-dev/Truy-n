@@ -1244,6 +1244,27 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void stopAdbServiceScans() {
+        if (nsdManager != null) {
+            if (adbDiscoveryListener != null) {
+                try { nsdManager.stopServiceDiscovery(adbDiscoveryListener); } catch (Exception ignored) { }
+            }
+            if (adbPairingDiscoveryListener != null) {
+                try { nsdManager.stopServiceDiscovery(adbPairingDiscoveryListener); } catch (Exception ignored) { }
+            }
+        }
+        adbScanActive = false;
+        adbPairingScanActive = false;
+        if (adbResolveTimeout != null) mainHandler.removeCallbacks(adbResolveTimeout);
+        adbResolveTimeout = null;
+        adbResolveTaskToken++;
+        adbResolveInFlight = false;
+        adbResolveCurrentKey = "";
+        adbResolveQueue.clear();
+        adbResolveQueuedKeys.clear();
+        releaseHubMulticastLock();
+    }
+
     private void scanAdbPairingServices() {
         if (adbPairingScanActive || adbScanActive || adbResolveInFlight || !adbResolveQueue.isEmpty()) { line("Đang có một lượt quét/phân giải ADB khác. Hãy đợi lượt đó kết thúc.", 0xffffca70); return; }
         adbResolveQueuedKeys.clear();
@@ -3209,6 +3230,7 @@ public class MainActivity extends Activity {
     private int dp(int n) { return (int)(n*getResources().getDisplayMetrics().density+0.5f); }
     @Override protected void onDestroy() {
         stopHubDiscovery();
+        stopAdbServiceScans();
         super.onDestroy();
         worker.shutdownNow();
         geminiKey = "";
