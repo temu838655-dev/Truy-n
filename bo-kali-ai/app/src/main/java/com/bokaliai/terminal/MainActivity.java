@@ -6125,7 +6125,7 @@ public class MainActivity extends Activity {
         boolean canReturnToAntigravity = codexSucceeded && !expectedCallId.isEmpty()
             && expectedCallId.equals(ag.getString("call_id", ""))
             && ag.getString("function_name", "").startsWith("github_propose_");
-        if (!codexSucceeded) review = "Codex chưa hoàn tất thành công; không gửi kết quả review cho Antigravity.\\n\\n" + review;
+        if (!codexSucceeded) review = "Codex chưa hoàn tất thành công; không gửi kết quả review cho Antigravity.\n\n" + review;
         AlertDialog.Builder dialog = new AlertDialog.Builder(this)
             .setCancelable(false)
             .setTitle("Codex • Kết quả kiểm tra bản vá")
