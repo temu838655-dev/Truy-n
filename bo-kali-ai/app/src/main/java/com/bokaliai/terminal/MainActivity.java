@@ -420,12 +420,23 @@ public class MainActivity extends Activity {
 
     private void showAdbDeviceManager() {
         android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
-        java.util.Set<String> saved = new java.util.HashSet<>(prefs.getStringSet("serials", new java.util.HashSet<>()));
-        java.util.ArrayList<String> devices = new java.util.ArrayList<>(saved);
+        java.util.ArrayList<String> devices = new java.util.ArrayList<>(
+            prefs.getStringSet("serials", new java.util.HashSet<>()));
         java.util.Collections.sort(devices);
-        String[] labels = new String[devices.size()];
-        for (int i = 0; i < devices.size(); i++) {
-            String serial = devices.get(i);
+        long lastScan = prefs.getLong("last_scan_time", 0L);
+        String scanLabel = lastScan == 0L ? "Chưa có lần quét thành công nào được ghi nhận."
+            : "Lần quét gần nhất: " + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                .format(new java.util.Date(lastScan)) + ".";
+        showAdbDevicePicker(devices, scanLabel, true);
+    }
+
+    private void showAdbDevicePicker(java.util.ArrayList<String> devices, String scanLabel, boolean allowClear) {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        java.util.ArrayList<String> filtered = new java.util.ArrayList<>(devices);
+        java.util.Collections.sort(filtered);
+        String[] labels = new String[filtered.size()];
+        for (int i = 0; i < filtered.size(); i++) {
+            String serial = filtered.get(i);
             String state = prefs.getString("state_" + serial, "chưa kiểm tra");
             long seen = prefs.getLong("seen_" + serial, 0L);
             String seenLabel = seen == 0L ? "chưa ghi nhận"
@@ -435,26 +446,41 @@ public class MainActivity extends Activity {
             labels[i] = (alias.isEmpty() ? serial : alias + "  ·  " + serial)
                 + "  [" + adbStateLabel(state) + "]  •  " + seenLabel;
         }
-        long lastScan = prefs.getLong("last_scan_time", 0L);
-        String scanLabel = lastScan == 0L ? "Chưa có lần quét thành công nào được ghi nhận."
-            : "Lần quét gần nhất: " + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
-                .format(new java.util.Date(lastScan)) + ".";
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        String message = filtered.isEmpty()
+            ? "Không có thiết bị khớp bộ lọc. " + scanLabel
+            : "Hiển thị " + filtered.size() + "/" + devices.size() + " thiết bị đã lưu. " + scanLabel
+                + " Trạng thái không đảm bảo thiết bị còn trực tuyến.";
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
             .setTitle("Quản lý thiết bị ADB")
-            .setMessage(devices.isEmpty()
-                ? "Chưa có thiết bị được lưu. Nhấn QUÉT LẠI để lấy danh sách từ Termux sau khi đã kết nối ADB.\\n" + scanLabel
-                : "Thiết bị đã ghi nhớ (" + devices.size() + "). " + scanLabel + " Trạng thái không đảm bảo thiết bị còn trực tuyến.")
-            .setItems(labels, (d, which) -> showSavedAdbDeviceActions(devices.get(which)))
-            .setPositiveButton("QUÉT LẠI", (d, w) -> runTermuxCommand("pkg install -y android-tools && adb devices -l"))
-            .setNeutralButton("XÓA THIẾT BỊ LƯU", (d, w) -> {
-                new AlertDialog.Builder(this).setTitle("Xóa danh sách đã lưu?")
-                    .setMessage("Chỉ xóa serial khỏi BO Kali AI, không ngắt kết nối hay thay đổi thiết bị.")
-                    .setPositiveButton("XÓA", (x, y) -> {
-                        prefs.edit().remove("serials").apply();
-                        line("Đã xóa danh sách serial ADB đã lưu.", GREEN);
+            .setMessage(message)
+            .setItems(labels, (d, which) -> showSavedAdbDeviceActions(filtered.get(which)))
+            .setPositiveButton("TÌM / LỌC", (d, w) -> {
+                EditText query = input("Tên gợi nhớ hoặc serial ADB");
+                new AlertDialog.Builder(this).setTitle("Tìm thiết bị ADB").setView(query)
+                    .setPositiveButton("TÌM", (x, y) -> {
+                        String term = query.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+                        java.util.ArrayList<String> matches = new java.util.ArrayList<>();
+                        for (String serial : devices) {
+                            String alias = prefs.getString("alias_" + serial, "");
+                            if (term.isEmpty() || serial.toLowerCase(java.util.Locale.ROOT).contains(term)
+                                || alias.toLowerCase(java.util.Locale.ROOT).contains(term)) matches.add(serial);
+                        }
+                        showAdbDevicePicker(matches, scanLabel, allowClear);
                     }).setNegativeButton("HỦY", null).show();
             })
-            .setNegativeButton("ĐÓNG", null).create();
+            .setNeutralButton("QUÉT LẠI", (d, w) -> runTermuxCommand("pkg install -y android-tools && adb devices -l"))
+            .setNegativeButton(allowClear ? "XÓA THIẾT BỊ LƯU" : "QUAY LẠI", null);
+        AlertDialog dialog = builder.create();
+        dialog.setOnShowListener(v -> dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(b -> {
+            dialog.dismiss();
+            if (!allowClear) { showAdbDeviceManager(); return; }
+            new AlertDialog.Builder(this).setTitle("Xóa danh sách đã lưu?")
+                .setMessage("Chỉ xóa serial khỏi BO Kali AI, không ngắt kết nối hay thay đổi thiết bị.")
+                .setPositiveButton("XÓA", (x, y) -> {
+                    prefs.edit().remove("serials").apply();
+                    line("Đã xóa danh sách serial ADB đã lưu.", GREEN);
+                }).setNegativeButton("HỦY", null).show();
+        }));
         dialog.show();
     }
 
