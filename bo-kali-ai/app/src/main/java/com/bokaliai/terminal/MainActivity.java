@@ -481,11 +481,12 @@ public class MainActivity extends Activity {
             .setOnClickListener(b -> {
                 actions.dismiss();
                 new AlertDialog.Builder(this).setTitle("Quản lý " + serial)
-                    .setItems(new String[]{"Kiểm tra kết nối thiết bị này", "Đặt / đổi tên gợi nhớ", "Báo cáo chẩn đoán tổng hợp", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
+                    .setItems(new String[]{"Kiểm tra kết nối thiết bị này", "Sao chép serial ADB", "Đặt / đổi tên gợi nhớ", "Báo cáo chẩn đoán tổng hợp", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
                         if (which == 0) checkSavedAdbDevice(serial);
-                        else if (which == 1) showAdbAliasDialog(serial);
-                        else if (which == 2) showAdbFullDiagnosticReport(serial);
-                        else if (which == 3) confirmAdbDisconnect(serial);
+                        else if (which == 1) copyText(serial, "Đã sao chép serial ADB.");
+                        else if (which == 2) showAdbAliasDialog(serial);
+                        else if (which == 3) showAdbFullDiagnosticReport(serial);
+                        else if (which == 4) confirmAdbDisconnect(serial);
                         else confirmForgetAdbDevice(serial);
                     }).setNegativeButton("ĐÓNG", null).show();
             }));
