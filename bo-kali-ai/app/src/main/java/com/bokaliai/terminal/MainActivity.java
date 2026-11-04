@@ -34,6 +34,8 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.ImageView;
+import android.graphics.BitmapFactory;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.BufferedReader;
@@ -185,6 +187,22 @@ public class MainActivity extends Activity {
         return result;
     }
 
+    private void runAdbScreenCapture(String serial) {
+        if (!isFreshAdbDevice(serial)) {
+            line("Không chụp màn hình: thiết bị ADB không còn trực tuyến.", 0xffffca70);
+            return;
+        }
+        new AlertDialog.Builder(this)
+            .setTitle("Chụp màn hình thiết bị")
+            .setMessage("BO Kali AI sẽ yêu cầu ảnh chụp màn hình từ thiết bị ADB đã chọn. Chỉ thực hiện trên thiết bị bạn sở hữu hoặc được chủ thiết bị cho phép.")
+            .setPositiveButton("CHỤP", (d, w) -> {
+                String command = "printf 'BO_SCREEN_BASE64:'; adb -s " + shellQuote(serial)
+                    + " exec-out screencap -p | base64 -w0";
+                runTermuxCommand(command);
+            })
+            .setNegativeButton("HỦY", null).show();
+    }
+
     private void showDualWorkspace() {
         java.util.ArrayList<String> connected = getFreshAdbDevices();
         if (connected.isEmpty()) {
@@ -263,6 +281,19 @@ public class MainActivity extends Activity {
         devicePane.setBackgroundColor(0xff101f2e);
         TextView deviceTitle = text("MÀN HÌNH PHỤ · THIẾT BỊ", 0xff79c9ff, 13, true);
         devicePane.addView(deviceTitle);
+        ImageView screenPreview = new ImageView(this);
+        screenPreview.setAdjustViewBounds(true);
+        screenPreview.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        screenPreview.setBackgroundColor(0xff05090e);
+        java.io.File savedScreen = getFileStreamPath("adb_screen.png");
+        if (savedScreen.exists()) {
+            android.graphics.Bitmap previewBitmap = BitmapFactory.decodeFile(savedScreen.getAbsolutePath());
+            if (previewBitmap != null) screenPreview.setImageBitmap(previewBitmap);
+        }
+        devicePane.addView(screenPreview, new LinearLayout.LayoutParams(-1, dp(190)));
+        Button capture = button("CHỤP MÀN HÌNH THIẾT BỊ");
+        capture.setOnClickListener(v -> runAdbScreenCapture(serial));
+        devicePane.addView(capture, new LinearLayout.LayoutParams(-1, dp(44)));
         android.content.SharedPreferences devicePrefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
         String alias = devicePrefs.getString("alias_" + serial, "");
         TextView deviceInfo = text("Đã xác nhận ADB: " + (alias.isEmpty() ? serial : alias + " · " + serial)
@@ -1800,6 +1831,7 @@ public class MainActivity extends Activity {
         if (intent != null && "com.bokaliai.terminal.TERMUX_RESULT".equals(intent.getAction())) {
             lastCommandOutput = intent.getStringExtra("termux_output");
             if (lastCommandOutput == null) lastCommandOutput = "Termux trả về kết quả trống.";
+            if (intent.getBooleanExtra("bo_screen_capture", false)) showDualWorkspace();
             handleAdbDevicesOutput(lastCommandOutput);
             line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
             for (String part : lastCommandOutput.split("\\n")) line(part, WHITE);
