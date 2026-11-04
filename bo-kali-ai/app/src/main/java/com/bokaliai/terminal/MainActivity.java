@@ -407,6 +407,7 @@ public class MainActivity extends Activity {
     private final java.util.ArrayList<NsdManager.DiscoveryListener> hubDiscoveryListeners = new java.util.ArrayList<>();
     private final java.util.LinkedHashMap<String, HubDiscoveredService> hubDiscoveredServices = new java.util.LinkedHashMap<>();
     private boolean hubDiscoveryActive = false;
+    private Runnable hubScanTimeout;
 
     private void scanUniversalNetworkServices() {
         if (hubDiscoveryActive) {
@@ -439,7 +440,9 @@ public class MainActivity extends Activity {
                                 HubDiscoveredService found = new HubDiscoveredService(
                                     resolved.getServiceName(), serviceType, host, resolved.getPort());
                                 String key = serviceType + "|" + host + "|" + resolved.getPort();
-                                runOnUiThread(() -> hubDiscoveredServices.put(key, found));
+                                runOnUiThread(() -> {
+                                    if (hubDiscoveryActive) hubDiscoveredServices.put(key, found);
+                                });
                             }
                         });
                     } catch (Exception ignored) { }
@@ -457,15 +460,26 @@ public class MainActivity extends Activity {
             try { nsdManager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener); }
             catch (Exception error) { line("Không quét được " + serviceType + ": " + error.getMessage(), 0xffffca70); }
         }
-        mainHandler.postDelayed(() -> finishUniversalNetworkScan(), 10000);
+        hubScanTimeout = () -> finishUniversalNetworkScan();
+        mainHandler.postDelayed(hubScanTimeout, 10000);
     }
 
-    private void finishUniversalNetworkScan() {
-        for (NsdManager.DiscoveryListener listener : new java.util.ArrayList<>(hubDiscoveryListeners)) {
-            try { nsdManager.stopServiceDiscovery(listener); } catch (Exception ignored) { }
+    private void stopHubDiscovery() {
+        if (hubScanTimeout != null) {
+            mainHandler.removeCallbacks(hubScanTimeout);
+            hubScanTimeout = null;
+        }
+        if (nsdManager != null) {
+            for (NsdManager.DiscoveryListener listener : new java.util.ArrayList<>(hubDiscoveryListeners)) {
+                try { nsdManager.stopServiceDiscovery(listener); } catch (Exception ignored) { }
+            }
         }
         hubDiscoveryListeners.clear();
         hubDiscoveryActive = false;
+    }
+
+    private void finishUniversalNetworkScan() {
+        stopHubDiscovery();
         if (hubDiscoveredServices.isEmpty()) {
             new AlertDialog.Builder(this).setTitle("Không tìm thấy dịch vụ được quảng bá")
                 .setMessage("Không có SSH/HTTP/Home Assistant nào được phát hiện qua mDNS trong mạng hiện tại. Một số thiết bị không quảng bá dịch vụ hoặc chặn multicast. Bạn vẫn có thể thêm IP thủ công.")
@@ -2905,5 +2919,11 @@ public class MainActivity extends Activity {
     }
 
     private int dp(int n) { return (int)(n*getResources().getDisplayMetrics().density+0.5f); }
-    @Override protected void onDestroy() { super.onDestroy(); worker.shutdownNow(); geminiKey=""; githubToken=""; }
+    @Override protected void onDestroy() {
+        stopHubDiscovery();
+        super.onDestroy();
+        worker.shutdownNow();
+        geminiKey = "";
+        githubToken = "";
+    }
 }
