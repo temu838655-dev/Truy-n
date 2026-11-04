@@ -1006,26 +1006,100 @@ public class MainActivity extends Activity {
             line("Profile chưa có token API. Hãy lưu token trước.", 0xffffca70);
             return;
         }
-        EditText entityInput = input("Ví dụ: light.phong_khach");
-        entityInput.setSingleLine(true);
-        entityInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        new AlertDialog.Builder(this).setTitle("ĐIỀU KHIỂN HOME ASSISTANT")
-            .setMessage("Nhập entity_id. Chỉ hỗ trợ light, switch, input_boolean và fan; mỗi lệnh đều cần xác nhận.")
-            .setView(entityInput).setPositiveButton("TIẾP TỤC", (dialog, which) -> {
-                String entityId = entityInput.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
-                if (!entityId.matches("^(light|switch|input_boolean|fan)\\.[a-z0-9_]+$")) {
-                    line("Entity không hợp lệ hoặc domain chưa được hỗ trợ.", 0xffff8080); return;
+        final String apiUrl;
+        try {
+            String endpoint = profile.host == null ? "" : profile.host.trim();
+            Uri parsed = Uri.parse(endpoint.contains("://") ? endpoint : "https://" + formatEndpointHost(endpoint) + ":" + profile.port);
+            if (!"https".equalsIgnoreCase(parsed.getScheme()) || parsed.getHost() == null || parsed.getUserInfo() != null
+                    || parsed.getPort() > 65535 || parsed.getPort() == 0 || parsed.getFragment() != null) {
+                line("Tải entity điều khiển chỉ cho phép HTTPS hợp lệ.", 0xffff8080);
+                return;
+            }
+            int port = parsed.getPort() < 0 ? 443 : parsed.getPort();
+            apiUrl = new URL("https", parsed.getHost(), port, "/api/states").toString();
+        } catch (Exception invalid) {
+            line("Địa chỉ Home Assistant không hợp lệ.", 0xffff8080);
+            return;
+        }
+        line("Đang tải entity có thể điều khiển từ Home Assistant…", WHITE);
+        new Thread(() -> {
+            HttpURLConnection connection = null;
+            try {
+                String token = HomeAssistantTokenStore.load(this, profile.id);
+                if (token == null || token.isEmpty()) throw new IllegalStateException("Không tìm thấy token.");
+                connection = (HttpURLConnection) new URL(apiUrl).openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(10000);
+                connection.setReadTimeout(15000);
+                connection.setInstanceFollowRedirects(false);
+                connection.setRequestProperty("Authorization", "Bearer " + token);
+                connection.setRequestProperty("Accept", "application/json");
+                int status = connection.getResponseCode();
+                if (status != 200) {
+                    String message = status == 401 || status == 403
+                        ? "Home Assistant từ chối token/quyền (HTTP " + status + ")."
+                        : "Không tải được entity (HTTP " + status + ").";
+                    runOnUiThread(() -> line(message, 0xffff8080));
+                    return;
                 }
-                String[] choices = {"BẬT THIẾT BỊ", "TẮT THIẾT BỊ"};
-                new AlertDialog.Builder(this).setTitle(entityId).setItems(choices, (d, action) -> {
-                    String service = action == 0 ? "turn_on" : "turn_off";
-                    String verb = action == 0 ? "BẬT" : "TẮT";
-                    new AlertDialog.Builder(this).setTitle("XÁC NHẬN LỆNH")
-                        .setMessage(verb + " " + entityId + " trên " + profile.name + "?")
-                        .setPositiveButton("XÁC NHẬN VÀ GỬI", (confirm, ignored) -> callHomeAssistantService(profile, entityId, service))
-                        .setNegativeButton("KHÔNG", null).show();
-                }).setNegativeButton("HỦY", null).show();
-            }).setNegativeButton("HỦY", null).show();
+                StringBuilder body = new StringBuilder();
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+                    String row;
+                    while ((row = reader.readLine()) != null) {
+                        body.append(row);
+                        if (body.length() > 4 * 1024 * 1024) throw new IllegalStateException("Danh sách entity vượt giới hạn 4 MB.");
+                    }
+                }
+                JSONArray entities = new JSONArray(body.toString());
+                java.util.ArrayList<String> ids = new java.util.ArrayList<>();
+                java.util.ArrayList<String> labels = new java.util.ArrayList<>();
+                for (int i = 0; i < entities.length() && ids.size() < 200; i++) {
+                    JSONObject entity = entities.optJSONObject(i);
+                    if (entity == null) continue;
+                    String id = entity.optString("entity_id", "");
+                    if (!id.matches("^(light|switch|input_boolean|fan)\\.[a-z0-9_]+$")) continue;
+                    JSONObject attrs = entity.optJSONObject("attributes");
+                    String friendly = attrs == null ? "" : attrs.optString("friendly_name", "");
+                    String state = entity.optString("state", "unknown");
+                    ids.add(id);
+                    labels.add((friendly.isEmpty() ? id : friendly) + "  ·  " + state + "  [" + id + "]");
+                }
+                final String[] labelArray = labels.toArray(new String[0]);
+                final String[] idArray = ids.toArray(new String[0]);
+                runOnUiThread(() -> {
+                    if (idArray.length == 0) {
+                        line("Không tìm thấy entity light/switch/input_boolean/fan để điều khiển.", 0xffffca70);
+                        return;
+                    }
+                    new AlertDialog.Builder(this)
+                        .setTitle("CHỌN THIẾT BỊ (" + idArray.length + ")")
+                        .setItems(labelArray, (dialog, which) -> showHomeAssistantEntityActions(profile, idArray[which]))
+                        .setNegativeButton("ĐÓNG", null)
+                        .show();
+                });
+            } catch (Exception error) {
+                String message = error.getMessage() == null ? "Lỗi tải entity." : error.getMessage();
+                runOnUiThread(() -> line("Không tải được entity điều khiển: " + message, 0xffff8080));
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        }, "bo-ha-control-entities").start();
+    }
+
+    private void showHomeAssistantEntityActions(DeviceHubProfile profile, String entityId) {
+        String[] choices = {"BẬT THIẾT BỊ", "TẮT THIẾT BỊ"};
+        new AlertDialog.Builder(this).setTitle(entityId)
+            .setItems(choices, (dialog, action) -> {
+                String service = action == 0 ? "turn_on" : "turn_off";
+                String verb = action == 0 ? "BẬT" : "TẮT";
+                new AlertDialog.Builder(this).setTitle("XÁC NHẬN LỆNH")
+                    .setMessage(verb + " " + entityId + " trên " + profile.name + "?")
+                    .setPositiveButton("XÁC NHẬN VÀ GỬI", (confirm, ignored) -> callHomeAssistantService(profile, entityId, service))
+                    .setNegativeButton("KHÔNG", null)
+                    .show();
+            })
+            .setNegativeButton("HỦY", null)
+            .show();
     }
 
     private void callHomeAssistantService(DeviceHubProfile profile, String entityId, String service) {
