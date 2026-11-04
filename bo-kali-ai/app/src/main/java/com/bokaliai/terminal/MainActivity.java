@@ -1674,7 +1674,6 @@ public class MainActivity extends Activity {
                 }
             });
         }
-        }
     }
 
     private void importAdbBackup(Uri uri) {
