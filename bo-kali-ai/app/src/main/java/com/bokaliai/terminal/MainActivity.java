@@ -4857,20 +4857,18 @@ public class MainActivity extends Activity {
                     code = conn.getResponseCode();
                     result = new JSONObject(readAiHttpResponse(conn, code));
                 } else {
-                    Object openAiContent;
+                    JSONArray inputContent = new JSONArray()
+                        .put(new JSONObject().put("type", "input_text").put("text", prompt));
                     if (!imageData.isEmpty()) {
-                        openAiContent = new JSONArray()
-                            .put(new JSONObject().put("type", "text").put("text", prompt))
-                            .put(new JSONObject().put("type", "image_url").put("image_url",
-                                new JSONObject().put("url", "data:" + imageMime + ";base64," + imageData)));
-                    } else {
-                        openAiContent = prompt;
+                        inputContent.put(new JSONObject().put("type", "input_image")
+                            .put("image_url", "data:" + imageMime + ";base64," + imageData));
                     }
                     JSONObject body = new JSONObject()
                         .put("model", "gpt-6.1-sol")
-                        .put("messages", new JSONArray().put(new JSONObject()
-                            .put("role", "user").put("content", openAiContent)));
-                    URL url = new URL("https://api.openai.com/v1/chat/completions");
+                        .put("max_output_tokens", 2048)
+                        .put("input", new JSONArray().put(new JSONObject()
+                            .put("role", "user").put("content", inputContent)));
+                    URL url = new URL("https://api.openai.com/v1/responses");
                     conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("POST");
                     conn.setRequestProperty("Authorization", "Bearer " + apiKey);
@@ -4927,11 +4925,26 @@ public class MainActivity extends Activity {
             }
             if (answer.length() > 0) return answer.toString();
         } else {
-            JSONArray choices = result.optJSONArray("choices");
-            if (choices != null && choices.length() > 0) {
-                JSONObject message = choices.optJSONObject(0) == null ? null : choices.optJSONObject(0).optJSONObject("message");
-                if (message != null) return message.optString("content", "OpenAI không trả nội dung văn bản.");
+            String directText = result.optString("output_text", "");
+            if (!directText.isEmpty()) return directText;
+            JSONArray output = result.optJSONArray("output");
+            StringBuilder answer = new StringBuilder();
+            if (output != null) {
+                for (int i = 0; i < output.length(); i++) {
+                    JSONObject item = output.optJSONObject(i);
+                    if (item == null || !"message".equals(item.optString("type"))) continue;
+                    JSONArray content = item.optJSONArray("content");
+                    if (content == null) continue;
+                    for (int j = 0; j < content.length(); j++) {
+                        JSONObject part = content.optJSONObject(j);
+                        if (part != null && ("output_text".equals(part.optString("type"))
+                            || "text".equals(part.optString("type")))) {
+                            answer.append(part.optString("text", ""));
+                        }
+                    }
+                }
             }
+            if (answer.length() > 0) return answer.toString();
         }
         return provider + " không trả nội dung văn bản: " + result.toString();
     }
