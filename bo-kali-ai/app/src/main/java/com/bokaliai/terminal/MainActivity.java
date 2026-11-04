@@ -150,9 +150,6 @@ public class MainActivity extends Activity {
         Button aiDeviceTask = button("AI • LẬP KẾ HOẠCH & ĐIỀU KHIỂN ADB");
         aiDeviceTask.setOnClickListener(v -> showAiDeviceTaskDialog());
         root.addView(aiDeviceTask, new LinearLayout.LayoutParams(-1, dp(46)));
-        Button aiDeviceTask = button("AI • LẬP KẾ HOẠCH & ĐIỀU KHIỂN ADB");
-        aiDeviceTask.setOnClickListener(v -> showAiDeviceTaskDialog());
-        root.addView(aiDeviceTask, new LinearLayout.LayoutParams(-1, dp(46)));
         Button routerWifi = button("KẾT NỐI MODEM / ROUTER WI-FI");
         routerWifi.setOnClickListener(v -> showWifiRouterManager());
         root.addView(routerWifi, new LinearLayout.LayoutParams(-1, dp(46)));
@@ -2824,7 +2821,7 @@ public class MainActivity extends Activity {
                 getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE).edit()
                     .putString("serial", serial).putString("provider", provider)
                     .putLong("requested_at", System.currentTimeMillis()).commit();
-                String prompt = "Bạn là bộ lập kế hoạch ADB của BO Kali AI. Trả lời CHỈ MỘT DÒNG JSON, không markdown, schema: "
+                String prompt = "Bạn là bộ lập kế hoạch ADB của BO Kali AI. Trả lời CHỈ MỘT DÒNG theo dạng BO_AI_PLAN:{JSON}, không markdown; bắt buộc có tiền tố BO_AI_PLAN: ngay trước dấu ngoặc nhọn. Schema: "
                     + "{\"scope\":\"READ_INFO|READ_LOGS|APP_LIST|APP_INSTALL_REMOVE|SCREEN_CONTROL|DEVICE_SETTINGS|RAW_ADB_SHELL\","
                     + "\"command\":\"một lệnh Android shell duy nhất\",\"reason\":\"giải thích ngắn bằng tiếng Việt\",\"risk\":\"LOW|MEDIUM|HIGH\"}. "
                     + "Không thêm adb vào command. Không dùng newline, dấu chấm phẩy, &&, ||, pipe, redirect, backtick, biến shell hoặc chuỗi lệnh ghép. "
@@ -2846,6 +2843,31 @@ public class MainActivity extends Activity {
                 line("Đã yêu cầu " + ("codex".equals(provider) ? "Codex" : "Antigravity")
                     + " lập kế hoạch cho " + serial + ". Chưa có lệnh nào được thực thi.", 0xff79c9ff);
             }).setNegativeButton("HỦY", null).show();
+    }
+
+    private boolean isAiCommandAllowedForScope(String scope, String command) {
+        if (command == null || command.isEmpty()) return false;
+        String lower = command.toLowerCase(java.util.Locale.ROOT).trim();
+        // Block destructive/system-security operations even when the AI labels them as ordinary work.
+        String[] blocked = {"rm ", "reboot", "shutdown", "factory_reset", "factory reset",
+            "wipe", "format", "mkfs", "dd ", " su", "setenforce", "passwd",
+            "recovery", "bootloader", "fastboot", "user 0", "pm clear",
+            "disable-user", "disable ", "resetprop", "mount ", "umount "};
+        for (String token : blocked) if (lower.contains(token)) return false;
+        if ("READ_INFO".equals(scope))
+            return lower.matches("^(getprop|df|uptime|uname|dumpsys battery|dumpsys display|ip addr|cat /proc/(meminfo|uptime|cpuinfo))(\\\\s.*)?$");
+        if ("READ_LOGS".equals(scope))
+            return lower.matches("^(logcat|dumpsys)(\\\\s.*)?$");
+        if ("APP_LIST".equals(scope))
+            return lower.matches("^pm list packages(\\\\s.*)?$");
+        if ("APP_INSTALL_REMOVE".equals(scope))
+            return lower.matches("^pm (install|uninstall)(\\\\s.*)?$");
+        if ("SCREEN_CONTROL".equals(scope))
+            return lower.matches("^input (keyevent|tap|swipe|text)(\\\\s.*)?$");
+        if ("DEVICE_SETTINGS".equals(scope))
+            return lower.matches("^(settings (get|put|delete)|wm (size|density)|cmd uimode)(\\\\s.*)?$");
+        // RAW_ADB_SHELL is intentionally broad but requires its own explicit grant and HIGH-risk confirmation.
+        return "RAW_ADB_SHELL".equals(scope);
     }
 
     private void processAiDevicePlanOutput(String output) {
@@ -2873,9 +2895,13 @@ public class MainActivity extends Activity {
                 || command.contains("\n") || command.contains("\r") || command.contains(";")
                 || command.contains("&") || command.contains("|") || command.contains("<")
                 || command.contains(">") || command.contains("$") || command.indexOf(96) >= 0
-                || command.contains("adb ") || command.startsWith("adb")) {
-                line("Kế hoạch AI bị từ chối: lệnh trống, ghép nhiều lệnh hoặc chứa cú pháp shell không được hỗ trợ.", 0xffff8080); return;
+                || command.contains("\\\\") || command.contains("'") || command.contains("\\\"")
+                || command.contains("adb ") || command.startsWith("adb")
+                || !isAiCommandAllowedForScope(scope, command)) {
+                line("Kế hoạch AI bị từ chối: lệnh không khớp quyền, chứa cú pháp shell hoặc thuộc nhóm thao tác bị chặn.", 0xffff8080); return;
             }
+            if ("RAW_ADB_SHELL".equals(scope)) risk = "HIGH";
+            if ("APP_INSTALL_REMOVE".equals(scope) || "DEVICE_SETTINGS".equals(scope)) risk = "HIGH";
             if (!isFreshAdbDevice(serial)) { line("Kế hoạch bị hủy: thiết bị đích không còn trực tuyến.", 0xffffca70); return; }
             if (!hasAiDevicePermission(serial, scope)) {
                 line("Kế hoạch bị chặn: chưa cấp quyền " + scope + " cho " + serial + ".", 0xffffca70);
@@ -2910,7 +2936,9 @@ public class MainActivity extends Activity {
             line("Chặn thực thi: thiết bị không trực tuyến hoặc quyền đã bị thu hồi.", 0xffff8080); return;
         }
         if (command == null || command.trim().isEmpty() || command.length() > 1200
-            || command.matches("(?s).*[;&|<>$].*") || command.indexOf(96) >= 0) {
+            || command.matches("(?s).*[;&|<>$].*") || command.indexOf(96) >= 0
+            || command.contains("\\\\") || command.contains("'") || command.contains("\\\"")
+            || !isAiCommandAllowedForScope(scope, command)) {
             line("Lệnh không qua kiểm tra cuối cùng; không thực thi.", 0xffff8080); return;
         }
         line("AI → ADB: thực thi trên " + serial + " theo quyền " + scope, 0xff79c9ff);
