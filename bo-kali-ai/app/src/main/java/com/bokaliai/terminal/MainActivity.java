@@ -1042,17 +1042,55 @@ public class MainActivity extends Activity {
             .setOnClickListener(b -> {
                 actions.dismiss();
                 new AlertDialog.Builder(this).setTitle("Quản lý " + serial)
-                    .setItems(new String[]{"Kiểm tra kết nối thiết bị này", "Sao chép serial ADB", "Đặt / đổi tên gợi nhớ", "Lưu / chạy lệnh thường dùng", "Báo cáo chẩn đoán tổng hợp", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
+                    .setItems(new String[]{"Kiểm tra kết nối thiết bị này", "Sao chép serial ADB", "Đặt / đổi tên gợi nhớ", "Lưu / chạy lệnh thường dùng", "Báo cáo chẩn đoán tổng hợp", "Đọc Logcat gần đây", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
                         if (which == 0) checkSavedAdbDevice(serial);
                         else if (which == 1) copyText(serial, "Đã sao chép serial ADB.");
                         else if (which == 2) showAdbAliasDialog(serial);
                         else if (which == 3) showAdbCommandPreset(serial);
                         else if (which == 4) showAdbFullDiagnosticReport(serial);
-                        else if (which == 5) confirmAdbDisconnect(serial);
+                        else if (which == 5) showAdbLogcatDialog(serial);
+                        else if (which == 6) confirmAdbDisconnect(serial);
                         else confirmForgetAdbDevice(serial);
                     }).setNegativeButton("ĐÓNG", null).show();
             }));
         actions.show();
+    }
+
+    // Read a bounded recent logcat snapshot; never clears logs or changes device state.
+    private void showAdbLogcatDialog(String serial) {
+        EditText countInput = input("Số dòng log (50–1000, mặc định 300)");
+        countInput.setText("300");
+        new AlertDialog.Builder(this)
+            .setTitle("Đọc Logcat • " + serial)
+            .setMessage("Logcat là nhật ký hệ thống/ứng dụng. Nội dung có thể chứa tên ứng dụng, địa chỉ, mã phiên hoặc dữ liệu riêng tư. Chỉ đọc tối đa 1.000 dòng gần nhất; không xóa log và không thay đổi thiết bị.")
+            .setView(countInput)
+            .setPositiveButton("TIẾP TỤC", (d, w) -> {
+                String raw = countInput.getText().toString().trim();
+                int count;
+                try { count = raw.isEmpty() ? 300 : Integer.parseInt(raw); }
+                catch (NumberFormatException e) {
+                    line("Số dòng Logcat không hợp lệ.", 0xffff8080);
+                    return;
+                }
+                if (count < 50 || count > 1000) {
+                    line("Chỉ chấp nhận từ 50 đến 1.000 dòng để giới hạn dữ liệu.", 0xffffca70);
+                    return;
+                }
+                String command = "adb -s " + shellQuote(serial)
+                    + " logcat -d -v threadtime -t " + count;
+                new AlertDialog.Builder(this)
+                    .setTitle("Xác nhận đọc Logcat")
+                    .setMessage("Thiết bị: " + serial + "\nSố dòng tối đa: " + count
+                        + "\n\nLệnh chỉ đọc log, không dùng logcat -c. Kết quả gần nhất sẽ được lưu trong BO Kali AI; hãy kiểm tra trước khi chia sẻ.")
+                    .setPositiveButton("ĐỌC LOG", (x, y) -> {
+                        line("Đang đọc tối đa " + count + " dòng Logcat từ " + serial + "...", GREEN);
+                        runTermuxCommand(command);
+                    })
+                    .setNegativeButton("HỦY", null)
+                    .show();
+            })
+            .setNegativeButton("HỦY", null)
+            .show();
     }
 
     private void checkSavedAdbDevice(String serial) {
