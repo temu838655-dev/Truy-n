@@ -4615,17 +4615,17 @@ public class MainActivity extends Activity {
                 prPayload.put("title", title);
                 prPayload.put("head", branchName);
                 prPayload.put("base", base);
-                prPayload.put("body", "Pull Request được tạo từ BO Kali AI.\\n\\nHãy kiểm tra toàn bộ diff, chạy build/test và chỉ merge sau khi xác minh.");
+                prPayload.put("body", "Pull Request được tạo từ BO Kali AI.\n\nHãy kiểm tra toàn bộ diff, chạy build/test và chỉ merge sau khi xác minh.");
                 JSONObject pr = githubApi("POST", "/repos/" + repository + "/pulls", prPayload);
                 String html = pr.optString("html_url");
                 int number = pr.optInt("number", 0);
-                String report = "Đã tạo Pull Request #" + number + "\\nNhánh: " + branchName
-                    + (commitSha.isEmpty() ? "" : "\\nCommit: " + commitSha)
-                    + (html.isEmpty() ? "" : "\\n" + html);
+                String report = "Đã tạo Pull Request #" + number + "\nNhánh: " + branchName
+                    + (commitSha.isEmpty() ? "" : "\nCommit: " + commitSha)
+                    + (html.isEmpty() ? "" : "\n" + html);
                 runOnUiThread(() -> line(report, GREEN));
             } catch (Exception e) {
                 runOnUiThread(() -> line("Tạo nhánh/Pull Request thất bại: " + e.getMessage()
-                    + "\\nNếu nhánh đã được tạo trước khi lỗi xảy ra, hãy kiểm tra GitHub để tránh tạo trùng.", 0xffff8080));
+                    + "\nNếu nhánh đã được tạo trước khi lỗi xảy ra, hãy kiểm tra GitHub để tránh tạo trùng.", 0xffff8080));
             }
         });
     }
