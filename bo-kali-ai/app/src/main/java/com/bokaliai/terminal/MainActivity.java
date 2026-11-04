@@ -4201,6 +4201,7 @@ public class MainActivity extends Activity {
             "VÀO KALI ROOTLESS",
             "CÀI KALI ROOTLESS",
             "KIỂM TRA QUYỀN ROOT ANDROID",
+            "KIỂM TRA PHẦN CỨNG / KERNEL / BOOTLOADER",
             "HƯỚNG DẪN KALI ROOT / ROOTLESS"
         };
         new AlertDialog.Builder(this)
@@ -4213,10 +4214,32 @@ public class MainActivity extends Activity {
                     copyText(KALI_INSTALL_COMMAND, "Đã sao chép lệnh cài NetHunter Rootless. Dán vào Termux để bắt đầu.");
                     openTermux();
                 } else if (which == 3) confirmAndroidRootCheck();
+                else if (which == 4) checkDeviceHardwareProfile();
                 else showKaliInstructions();
             })
             .setNegativeButton("ĐÓNG", null)
             .show();
+    }
+
+    // Read-only device capability report for preserve-first Kali planning.
+    // It does not request root, unlock the bootloader, flash, or modify device settings.
+    private void checkDeviceHardwareProfile() {
+        String command =
+            "echo '=== BO KALI AI HARDWARE PROFILE (READ ONLY) ==='; " +
+            "for p in ro.product.manufacturer ro.product.brand ro.product.model ro.product.device " +
+            "ro.product.board ro.board.platform ro.hardware ro.soc.manufacturer ro.soc.model " +
+            "ro.build.version.release ro.build.version.sdk ro.product.cpu.abi ro.product.cpu.abilist " +
+            "ro.bootloader ro.boot.bootloader ro.boot.slot_suffix ro.boot.verifiedbootstate " +
+            "ro.boot.flash.locked ro.boot.vbmeta.device_state ro.crypto.state; do " +
+            "v=\$(getprop \"\$p\"); [ -n \"\$v\" ] && printf '%s=%s\\n' \"\$p\" \"\$v\"; done; " +
+            "echo '=== KERNEL ==='; uname -a; " +
+            "echo '=== CPU ==='; grep -m 8 -E '^(processor|Hardware|model name|CPU architecture|Features)' /proc/cpuinfo 2>/dev/null; " +
+            "echo '=== SELINUX ==='; if command -v getenforce >/dev/null 2>&1; then getenforce; else echo 'getenforce unavailable'; fi; " +
+            "echo '=== USER ==='; id; " +
+            "echo '=== STORAGE ==='; df -h \$HOME 2>/dev/null | tail -n 2; " +
+            "echo '=== END: no system changes made ==='";
+        line("Đang thu thập thông tin phần cứng, kernel và trạng thái bootloader (chỉ đọc, không cần root)...", GREEN);
+        runTermuxCommand(command);
     }
 
     // This check is user-initiated and may display the installed root manager's grant dialog.
