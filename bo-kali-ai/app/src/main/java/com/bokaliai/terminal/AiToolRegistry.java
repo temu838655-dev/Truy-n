@@ -150,6 +150,53 @@ public final class AiToolRegistry {
             .put("function_declarations", new JSONArray().put(declaration)));
     }
 
+    /** Anthropic Messages API tool declaration for the guarded ADB proposal. */
+    public static JSONArray claudeProposalTools() throws org.json.JSONException {
+        JSONObject properties = new JSONObject()
+            .put("serial", new JSONObject().put("type", "string")
+                .put("description", "Serial chính xác của thiết bị ADB đã được người dùng chọn."))
+            .put("scope", new JSONObject().put("type", "string")
+                .put("enum", new JSONArray().put(READ_INFO).put(READ_LOGS)
+                    .put(APP_LIST).put(APP_LAUNCH).put(APP_INSTALL_REMOVE)
+                    .put(SCREEN_CONTROL).put(DEVICE_SETTINGS).put(NETWORK_DIAGNOSTICS)
+                    .put(RAW_ADB_SHELL)))
+            .put("command", new JSONObject().put("type", "string")
+                .put("description", "Đúng một lệnh Android shell; không thêm adb -s."))
+            .put("reason", new JSONObject().put("type", "string"))
+            .put("risk", new JSONObject().put("type", "string")
+                .put("enum", new JSONArray().put("LOW").put("MEDIUM").put("HIGH")));
+        JSONObject schema = new JSONObject().put("type", "object")
+            .put("properties", properties)
+            .put("required", new JSONArray().put("serial").put("scope")
+                .put("command").put("reason").put("risk"))
+            .put("additionalProperties", false);
+        JSONObject tool = new JSONObject()
+            .put("name", "adb_propose_shell_command")
+            .put("description", "Đề xuất một lệnh ADB duy nhất; không thực thi. BO kiểm tra quyền và yêu cầu người dùng xác nhận.")
+            .put("input_schema", schema)
+            .put("strict", true);
+        return new JSONArray().put(tool);
+    }
+
+    /** Extract Anthropic Messages API tool_use blocks; malformed calls are ignored. */
+    public static JSONArray extractClaudeToolUses(JSONObject response) {
+        JSONArray calls = new JSONArray();
+        if (response == null) return calls;
+        JSONArray content = response.optJSONArray("content");
+        if (content == null) return calls;
+        for (int i = 0; i < content.length(); i++) {
+            JSONObject block = content.optJSONObject(i);
+            if (block == null || !"tool_use".equals(block.optString("type"))) continue;
+            String id = block.optString("id", "").trim();
+            String name = block.optString("name", "").trim();
+            JSONObject input = block.optJSONObject("input");
+            if (id.isEmpty() || name.isEmpty() || input == null) continue;
+            calls.put(new JSONObject().put("tool_use_id", id)
+                .put("name", name).put("arguments", input));
+        }
+        return calls;
+    }
+
     /** Extract Gemini generateContent functionCall parts; malformed calls are ignored. */
     public static JSONArray extractGeminiFunctionCalls(JSONObject response) {
         JSONArray calls = new JSONArray();
