@@ -90,6 +90,67 @@ public final class AiToolRegistry {
         return "OK";
     }
 
+    /** Antigravity Interactions API tools: built-in web/code tools plus one guarded BO ADB proposal. */
+    public static JSONArray antigravityTools() throws org.json.JSONException {
+        JSONObject adbProperties = new JSONObject()
+            .put("serial", new JSONObject().put("type", "string")
+                .put("description", "Serial chính xác của thiết bị ADB đang kết nối và được người dùng chọn."))
+            .put("scope", new JSONObject().put("type", "string")
+                .put("enum", new JSONArray().put(READ_INFO).put(READ_LOGS).put(APP_LIST)
+                    .put(APP_LAUNCH).put(APP_INSTALL_REMOVE).put(SCREEN_CONTROL)
+                    .put(DEVICE_SETTINGS).put(NETWORK_DIAGNOSTICS).put(RAW_ADB_SHELL)))
+            .put("command", new JSONObject().put("type", "string")
+                .put("description", "Một lệnh Android shell duy nhất, không thêm adb -s."))
+            .put("reason", new JSONObject().put("type", "string"))
+            .put("risk", new JSONObject().put("type", "string")
+                .put("enum", new JSONArray().put("LOW").put("MEDIUM").put("HIGH")));
+        JSONObject adbSchema = new JSONObject().put("type", "object")
+            .put("properties", adbProperties)
+            .put("required", new JSONArray().put("serial").put("scope")
+                .put("command").put("reason").put("risk"))
+            .put("additionalProperties", false);
+        JSONObject adbFunction = new JSONObject().put("type", "function")
+            .put("name", "adb_propose_shell_command")
+            .put("description", "Đề xuất một lệnh ADB duy nhất. Không thực thi. BO kiểm tra thiết bị, quyền và yêu cầu người dùng duyệt.")
+            .put("parameters", adbSchema);
+        return new JSONArray()
+            .put(new JSONObject().put("type", "code_execution"))
+            .put(new JSONObject().put("type", "google_search"))
+            .put(new JSONObject().put("type", "url_context"))
+            .put(adbFunction);
+    }
+
+    /** Extract unfulfilled Antigravity Interactions API function_call steps. */
+    public static JSONArray extractAntigravityFunctionCalls(JSONObject response) {
+        JSONArray calls = new JSONArray();
+        if (response == null) return calls;
+        JSONArray steps = response.optJSONArray("steps");
+        if (steps == null) return calls;
+        java.util.HashSet<String> completed = new java.util.HashSet<>();
+        for (int i = 0; i < steps.length(); i++) {
+            JSONObject step = steps.optJSONObject(i);
+            if (step != null && "function_result".equals(step.optString("type"))) {
+                String id = step.optString("call_id", "").trim();
+                if (!id.isEmpty()) completed.add(id);
+            }
+        }
+        for (int i = 0; i < steps.length(); i++) {
+            JSONObject step = steps.optJSONObject(i);
+            if (step == null || !"function_call".equals(step.optString("type"))) continue;
+            String id = step.optString("id", "").trim();
+            String name = step.optString("name", "").trim();
+            JSONObject args = step.optJSONObject("arguments");
+            if (args == null) {
+                String raw = step.optString("arguments", "");
+                try { if (!raw.isEmpty()) args = new JSONObject(raw); }
+                catch (org.json.JSONException ignored) { }
+            }
+            if (id.isEmpty() || name.isEmpty() || args == null || completed.contains(id)) continue;
+            calls.put(new JSONObject().put("call_id", id).put("name", name).put("arguments", args));
+        }
+        return calls;
+    }
+
     /**
      * Strict OpenAI Responses function schema for the single-command ADB proposal.
      * This tool only creates a proposal; it is not an execution endpoint.
