@@ -424,7 +424,11 @@ public class MainActivity extends Activity {
         for (int i = 0; i < devices.size(); i++) {
             String serial = devices.get(i);
             String state = prefs.getString("state_" + serial, "chưa kiểm tra");
-            labels[i] = serial + "  [" + adbStateLabel(state) + "]";
+            long seen = prefs.getLong("seen_" + serial, 0L);
+            String seenLabel = seen == 0L ? "chưa ghi nhận"
+                : new java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
+                    .format(new java.util.Date(seen));
+            labels[i] = serial + "  [" + adbStateLabel(state) + "]  •  " + seenLabel;
         }
         long lastScan = prefs.getLong("last_scan_time", 0L);
         String scanLabel = lastScan == 0L ? "Chưa có lần quét thành công nào được ghi nhận."
@@ -460,9 +464,13 @@ public class MainActivity extends Activity {
     private void showSavedAdbDeviceActions(String serial) {
         android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
         String state = prefs.getString("state_" + serial, "unknown");
+        long seen = prefs.getLong("seen_" + serial, 0L);
+        String seenLabel = seen == 0L ? "Chưa ghi nhận lần xuất hiện."
+            : "Lần cuối thấy thiết bị: " + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                .format(new java.util.Date(seen)) + ".";
         AlertDialog actions = new AlertDialog.Builder(this).setTitle("Thiết bị: " + serial)
-            .setMessage("Trạng thái lần quét gần nhất: " + adbStateLabel(state)
-                + ". Hãy kiểm tra lại trước khi chạy lệnh.")
+            .setMessage("Trạng thái lần quét gần nhất: " + adbStateLabel(state) + ". " + seenLabel
+                + " Hãy kiểm tra lại trước khi chạy lệnh.")
             .setPositiveButton("THÔNG TIN AN TOÀN", (d, w) -> showAdbReadOnlyTools(serial))
             .setNeutralButton("ADB SHELL", (d, w) -> showAdbShellDialogFor(serial))
             .setNegativeButton("NGẮT ADB", null).create();
@@ -549,6 +557,7 @@ public class MainActivity extends Activity {
                 String state = matcher.group(2);
                 found.add(serial);
                 editor.putString("state_" + serial, state);
+                if ("device".equals(state)) editor.putLong("seen_" + serial, System.currentTimeMillis());
             }
         }
         java.util.HashSet<String> merged = new java.util.HashSet<>(prefs.getStringSet("serials", new java.util.HashSet<>()));
