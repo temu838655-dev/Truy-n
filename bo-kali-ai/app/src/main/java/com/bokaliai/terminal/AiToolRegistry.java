@@ -74,6 +74,21 @@ public final class AiToolRegistry {
             .append(" bước; mặc định duyệt từng bước.").toString();
     }
 
+    /** Shared validation for the existing single-command ADB plan pipeline. */
+    public static String validateAdbPlan(String scope, String serial, String command,
+                                         Set<String> grantedScopes) {
+        if (serial == null || serial.trim().isEmpty() || serial.length() > 256
+                || serial.matches(".*[\\r\\n\\u0000].*")) return "INVALID_DEVICE_SERIAL";
+        if (!hasScope(grantedScopes, scope)) return "SCOPE_NOT_GRANTED";
+        if (command == null || command.trim().isEmpty() || command.length() > 1200
+                || command.matches(".*[\\r\\n;|&<>\\x60$].*")) return "INVALID_SINGLE_COMMAND";
+        if (containsBlockedOperation(command)) return "BLOCKED_COMMAND";
+        if (!Arrays.asList(READ_INFO, READ_LOGS, APP_LIST, APP_LAUNCH, APP_INSTALL_REMOVE,
+                SCREEN_CONTROL, DEVICE_SETTINGS, NETWORK_DIAGNOSTICS, RAW_ADB_SHELL).contains(scope))
+            return "UNKNOWN_ADB_SCOPE";
+        return "OK";
+    }
+
     /** Validate the call envelope only; host UI must still obtain approval before side effects. */
     public static String validateCall(String name, JSONObject args, Set<String> grants) {
         Tool t = find(name);
