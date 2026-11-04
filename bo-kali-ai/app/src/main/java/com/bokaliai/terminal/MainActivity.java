@@ -2546,6 +2546,8 @@ public class MainActivity extends Activity {
         if (!session.getBoolean("keep_alive", false)) return;
         String serial = session.getString("active_serial", "");
         if (serial == null || serial.isEmpty() || activeMirrorView == null) return;
+        // Never attach a background session to a different device's visible workspace.
+        if (dualWorkspaceSerial == null || !serial.equals(dualWorkspaceSerial)) return;
         activeMirrorSerial = serial;
         if (activeMirrorView.isRunning() || adbMirrorResumePending) return;
 
@@ -2586,8 +2588,16 @@ public class MainActivity extends Activity {
             if (adbMirrorResumePending) adbMirrorResumePending = false;
             if (intent.getBooleanExtra("bo_scrcpy_ready", false)) {
                 adbMirrorResumeRetries = 0;
-                if (activeMirrorView != null) activeMirrorView.start(27183);
-                else line("Máy chủ scrcpy đã sẵn sàng. Hãy mở lại MÀN HÌNH KÉP để xem thiết bị.", GREEN);
+                android.content.SharedPreferences session =
+                    getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
+                String readySerial = session.getString("active_serial", "");
+                if (activeMirrorView != null && readySerial != null
+                    && readySerial.equals(dualWorkspaceSerial)
+                    && readySerial.equals(activeMirrorSerial)) {
+                    activeMirrorView.start(session.getInt("active_port", scrcpyPortFor(readySerial)));
+                } else {
+                    line("Máy chủ scrcpy đã sẵn sàng cho phiên ADB đã lưu. Mở đúng thiết bị trong MÀN HÌNH KÉP để hiển thị.", GREEN);
+                }
             } else {
                 scheduleScrcpyResumeRetry(lastCommandOutput);
             }
