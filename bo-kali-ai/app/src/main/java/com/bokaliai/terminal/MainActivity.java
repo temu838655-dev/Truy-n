@@ -1105,10 +1105,10 @@ public class MainActivity extends Activity {
                     command = "adb -s " + shellQuote(serial)
                         + " logcat -d -v threadtime -t " + count + " " + shellQuote(filter);
                 } else {
-                    String pidLookup = "pid=\\$(adb -s " + shellQuote(serial) + " shell pidof "
-                        + shellQuote(selectedPackage) + " 2>/dev/null | tr -d '\\\\r'); "
-                        + "if [ -n \"\\$pid\" ]; then adb -s " + shellQuote(serial)
-                        + " logcat -d -v threadtime -t " + count + " --pid=\"\\$pid\" "
+                    String pidLookup = "pid=$(adb -s " + shellQuote(serial) + " shell pidof "
+                        + shellQuote(selectedPackage) + " 2>/dev/null | tr -d '\\r'); "
+                        + "if [ -n \"$pid\" ]; then adb -s " + shellQuote(serial)
+                        + " logcat -d -v threadtime -t " + count + " --pid=\"$pid\" "
                         + shellQuote(filter)
                         + "; else echo 'Không tìm thấy PID đang chạy cho package " + selectedPackage + "'; fi";
                     command = pidLookup;
