@@ -100,6 +100,9 @@ public class MainActivity extends Activity {
         TextView subtitle = text("ANDROID · ROOTLESS · TIẾNG VIỆT", 0xff91a9bd, 11, true);
         root.addView(subtitle);
         LinearLayout bar = new LinearLayout(this); bar.setOrientation(0);
+        Button github = button("GITHUB • ĐỌC / GHI REPOSITORY");
+        github.setOnClickListener(v -> showGithubTools());
+        root.addView(github, new LinearLayout.LayoutParams(-1, dp(42)));
         Button settings = button("Kết nối AI / GitHub");
         settings.setOnClickListener(v -> connectionSettings());
         bar.addView(settings, new LinearLayout.LayoutParams(0, dp(44), 1));
@@ -4254,7 +4257,7 @@ public class MainActivity extends Activity {
         EditText gh = input("GitHub Personal Access Token (chỉ lưu trong bộ nhớ phiên này)");
         gh.setText(githubToken); box.addView(gh);
         new AlertDialog.Builder(this).setTitle("Kết nối AI / GitHub")
-            .setMessage("Gemini: dùng API key từ Google AI Studio. GitHub: token chỉ cần quyền đọc repo để thử kết nối. Không chia sẻ token cho ai.")
+            .setMessage("Gemini: dùng API key từ Google AI Studio. GitHub: đọc cần Contents: read; ghi cần Contents: read and write (fine-grained) hoặc repo (classic). Token chỉ giữ trong bộ nhớ phiên, không chia sẻ hoặc commit.")
             .setView(box)
             .setPositiveButton("Lưu và kiểm tra GitHub", (d,w) -> {
                 geminiKey = gem.getText().toString().trim();
@@ -4262,6 +4265,199 @@ public class MainActivity extends Activity {
                 if(githubToken.isEmpty()) { line("Đã cập nhật Gemini key trong bộ nhớ phiên (nếu có). Chưa nhập GitHub token.", GREEN); return; }
                 checkGithub();
             }).setNegativeButton("Hủy", null).show();
+    }
+
+    private void showGithubTools() {
+        if (githubToken == null || githubToken.trim().isEmpty()) {
+            new AlertDialog.Builder(this).setTitle("Kết nối GitHub")
+                .setMessage("Hãy vào Kết nối AI / GitHub và nhập Personal Access Token có quyền đọc repository. Muốn ghi tệp, token cần quyền Contents: Read and write (fine-grained) hoặc repo (classic).")
+                .setPositiveButton("MỞ CÀI ĐẶT", (d, w) -> connectionSettings())
+                .setNegativeButton("ĐÓNG", null).show();
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle("GitHub • Workspace")
+            .setItems(new String[]{"Liệt kê repository", "Đọc tệp trong repository", "Tạo / cập nhật tệp (có xác nhận)"}, (d, which) -> {
+                if (which == 0) githubListRepos();
+                else if (which == 1) showGithubFileDialog(false);
+                else showGithubFileDialog(true);
+            }).setNegativeButton("ĐÓNG", null).show();
+    }
+
+    private JSONObject githubApi(String method, String path, JSONObject body) throws Exception {
+        if (githubToken == null || githubToken.trim().isEmpty()) throw new IllegalStateException("Chưa nhập GitHub token.");
+        URL url = new URL("https://api.github.com" + path);
+        HttpURLConnection c = (HttpURLConnection) url.openConnection();
+        try {
+            c.setRequestMethod(method);
+            c.setRequestProperty("Authorization", "Bearer " + githubToken);
+            c.setRequestProperty("Accept", "application/vnd.github+json");
+            c.setRequestProperty("X-GitHub-Api-Version", "2022-11-28");
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(25000);
+            if (body != null) {
+                c.setDoOutput(true);
+                c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+                byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
+                try (OutputStream os = c.getOutputStream()) { os.write(bytes); }
+            }
+            int code = c.getResponseCode();
+            java.io.InputStream stream = code >= 200 && code < 300 ? c.getInputStream() : c.getErrorStream();
+            StringBuilder out = new StringBuilder();
+            if (stream != null) {
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                    String row;
+                    while ((row = br.readLine()) != null) out.append(row);
+                }
+            }
+            if (code < 200 || code >= 300) {
+                String detail = out.toString();
+                throw new IllegalStateException("GitHub HTTP " + code + ": " + detail.substring(0, Math.min(700, detail.length())));
+            }
+            return out.length() == 0 ? new JSONObject() : new JSONObject(out.toString());
+        } finally { c.disconnect(); }
+    }
+
+    private void githubListRepos() {
+        line("Đang đọc danh sách repository GitHub...", GREEN);
+        worker.execute(() -> {
+            try {
+                JSONArray repos = new JSONArray();
+                // Fetch up to 100 repositories visible to the authenticated user.
+                JSONObject page = githubApi("GET", "/user/repos?per_page=100&sort=updated", null);
+                // The endpoint returns an array; parse it with a dedicated request below.
+                runGithubArrayRequest("/user/repos?per_page=100&sort=updated", "Repository GitHub");
+            } catch (Exception e) {
+                runOnUiThread(() -> line("GitHub: " + e.getMessage(), 0xffff8080));
+            }
+        });
+    }
+
+    private void runGithubArrayRequest(String path, String label) {
+        worker.execute(() -> {
+            HttpURLConnection c = null;
+            try {
+                c = (HttpURLConnection) new URL("https://api.github.com" + path).openConnection();
+                c.setRequestProperty("Authorization", "Bearer " + githubToken);
+                c.setRequestProperty("Accept", "application/vnd.github+json");
+                c.setRequestProperty("X-GitHub-Api-Version", "2022-11-28");
+                c.setConnectTimeout(15000); c.setReadTimeout(25000);
+                int code = c.getResponseCode();
+                java.io.InputStream stream = code >= 200 && code < 300 ? c.getInputStream() : c.getErrorStream();
+                StringBuilder out = new StringBuilder();
+                if (stream != null) try (BufferedReader br = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                    String row; while ((row = br.readLine()) != null) out.append(row);
+                }
+                if (code < 200 || code >= 300) throw new IllegalStateException("GitHub HTTP " + code + ": " + out);
+                JSONArray arr = new JSONArray(out.toString());
+                StringBuilder report = new StringBuilder(label).append(" (").append(arr.length()).append("):\n");
+                for (int i = 0; i < arr.length(); i++) {
+                    JSONObject r = arr.getJSONObject(i);
+                    report.append("• ").append(r.optString("full_name"))
+                        .append(r.optBoolean("private") ? " [private]" : " [public]")
+                        .append(" — ").append(r.optString("default_branch")).append("\n");
+                }
+                String result = report.toString();
+                runOnUiThread(() -> line(result, WHITE));
+            } catch (Exception e) { runOnUiThread(() -> line("Lỗi GitHub: " + e.getMessage(), 0xffff8080)); }
+            finally { if (c != null) c.disconnect(); }
+        });
+    }
+
+    private void showGithubFileDialog(boolean write) {
+        LinearLayout form = new LinearLayout(this); form.setOrientation(1); form.setPadding(dp(8), dp(4), dp(8), dp(4));
+        EditText repoName = input("owner/repository");
+        EditText branch = input("Nhánh (mặc định main)");
+        branch.setText("main");
+        EditText filePath = input("Đường dẫn tệp, ví dụ app/src/Main.java");
+        EditText content = new EditText(this);
+        content.setTextColor(WHITE); content.setHintTextColor(0xff91a9bd);
+        content.setGravity(Gravity.TOP | Gravity.START); content.setMinLines(write ? 7 : 3);
+        content.setHint(write ? "Nội dung hoàn chỉnh của tệp mới/cập nhật" : "Để trống; nội dung tệp sẽ được đọc");
+        form.addView(repoName); form.addView(branch); form.addView(filePath);
+        if (write) form.addView(content, new LinearLayout.LayoutParams(-1, dp(180)));
+        String title = write ? "Tạo / cập nhật tệp GitHub" : "Đọc tệp GitHub";
+        new AlertDialog.Builder(this).setTitle(title)
+            .setMessage(write
+                ? "Nhập owner/repo, nhánh, đường dẫn và toàn bộ nội dung tệp. BO sẽ đọc SHA hiện tại nếu tệp đã tồn tại rồi yêu cầu xác nhận commit."
+                : "Nhập owner/repo, nhánh và đường dẫn tệp. BO chỉ đọc nội dung, không sửa repository.")
+            .setView(form)
+            .setPositiveButton(write ? "XEM LẠI & TIẾP TỤC" : "ĐỌC TỆP", (d, w) -> {
+                String repository = repoName.getText().toString().trim();
+                String ref = branch.getText().toString().trim();
+                String path = filePath.getText().toString().trim();
+                String body = content.getText().toString();
+                if (repository.split("/").length != 2 || ref.isEmpty() || path.isEmpty() || (write && body.isEmpty())) {
+                    line("Thiếu owner/repo, nhánh, đường dẫn hoặc nội dung tệp.", 0xffffca70); return;
+                }
+                if (repository.contains("..") || path.startsWith("/") || path.contains("..")) {
+                    line("Đường dẫn repository/tệp không hợp lệ.", 0xffffca70); return;
+                }
+                if (write) confirmGithubWrite(repository, ref, path, body);
+                else githubReadFile(repository, ref, path);
+            }).setNegativeButton("HỦY", null).show();
+    }
+
+    private String githubEncodedPath(String path) throws Exception {
+        StringBuilder encoded = new StringBuilder();
+        String[] parts = path.split("/");
+        for (String part : parts) {
+            if (encoded.length() > 0) encoded.append("/");
+            encoded.append(java.net.URLEncoder.encode(part, "UTF-8").replace("+", "%20"));
+        }
+        return encoded.toString();
+    }
+
+    private void githubReadFile(String repository, String branch, String path) {
+        line("Đang đọc " + repository + "/" + path + "...", GREEN);
+        worker.execute(() -> {
+            try {
+                JSONObject file = githubApi("GET", "/repos/" + repository + "/contents/" + githubEncodedPath(path) + "?ref=" + java.net.URLEncoder.encode(branch, "UTF-8"), null);
+                String encoded = file.optString("content").replace("\n", "").replace("\r", "");
+                byte[] bytes = android.util.Base64.decode(encoded, android.util.Base64.DEFAULT);
+                String data = new String(bytes, StandardCharsets.UTF_8);
+                String result = "GitHub: " + repository + "/" + path + " @ " + branch + "\n\n"
+                    + data.substring(0, Math.min(data.length(), 18000));
+                runOnUiThread(() -> line(result, WHITE));
+            } catch (Exception e) { runOnUiThread(() -> line("Không đọc được tệp GitHub: " + e.getMessage(), 0xffff8080)); }
+        });
+    }
+
+    private void confirmGithubWrite(String repository, String branch, String path, String content) {
+        new AlertDialog.Builder(this).setTitle("Xác nhận ghi lên GitHub")
+            .setMessage("Repository: " + repository + "\nNhánh: " + branch + "\nTệp: " + path
+                + "\nKích thước: " + content.getBytes(StandardCharsets.UTF_8).length + " bytes"
+                + "\n\nThao tác này sẽ tạo commit trực tiếp trên nhánh đã chọn. Hãy chắc chắn bạn có quyền và đã kiểm tra nội dung.")
+            .setPositiveButton("XÁC NHẬN COMMIT", (d, w) -> githubWriteFile(repository, branch, path, content))
+            .setNegativeButton("HỦY", null).show();
+    }
+
+    private void githubWriteFile(String repository, String branch, String path, String content) {
+        line("Đang kiểm tra phiên bản tệp trước khi ghi GitHub...", GREEN);
+        worker.execute(() -> {
+            try {
+                String apiPath = "/repos/" + repository + "/contents/" + githubEncodedPath(path);
+                String sha = null;
+                try {
+                    JSONObject current = githubApi("GET", apiPath + "?ref=" + java.net.URLEncoder.encode(branch, "UTF-8"), null);
+                    sha = current.optString("sha", null);
+                } catch (Exception missing) {
+                    String msg = missing.getMessage() == null ? "" : missing.getMessage();
+                    if (!msg.contains("HTTP 404")) throw missing;
+                }
+                JSONObject payload = new JSONObject();
+                payload.put("message", "Update " + path + " via BO Kali AI");
+                payload.put("content", android.util.Base64.encodeToString(content.getBytes(StandardCharsets.UTF_8), android.util.Base64.NO_WRAP));
+                payload.put("branch", branch);
+                if (sha != null && !sha.isEmpty()) payload.put("sha", sha);
+                JSONObject result = githubApi("PUT", apiPath, payload);
+                JSONObject commit = result.optJSONObject("commit");
+                String commitSha = commit == null ? "" : commit.optString("sha", "");
+                runOnUiThread(() -> line("Đã ghi GitHub thành công: " + repository + "/" + path
+                    + (commitSha.isEmpty() ? "" : "\nCommit: " + commitSha), GREEN));
+            } catch (Exception e) {
+                runOnUiThread(() -> line("Ghi GitHub thất bại: " + e.getMessage(), 0xffff8080));
+            }
+        });
     }
 
     private void checkGithub() {
