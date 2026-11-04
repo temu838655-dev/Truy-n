@@ -3007,8 +3007,12 @@ public class MainActivity extends Activity {
             // AI-generated explanation is untrusted display text: bound its size and strip
             // control characters so it cannot flood or visually forge terminal/audit lines.
             if (reason.length() > 500) reason = reason.substring(0, 500);
-            reason = reason.replaceAll("[\\\\p{Cc}&&[^\\\\n\\\\t]]", " ")
-                .replace('\\n', ' ').replace('\\t', ' ').trim();
+            StringBuilder safeReason = new StringBuilder(reason.length());
+            for (int ri = 0; ri < reason.length(); ri++) {
+                char ch = reason.charAt(ri);
+                safeReason.append(Character.isISOControl(ch) ? ' ' : ch);
+            }
+            reason = safeReason.toString().trim();
             if (reason.isEmpty()) reason = "AI không nêu lý do.";
             String risk = plan.optString("risk", "HIGH").toUpperCase(java.util.Locale.ROOT);
             if (!"LOW".equals(risk) && !"MEDIUM".equals(risk) && !"HIGH".equals(risk)) risk = "HIGH";
