@@ -2456,22 +2456,61 @@ public class MainActivity extends Activity {
     }
 
 
+    private boolean adbMirrorResumePending = false;
+
     @Override protected void onResume() {
         super.onResume();
         android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_results", MODE_PRIVATE);
         String pending = prefs.getString("pending_output", null);
         boolean pendingScreenCapture = prefs.getBoolean("pending_screen_capture", false);
         boolean pendingScrcpyReady = prefs.getBoolean("pending_scrcpy_ready", false);
-        if (pending != null && !pending.isEmpty()) {
+        if ((pending != null && !pending.isEmpty()) || pendingScreenCapture || pendingScrcpyReady) {
             prefs.edit().remove("pending_output").remove("pending_screen_capture").remove("pending_scrcpy_ready").apply();
-            lastCommandOutput = pending;
-            handleAdbDevicesOutput(pending);
-            line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
-            for (String part : pending.split("\\n")) line(part, WHITE);
-            line("Nhấn GIẢI THÍCH KẾT QUẢ KALI BẰNG AI để phân tích.", 0xff79c9ff);
+            if (pending != null && !pending.isEmpty()) {
+                lastCommandOutput = pending;
+                handleAdbDevicesOutput(pending);
+                line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
+                for (String part : pending.split("\\n")) line(part, WHITE);
+                line("Nhấn GIẢI THÍCH KẾT QUẢ KALI BẰNG AI để phân tích.", 0xff79c9ff);
+            }
             if (pendingScreenCapture) showDualWorkspace();
-            if (pendingScrcpyReady && activeMirrorView != null) activeMirrorView.start(27183);
+            if (pendingScrcpyReady) {
+                adbMirrorResumePending = false;
+                if (activeMirrorView != null) activeMirrorView.start(27183);
+            }
         }
+        resumeAdbMirrorAfterUnlock();
+    }
+
+    /**
+     * A SurfaceView may be destroyed while the phone is locked. The foreground service
+     * keeps the ADB session alive, while this method recreates the scrcpy server/forward
+     * after the Activity becomes visible again. It never disconnects or kills ADB.
+     */
+    private void resumeAdbMirrorAfterUnlock() {
+        android.content.SharedPreferences session =
+            getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
+        if (!session.getBoolean("keep_alive", false)) return;
+        String serial = session.getString("active_serial", "");
+        if (serial == null || serial.isEmpty() || activeMirrorView == null) return;
+        activeMirrorSerial = serial;
+        if (activeMirrorView.isRunning() || adbMirrorResumePending) return;
+
+        adbMirrorResumePending = true;
+        activeMirrorView.prepareForReconnect();
+        String serialArg = shellQuote(serial);
+        String remoteStart = "CLASSPATH=/data/local/tmp/bo-kali-scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 4.0 scid=00000001 tunnel_forward=false audio=false video_codec=h264 max_size=1280 video_bit_rate=4000000 max_fps=30 send_device_meta=false send_dummy_byte=false cleanup=true >/dev/null 2>&1 </dev/null &";
+        String socketCheck = "grep -F 'scrcpy_00000001' /proc/net/unix >/dev/null 2>&1";
+        String waitForSocket = "for i in 1 2 3 4 5 6 7 8 9 10; do grep -F 'scrcpy_00000001' /proc/net/unix >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1";
+        String command = "adb -s " + serialArg + " get-state >/dev/null 2>&1 || { echo 'BO_SCRCPY_ERROR: Thiết bị ADB chưa trực tuyến'; exit 1; }; "
+            + "adb -s " + serialArg + " forward --remove tcp:27183 >/dev/null 2>&1 || true; "
+            + "adb -s " + serialArg + " forward tcp:27183 localabstract:scrcpy_00000001 || exit 1; "
+            + "if ! adb -s " + serialArg + " shell " + shellQuote(socketCheck) + "; then "
+            + "adb -s " + serialArg + " shell " + shellQuote(remoteStart) + "; fi; "
+            + "if adb -s " + serialArg + " shell " + shellQuote(waitForSocket) + "; then "
+            + "echo BO_SCRCPY_READY:27183; else echo 'BO_SCRCPY_ERROR: Không khôi phục được socket scrcpy'; exit 1; fi";
+        runTermuxCommand(command);
+        line("Đang khôi phục luồng scrcpy sau khi mở khóa; phiên ADB vẫn được giữ nguyên.", 0xff79c9ff);
     }
 
     @Override protected void onNewIntent(Intent intent) {
@@ -2481,6 +2520,7 @@ public class MainActivity extends Activity {
             lastCommandOutput = intent.getStringExtra("termux_output");
             if (lastCommandOutput == null) lastCommandOutput = "Termux trả về kết quả trống.";
             if (intent.getBooleanExtra("bo_screen_capture", false)) showDualWorkspace();
+            if (adbMirrorResumePending) adbMirrorResumePending = false;
             if (intent.getBooleanExtra("bo_scrcpy_ready", false)) {
                 if (activeMirrorView != null) activeMirrorView.start(27183);
                 else line("Máy chủ scrcpy đã sẵn sàng. Hãy mở lại MÀN HÌNH KÉP để xem thiết bị.", GREEN);
