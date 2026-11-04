@@ -2389,9 +2389,9 @@ public class MainActivity extends Activity {
             intent.putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", resultPending);
             intent.putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "BO Kali AI - tác vụ do người dùng yêu cầu");
             startService(intent);
-            line("Đã gửi tác vụ ADB đến Termux. Đang chờ kết quả...", GREEN);
+            line("Đã gửi tác vụ đến Termux. Đang chờ kết quả...", GREEN);
         } catch (SecurityException e) { line("Termux chưa bật allow-external-apps hoặc chưa cấp quyền RUN_COMMAND.", 0xffffca70); openTermux(); }
-          catch (Exception e) { line("Không chạy được ADB trong Termux: " + e.getMessage(), 0xffff8080); }
+          catch (Exception e) { line("Không gửi được tác vụ đến Termux: " + e.getMessage(), 0xffff8080); }
     }
 
     
