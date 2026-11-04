@@ -4319,17 +4319,7 @@ public class MainActivity extends Activity {
 
     private void githubListRepos() {
         line("Đang đọc danh sách repository GitHub...", GREEN);
-        worker.execute(() -> {
-            try {
-                JSONArray repos = new JSONArray();
-                // Fetch up to 100 repositories visible to the authenticated user.
-                JSONObject page = githubApi("GET", "/user/repos?per_page=100&sort=updated", null);
-                // The endpoint returns an array; parse it with a dedicated request below.
-                runGithubArrayRequest("/user/repos?per_page=100&sort=updated", "Repository GitHub");
-            } catch (Exception e) {
-                runOnUiThread(() -> line("GitHub: " + e.getMessage(), 0xffff8080));
-            }
-        });
+        runGithubArrayRequest("/user/repos?per_page=100&sort=updated", "Repository GitHub");
     }
 
     private void runGithubArrayRequest(String path, String label) {
