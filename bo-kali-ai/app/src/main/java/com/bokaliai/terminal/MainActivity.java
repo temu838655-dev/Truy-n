@@ -3264,6 +3264,7 @@ public class MainActivity extends Activity {
         String environmentId = prefs.getString("environment_id", "");
         String callId = prefs.getString("call_id", "");
         if (interactionId.isEmpty() || callId.isEmpty()) return;
+        prefs.edit().putString("result_status", status).putString("result_message", message).commit();
         if (callId.equals(prefs.getString("sending_call_id", ""))) return;
         if (geminiKey == null || geminiKey.trim().isEmpty()) {
             line("Kết quả ADB đã ghi nhận nhưng API key không còn trong phiên; chưa gửi được kết quả cho Antigravity. Hãy nhập lại khóa Google.", 0xffffca70);
@@ -3271,6 +3272,18 @@ public class MainActivity extends Activity {
         }
         prefs.edit().putString("sending_call_id", callId).commit();
         requestAntigravityToolFollowUp(geminiKey, interactionId, environmentId, callId, status, message);
+    }
+
+    private void retryPendingAntigravityToolResult() {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_antigravity_pending_tool", MODE_PRIVATE);
+        String status = prefs.getString("result_status", "");
+        String message = prefs.getString("result_message", "");
+        if (status.isEmpty() || message.isEmpty() || prefs.getString("call_id", "").isEmpty()) {
+            line("Không có kết quả công cụ Antigravity nào đang chờ gửi lại.", 0xffffca70);
+            return;
+        }
+        prefs.edit().remove("sending_call_id").commit();
+        reportAntigravityToolOutcome(status, message);
     }
 
     private void reportAntigravityExecutionResult(String executionId, String exitCode, String commandOutput) {
@@ -5496,7 +5509,7 @@ public class MainActivity extends Activity {
     private void showAntigravityMenu() {
         new AlertDialog.Builder(this).setTitle("Google Antigravity Agent")
             .setMessage("Agent API: chọn Google Antigravity Agent trong danh sách AI để chat, tìm web, đọc URL, chạy code và quản lý tệp trong sandbox từ xa. Dùng Gemini API key đã nhập trong Kết nối AI. CLI Termux vẫn có thể dùng riêng. Sandbox từ xa không tự có quyền ADB/GitHub cục bộ.")
-            .setItems(new String[]{"MỞ CHAT AGENT API", "TẠO PHIÊN AGENT MỚI", "CHAT ANTIGRAVITY CLI (TERMUX)", "AI ĐỌC TỆP GITHUB", "CÀI / KIỂM TRA CLI", "ĐĂNG NHẬP GOOGLE CLI"}, (d, which) -> {
+            .setItems(new String[]{"MỞ CHAT AGENT API", "TẠO PHIÊN AGENT MỚI", "CHAT ANTIGRAVITY CLI (TERMUX)", "AI ĐỌC TỆP GITHUB", "CÀI / KIỂM TRA CLI", "ĐĂNG NHẬP GOOGLE CLI", "GỬI LẠI KẾT QUẢ ADB CHO AGENT"}, (d, which) -> {
                 if (which == 0) {
                     if (aiProviderPicker != null) aiProviderPicker.setSelection(3);
                     if (questionInput != null) questionInput.requestFocus();
@@ -5511,7 +5524,8 @@ public class MainActivity extends Activity {
                 } else if (which == 2) showAntigravityChat();
                 else if (which == 3) showGithubAiReviewDialog(false);
                 else if (which == 4) installAntigravityCli();
-                else launchAntigravityLogin();
+                else if (which == 5) launchAntigravityLogin();
+                else retryPendingAntigravityToolResult();
             }).setNegativeButton("ĐÓNG", null).show();
     }
 
