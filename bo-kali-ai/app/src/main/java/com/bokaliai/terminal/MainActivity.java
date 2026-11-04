@@ -104,7 +104,7 @@ public class MainActivity extends Activity {
         shellAdb.setOnClickListener(v -> showAdbShellDialog());
         adbRow.addView(shellAdb, new LinearLayout.LayoutParams(0, dp(42), 1));
         root.addView(adbRow);
-        Button shareReport = button("CHIA SẺ KẾT QUẢ / BÁO CÁO");
+        Button shareReport = button("CHIA SẺ KẾT QUẢ TERMUX");
         shareReport.setOnClickListener(v -> shareLastTermuxReport());
         root.addView(shareReport, new LinearLayout.LayoutParams(-1, dp(42)));
         Button firmware = button("FIRMWARE / OTA");
@@ -843,15 +843,24 @@ public class MainActivity extends Activity {
             line("Chưa có kết quả Termux để chia sẻ. Hãy chạy một lệnh ADB/Kali trước.", 0xffffca70);
             return;
         }
-        Intent share = new Intent(Intent.ACTION_SEND);
-        share.setType("text/plain");
-        share.putExtra(Intent.EXTRA_SUBJECT, "BO Kali AI - Báo cáo thiết bị");
-        share.putExtra(Intent.EXTRA_TEXT, report);
-        try {
-            startActivity(Intent.createChooser(share, "Chia sẻ báo cáo chẩn đoán"));
-        } catch (Exception e) {
-            line("Không mở được ứng dụng chia sẻ: " + e.getMessage(), 0xffff8080);
-        }
+        String preview = report.length() > 1400 ? report.substring(0, 1400) + "\\n… (đã rút gọn phần xem trước)" : report;
+        new AlertDialog.Builder(this)
+            .setTitle("Kiểm tra trước khi chia sẻ")
+            .setMessage("Đây là kết quả Termux gần nhất, không nhất thiết là báo cáo chẩn đoán đầy đủ. Nội dung có thể chứa serial ADB, địa chỉ IP, tên thiết bị hoặc dữ liệu riêng tư. Hãy xem lại trước khi gửi.\\n\\n" + preview)
+            .setPositiveButton("CHIA SẺ", (d, w) -> {
+                Intent share = new Intent(Intent.ACTION_SEND);
+                share.setType("text/plain");
+                share.putExtra(Intent.EXTRA_SUBJECT, "BO Kali AI - Kết quả Termux");
+                share.putExtra(Intent.EXTRA_TEXT, report);
+                try {
+                    startActivity(Intent.createChooser(share, "Chia sẻ kết quả Termux"));
+                } catch (Exception e) {
+                    line("Không mở được ứng dụng chia sẻ: " + e.getMessage(), 0xffff8080);
+                }
+            })
+            .setNeutralButton("SAO CHÉP", (d, w) -> copyText(report, "Đã sao chép kết quả Termux."));
+            .setNegativeButton("HỦY", null)
+            .show();
     }
 
     private void copyText(String value, String message) {
