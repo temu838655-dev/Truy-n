@@ -4256,7 +4256,9 @@ public class MainActivity extends Activity {
             "CÀI BỘ CÔNG CỤ TERMUX",
             "CÀI BỘ CÔNG CỤ KALI ROOTLESS",
             "CẬP NHẬT GÓI TERMUX",
-            "CẬP NHẬT GÓI KALI ROOTLESS"
+            "CẬP NHẬT GÓI KALI ROOTLESS",
+            "GỠ CÔNG CỤ TERMUX (CHỌN TỪ DANH SÁCH)",
+            "GỠ CÔNG CỤ KALI ROOTLESS (CHỌN TỪ DANH SÁCH)"
         };
         new AlertDialog.Builder(this)
             .setTitle("Quản lý công cụ • BO Kali AI")
@@ -4268,6 +4270,8 @@ public class MainActivity extends Activity {
                 else if (which == 3) confirmToolInstall(true);
                 else if (which == 4) confirmToolUpgrade(false);
                 else if (which == 5) confirmToolUpgrade(true);
+                else if (which == 6) chooseToolToRemove(false);
+                else if (which == 7) chooseToolToRemove(true);
             })
             .setNegativeButton("ĐÓNG", null)
             .show();
@@ -4310,6 +4314,38 @@ public class MainActivity extends Activity {
             "echo 'END=Version check only; no package changes'";
         line("Đang kiểm tra phiên bản các công cụ...", GREEN);
         runTermuxCommand(command);
+    }
+
+    // Removal is restricted to a small allowlist of optional utilities installed by this manager.
+    // Core Android, Termux, shell, SSH and Kali packages are deliberately excluded.
+    private void chooseToolToRemove(boolean kali) {
+        final String[] packages = kali
+            ? new String[] {"git", "python3", "curl", "wget", "jq", "iproute2", "dnsutils", "net-tools"}
+            : new String[] {"git", "python", "curl", "wget", "jq", "openssh", "clang", "make"};
+        new AlertDialog.Builder(this)
+            .setTitle(kali ? "Chọn tiện ích Kali cần gỡ" : "Chọn tiện ích Termux cần gỡ")
+            .setItems(packages, (dialog, which) -> confirmToolRemoval(kali, packages[which]))
+            .setNegativeButton("ĐÓNG", null)
+            .show();
+    }
+
+    private void confirmToolRemoval(boolean kali, String packageName) {
+        // packageName comes only from the fixed allowlist above, never from free-form user input.
+        final String command = kali
+            ? "nh bash -lc " + shellQuote("apt-get remove " + packageName)
+            : "pkg uninstall " + packageName;
+        new AlertDialog.Builder(this)
+            .setTitle("Xác nhận gỡ " + packageName + "?")
+            .setMessage("BO Kali AI sẽ yêu cầu trình quản lý gói gỡ tiện ích " + packageName +
+                " khỏi " + (kali ? "Kali Rootless" : "Termux") +
+                ". Gói phụ thuộc có thể bị ảnh hưởng; hãy đọc kỹ danh sách mà trình quản lý gói hiển thị. " +
+                "Không gỡ thành phần hệ thống hoặc gói cốt lõi bằng chức năng này.")
+            .setPositiveButton("GỠ GÓI", (d, w) -> {
+                line("Đã xác nhận yêu cầu gỡ gói " + packageName + ".", GREEN);
+                runTermuxCommand(command);
+            })
+            .setNegativeButton("HỦY", null)
+            .show();
     }
 
     private void confirmToolUpgrade(boolean kali) {
