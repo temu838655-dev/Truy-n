@@ -243,7 +243,7 @@ public class MainActivity extends Activity {
         try {
             WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
             if (wifi == null || !wifi.isWifiEnabled()) return "";
-            android.net.wifi.DhcpInfo dhcp = wifi.getDhcpInfo();
+            android.net.DhcpInfo dhcp = wifi.getDhcpInfo();
             if (dhcp == null || dhcp.gateway == 0) return "";
             int g = dhcp.gateway;
             return (g & 0xff) + "." + ((g >> 8) & 0xff) + "."
