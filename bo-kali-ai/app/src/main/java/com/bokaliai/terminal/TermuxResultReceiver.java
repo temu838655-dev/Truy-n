@@ -62,7 +62,7 @@ public class TermuxResultReceiver extends BroadcastReceiver {
             output.append("Mã thoát: ").append(exitCode);
             // Put the validated AI plan marker near the beginning so the Activity's
             // bounded transcript truncation cannot discard it at the end of stdout.
-            if (!aiPlanMarker.isEmpty()) output.append("\\n").append(aiPlanMarker).append("\\n");
+            if (!aiPlanMarker.isEmpty()) output.append("\n").append(aiPlanMarker).append("\n");
             if (exitCode == 0) output.append(" (thành công)");
             else if (exitCode > 0) output.append(" (lệnh kết thúc với lỗi)");
             output.append("\n");
