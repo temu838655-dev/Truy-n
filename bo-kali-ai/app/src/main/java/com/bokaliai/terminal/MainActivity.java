@@ -1042,7 +1042,7 @@ public class MainActivity extends Activity {
             .setOnClickListener(b -> {
                 actions.dismiss();
                 new AlertDialog.Builder(this).setTitle("Quản lý " + serial)
-                    .setItems(new String[]{"Kiểm tra kết nối thiết bị này", "Sao chép serial ADB", "Đặt / đổi tên gợi nhớ", "Lưu / chạy lệnh thường dùng", "Báo cáo chẩn đoán tổng hợp", "Đọc Logcat gần đây", "Xuất Logcat gần nhất thành TXT", "Liệt kê ứng dụng bên thứ ba", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
+                    .setItems(new String[]{"Kiểm tra kết nối thiết bị này", "Sao chép serial ADB", "Đặt / đổi tên gợi nhớ", "Lưu / chạy lệnh thường dùng", "Báo cáo chẩn đoán tổng hợp", "Đọc Logcat gần đây", "Xuất Logcat gần nhất thành TXT", "Liệt kê ứng dụng", "Mở ứng dụng theo package", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
                         if (which == 0) checkSavedAdbDevice(serial);
                         else if (which == 1) copyText(serial, "Đã sao chép serial ADB.");
                         else if (which == 2) showAdbAliasDialog(serial);
@@ -1051,7 +1051,8 @@ public class MainActivity extends Activity {
                         else if (which == 5) showAdbLogcatDialog(serial);
                         else if (which == 6) exportLastAdbLogcat(serial);
                         else if (which == 7) showAdbInstalledApps(serial);
-                        else if (which == 8) confirmAdbDisconnect(serial);
+                        else if (which == 8) showAdbLaunchAppDialog(serial);
+                        else if (which == 9) confirmAdbDisconnect(serial);
                         else confirmForgetAdbDevice(serial);
                     }).setNegativeButton("ĐÓNG", null).show();
             }));
@@ -1086,6 +1087,37 @@ public class MainActivity extends Activity {
                     .show();
             })
             .setNegativeButton("ĐÓNG", null)
+            .show();
+    }
+
+    // Launch a user-selected launcher activity on the explicitly selected authorized device.
+    private void showAdbLaunchAppDialog(String serial) {
+        EditText packageInput = input("Tên package, ví dụ com.android.settings");
+        new AlertDialog.Builder(this)
+            .setTitle("Mở ứng dụng trên thiết bị")
+            .setMessage("Thiết bị: " + serial + "\nNhập package đã cài. BO Kali AI chỉ gửi yêu cầu mở ứng dụng; không cài/gỡ hoặc thay đổi dữ liệu.")
+            .setView(packageInput)
+            .setPositiveButton("TIẾP TỤC", (d, w) -> {
+                String packageName = packageInput.getText().toString().trim();
+                if (!packageName.matches("[A-Za-z0-9_]+(\\\\.[A-Za-z0-9_]+)+")) {
+                    line("Tên package không hợp lệ. Ví dụ: com.android.settings", 0xffffca70);
+                    return;
+                }
+                String command = "adb -s " + shellQuote(serial)
+                    + " shell monkey -p " + shellQuote(packageName)
+                    + " -c android.intent.category.LAUNCHER 1";
+                new AlertDialog.Builder(this)
+                    .setTitle("Xác nhận mở ứng dụng")
+                    .setMessage("Thiết bị: " + serial + "\\nPackage: " + packageName
+                        + "\\n\\nLệnh sẽ yêu cầu Android mở ứng dụng nếu package có màn hình Launcher. Không xóa dữ liệu hay thay đổi cài đặt.")
+                    .setPositiveButton("MỞ ỨNG DỤNG", (confirm, choice) -> {
+                        line("Đang yêu cầu mở " + packageName + " trên " + serial + "...", GREEN);
+                        runTermuxCommand(command);
+                    })
+                    .setNegativeButton("HỦY", null)
+                    .show();
+            })
+            .setNegativeButton("HỦY", null)
             .show();
     }
 
