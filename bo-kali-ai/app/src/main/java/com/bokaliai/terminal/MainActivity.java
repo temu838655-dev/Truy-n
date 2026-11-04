@@ -5178,6 +5178,11 @@ public class MainActivity extends Activity {
                                     saveAntigravityPendingTool(interactionId, environmentId, callId, functionName);
                                     runAntigravityGithubProposedUpdate(args);
                                 });
+                            } else if ("github_propose_multi_file_update".equals(functionName)) {
+                                runOnUiThread(() -> {
+                                    saveAntigravityPendingTool(interactionId, environmentId, callId, functionName);
+                                    runAntigravityGithubMultiFileUpdate(args);
+                                });
                             } else {
                                 runOnUiThread(() -> line("BO từ chối công cụ Antigravity chưa được hỗ trợ: " + functionName, 0xffff8080));
                             }
@@ -5977,6 +5982,179 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 reportAntigravityToolOutcome("github_update_review_failed",
                     "BO không thể tải/kiểm tra tệp gốc; không ghi gì lên GitHub: " + e.getMessage());
+            }
+        });
+    }
+
+    private void runAntigravityGithubMultiFileUpdate(JSONObject args) {
+        if (githubToken == null || githubToken.trim().isEmpty()) {
+            reportAntigravityToolOutcome("github_auth_missing", "BO chưa có GitHub token trong phiên; không thể tải tệp gốc.");
+            return;
+        }
+        String repository = args.optString("repository", "").trim();
+        String base = args.optString("branch", "main").trim();
+        String summary = args.optString("summary", "Update multiple files").trim();
+        JSONArray requested = args.optJSONArray("files");
+        if (!repository.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+                || base.isEmpty() || base.length() > 200 || base.matches(".*[\\r\\n\\u0000].*")
+                || summary.isEmpty() || summary.length() > 120
+                || requested == null || requested.length() < 2 || requested.length() > 6) {
+            reportAntigravityToolOutcome("invalid_multi_file_update",
+                "Đề xuất nhiều tệp không hợp lệ. Yêu cầu từ 2 đến 6 tệp, repository/branch/summary hợp lệ.");
+            return;
+        }
+        java.util.HashSet<String> seenPaths = new java.util.HashSet<>();
+        int totalChars = 0;
+        for (int i = 0; i < requested.length(); i++) {
+            JSONObject item = requested.optJSONObject(i);
+            if (item == null) {
+                reportAntigravityToolOutcome("invalid_multi_file_update", "Mỗi phần tử files phải có path và content.");
+                return;
+            }
+            String filePath = item.optString("path", "").trim();
+            String newContent = item.optString("content", "");
+            totalChars += newContent.length();
+            if (!AiToolRegistry.validRepoPath(filePath) || !seenPaths.add(filePath)
+                    || newContent.isEmpty() || newContent.length() > 30000 || totalChars > 80000) {
+                reportAntigravityToolOutcome("invalid_multi_file_update",
+                    "Đường dẫn trùng/không hợp lệ hoặc nội dung vượt giới hạn 30.000 ký tự mỗi tệp, 80.000 ký tự tổng.");
+                return;
+            }
+        }
+        line("BO đang tải và đối chiếu " + requested.length() + " tệp GitHub trước khi duyệt...", GREEN);
+        worker.execute(() -> {
+            try {
+                String encodedBase = java.net.URLEncoder.encode(base, "UTF-8");
+                JSONObject baseRef = githubApi("GET",
+                    "/repos/" + repository + "/git/ref/heads/" + encodedBase, null);
+                JSONObject baseObject = baseRef.optJSONObject("object");
+                String baseSha = baseObject == null ? "" : baseObject.optString("sha", "");
+                if (baseSha.isEmpty()) throw new IllegalStateException("Không lấy được SHA của nhánh đích.");
+                JSONArray reviewed = new JSONArray();
+                StringBuilder preview = new StringBuilder()
+                    .append("Repository: ").append(repository).append("\nNhánh đích: ").append(base)
+                    .append("\nSHA nhánh: ").append(baseSha).append("\nTiêu đề PR: ").append(summary)
+                    .append("\nSố tệp: ").append(requested.length())
+                    .append("\n\nBO sẽ tạo một nhánh riêng và đưa tất cả tệp vào cùng một Pull Request.\n");
+                for (int i = 0; i < requested.length(); i++) {
+                    JSONObject item = requested.getJSONObject(i);
+                    String filePath = item.getString("path").trim();
+                    String newContent = item.getString("content");
+                    String apiPath = "/repos/" + repository + "/contents/" + githubEncodedPath(filePath);
+                    JSONObject original = githubApi("GET", apiPath + "?ref=" + encodedBase, null);
+                    String oldSha = original.optString("sha", "");
+                    String encoded = original.optString("content", "").replace("\n", "").replace("\r", "");
+                    if (oldSha.isEmpty() || encoded.isEmpty())
+                        throw new IllegalStateException("Không tải được SHA/nội dung tệp: " + filePath);
+                    String oldContent = new String(android.util.Base64.decode(encoded, android.util.Base64.DEFAULT), StandardCharsets.UTF_8);
+                    if (oldContent.length() > 30000)
+                        throw new IllegalStateException("Tệp gốc vượt giới hạn 30.000 ký tự: " + filePath);
+                    JSONObject entry = new JSONObject()
+                        .put("path", filePath).put("sha", oldSha)
+                        .put("old_content", oldContent).put("content", newContent);
+                    reviewed.put(entry);
+                    preview.append("\n\n========== TỆP ").append(i + 1).append("/").append(requested.length())
+                        .append(": ").append(filePath).append(" ==========")
+                        .append("\n--- HIỆN TẠI ---\n").append(oldContent)
+                        .append("\n--- ĐỀ XUẤT ---\n").append(newContent);
+                }
+                preview.append("\n\nXác nhận sẽ tạo nhánh riêng và Pull Request. Nhánh ")
+                    .append(base).append(" không bị commit trực tiếp.");
+                String reviewText = preview.toString();
+                runOnUiThread(() -> new AlertDialog.Builder(this)
+                    .setTitle("Antigravity • Duyệt kế hoạch nhiều tệp")
+                    .setMessage(reviewText)
+                    .setPositiveButton("DUYỆT TOÀN BỘ & TẠO PR", (dialog, which) ->
+                        createAntigravityGithubMultiFilePullRequest(repository, base, summary, baseSha, reviewed))
+                    .setNegativeButton("TỪ CHỐI TOÀN BỘ", (dialog, which) ->
+                        reportAntigravityToolOutcome("github_multi_update_rejected",
+                            "Người dùng từ chối toàn bộ kế hoạch. Không tạo nhánh, commit hoặc Pull Request."))
+                    .setOnCancelListener(dialog ->
+                        reportAntigravityToolOutcome("github_multi_update_cancelled",
+                            "Người dùng đóng hộp thoại. Không tạo thay đổi GitHub."))
+                    .show());
+            } catch (Exception e) {
+                reportAntigravityToolOutcome("github_multi_update_review_failed",
+                    "Không thể tải/đối chiếu toàn bộ tệp; chưa ghi gì lên GitHub: " + e.getMessage());
+            }
+        });
+    }
+
+    private void createAntigravityGithubMultiFilePullRequest(String repository, String base,
+                                                               String summary, String expectedBaseSha,
+                                                               JSONArray reviewed) {
+        line("Đã duyệt toàn bộ kế hoạch. BO đang kiểm tra và tạo PR nhiều tệp...", GREEN);
+        worker.execute(() -> {
+            String branchName = "";
+            String lastCommitSha = "";
+            try {
+                String encodedBase = java.net.URLEncoder.encode(base, "UTF-8");
+                JSONObject latestBase = githubApi("GET",
+                    "/repos/" + repository + "/git/ref/heads/" + encodedBase, null);
+                JSONObject latestBaseObject = latestBase.optJSONObject("object");
+                if (latestBaseObject == null || !expectedBaseSha.equals(latestBaseObject.optString("sha", ""))) {
+                    reportAntigravityToolOutcome("github_multi_base_conflict",
+                        "Nhánh đích đã thay đổi sau khi duyệt. BO hủy toàn bộ kế hoạch; hãy đọc lại và đề xuất lại.");
+                    runOnUiThread(() -> line("Nhánh đích thay đổi; đã hủy PR nhiều tệp.", 0xffffca70));
+                    return;
+                }
+                for (int i = 0; i < reviewed.length(); i++) {
+                    JSONObject item = reviewed.getJSONObject(i);
+                    String apiPath = "/repos/" + repository + "/contents/" + githubEncodedPath(item.getString("path"));
+                    JSONObject latestFile = githubApi("GET", apiPath + "?ref=" + encodedBase, null);
+                    if (!item.getString("sha").equals(latestFile.optString("sha", ""))) {
+                        reportAntigravityToolOutcome("github_multi_file_conflict",
+                            "Tệp " + item.getString("path") + " đã thay đổi sau khi duyệt. BO hủy trước khi tạo nhánh.");
+                        runOnUiThread(() -> line("Một tệp đã thay đổi; đã hủy kế hoạch nhiều tệp.", 0xffffca70));
+                        return;
+                    }
+                }
+                String verifiedBase = githubApi("GET",
+                    "/repos/" + repository + "/git/ref/heads/" + encodedBase, null)
+                    .optJSONObject("object").optString("sha", "");
+                if (!expectedBaseSha.equals(verifiedBase)) {
+                    reportAntigravityToolOutcome("github_multi_base_conflict",
+                        "Nhánh đích vừa thay đổi trong lúc kiểm tra cuối. Không tạo nhánh/PR.");
+                    return;
+                }
+                branchName = "bo-kali-ai/antigravity-multi-" + Long.toString(System.currentTimeMillis(), 36);
+                JSONObject refPayload = new JSONObject()
+                    .put("ref", "refs/heads/" + branchName).put("sha", expectedBaseSha);
+                githubApi("POST", "/repos/" + repository + "/git/refs", refPayload);
+                for (int i = 0; i < reviewed.length(); i++) {
+                    JSONObject item = reviewed.getJSONObject(i);
+                    String filePath = item.getString("path");
+                    String apiPath = "/repos/" + repository + "/contents/" + githubEncodedPath(filePath);
+                    JSONObject payload = new JSONObject()
+                        .put("message", summary + " (" + (i + 1) + "/" + reviewed.length() + ")")
+                        .put("content", android.util.Base64.encodeToString(
+                            item.getString("content").getBytes(StandardCharsets.UTF_8), android.util.Base64.NO_WRAP))
+                        .put("branch", branchName).put("sha", item.getString("sha"));
+                    JSONObject result = githubApi("PUT", apiPath, payload);
+                    JSONObject commit = result.optJSONObject("commit");
+                    if (commit != null) lastCommitSha = commit.optString("sha", lastCommitSha);
+                }
+                JSONObject prPayload = new JSONObject()
+                    .put("title", summary).put("head", branchName).put("base", base)
+                    .put("body", "Pull Request nhiều tệp được tạo từ BO Kali AI • Antigravity.\n\n"
+                        + "Số tệp: " + reviewed.length()
+                        + "\nHãy kiểm tra toàn bộ diff, chạy build/test và chỉ merge sau khi xác minh.");
+                JSONObject pr = githubApi("POST", "/repos/" + repository + "/pulls", prPayload);
+                int number = pr.optInt("number", 0);
+                String html = pr.optString("html_url", "");
+                final String createdBranch = branchName;
+                reportAntigravityToolOutcome("github_multi_pull_request_created",
+                    "Đã tạo Pull Request #" + number + " cho " + reviewed.length() + " tệp. Nhánh: "
+                        + createdBranch + (html.isEmpty() ? "" : ". URL: " + html)
+                        + (lastCommitSha.isEmpty() ? "" : ". Commit: " + lastCommitSha));
+                runOnUiThread(() -> line("Đã tạo PR #" + number + " cho " + reviewed.length()
+                    + " tệp • " + createdBranch + (html.isEmpty() ? "" : "\n" + html), GREEN));
+            } catch (Exception e) {
+                String partial = branchName.isEmpty() ? "" : " Nhánh riêng có thể đã có một phần commit: "
+                    + branchName + ". Không tạo PR tự động sau lỗi; hãy kiểm tra nhánh trước khi thử lại.";
+                reportAntigravityToolOutcome("github_multi_pull_request_failed",
+                    "Không hoàn tất PR nhiều tệp: " + e.getMessage() + partial);
+                runOnUiThread(() -> line("PR nhiều tệp thất bại: " + e.getMessage() + partial, 0xffff8080));
             }
         });
     }
