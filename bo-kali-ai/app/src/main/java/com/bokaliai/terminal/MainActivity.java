@@ -4279,11 +4279,12 @@ public class MainActivity extends Activity {
             return;
         }
         new AlertDialog.Builder(this).setTitle("GitHub • Workspace")
-            .setItems(new String[]{"Liệt kê repository", "Đọc tệp trong repository", "Tạo / cập nhật tệp (có xác nhận)", "Xem nhánh và lịch sử commit"}, (d, which) -> {
+            .setItems(new String[]{"Liệt kê repository", "Đọc tệp trong repository", "Tạo / cập nhật tệp (có xác nhận)", "Xem nhánh và lịch sử commit", "Tạo nhánh riêng + Pull Request"}, (d, which) -> {
                 if (which == 0) githubListRepos();
                 else if (which == 1) showGithubFileDialog(false);
                 else if (which == 2) showGithubFileDialog(true);
-                else showGithubRepoHistoryDialog();
+                else if (which == 3) showGithubRepoHistoryDialog();
+                else showGithubPullRequestDialog();
             }).setNegativeButton("ĐÓNG", null).show();
     }
 
@@ -4533,6 +4534,100 @@ public class MainActivity extends Activity {
                 if (write) confirmGithubWrite(repository, ref, path, body);
                 else githubReadFile(repository, ref, path);
             }).setNegativeButton("HỦY", null).show();
+    }
+
+    private void showGithubPullRequestDialog() {
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(1); form.setPadding(dp(8), dp(4), dp(8), dp(4));
+        EditText repository = input("owner/repository");
+        EditText base = input("Nhánh đích, ví dụ main"); base.setText("main");
+        EditText path = input("Đường dẫn tệp cần tạo/cập nhật");
+        EditText title = input("Tiêu đề Pull Request");
+        EditText content = new EditText(this);
+        content.setTextColor(WHITE); content.setHintTextColor(0xff91a9bd);
+        content.setGravity(Gravity.TOP | Gravity.START); content.setMinLines(8);
+        content.setHint("Dán nội dung tệp hoàn chỉnh đã được bạn xem xét...");
+        form.addView(repository); form.addView(base); form.addView(path); form.addView(title); form.addView(content);
+        new AlertDialog.Builder(this).setTitle("Tạo nhánh riêng + Pull Request")
+            .setMessage("Bạn có thể dán bản sửa do Codex/Antigravity đề xuất. BO sẽ tạo nhánh mới, commit tệp lên nhánh đó và mở Pull Request về nhánh đích. Không ghi trực tiếp vào main. Cần quyền Contents: Read and write và Pull requests: Read and write.")
+            .setView(form)
+            .setPositiveButton("TIẾP TỤC KIỂM TRA", (d, w) -> {
+                String repo = repository.getText().toString().trim();
+                String target = base.getText().toString().trim();
+                String file = path.getText().toString().trim();
+                String prTitle = title.getText().toString().trim();
+                String source = content.getText().toString();
+                String[] parts = repo.split("/");
+                if (parts.length != 2 || !parts[0].matches("[A-Za-z0-9_.-]+")
+                    || !parts[1].matches("[A-Za-z0-9_.-]+") || target.isEmpty()
+                    || file.isEmpty() || file.startsWith("/") || file.contains("..")
+                    || prTitle.isEmpty() || source.trim().isEmpty()) {
+                    line("Thiếu hoặc sai repository, nhánh đích, đường dẫn, tiêu đề hay nội dung.", 0xffffca70);
+                    return;
+                }
+                new AlertDialog.Builder(this).setTitle("Xác nhận tạo Pull Request")
+                    .setMessage("Repository: " + repo + "\nNhánh đích: " + target + "\nTệp: " + file
+                        + "\nDung lượng: " + source.getBytes(StandardCharsets.UTF_8).length + " bytes"
+                        + "\n\nBO sẽ tạo nhánh mới và Pull Request. Bạn cần tự kiểm tra diff và kết quả Actions trước khi merge.")
+                    .setPositiveButton("TẠO NHÁNH & PR", (confirm, which) ->
+                        githubCreateBranchAndPullRequest(repo, target, file, prTitle, source))
+                    .setNegativeButton("HỦY", null).show();
+            }).setNegativeButton("HỦY", null).show();
+    }
+
+    private void githubCreateBranchAndPullRequest(String repository, String base, String path,
+                                                   String title, String content) {
+        line("Đang tạo nhánh riêng trên GitHub...", GREEN);
+        worker.execute(() -> {
+            try {
+                String encodedBase = java.net.URLEncoder.encode(base, "UTF-8");
+                JSONObject baseRef = githubApi("GET", "/repos/" + repository + "/git/ref/heads/" + encodedBase, null);
+                JSONObject baseObject = baseRef.optJSONObject("object");
+                if (baseObject == null || baseObject.optString("sha").isEmpty())
+                    throw new IllegalStateException("Không lấy được SHA của nhánh đích.");
+                String baseSha = baseObject.optString("sha");
+                String suffix = Long.toString(System.currentTimeMillis(), 36);
+                String branchName = "bo-kali-ai/review-" + suffix;
+                JSONObject refPayload = new JSONObject();
+                refPayload.put("ref", "refs/heads/" + branchName);
+                refPayload.put("sha", baseSha);
+                githubApi("POST", "/repos/" + repository + "/git/refs", refPayload);
+
+                String apiPath = "/repos/" + repository + "/contents/" + githubEncodedPath(path);
+                String existingSha = null;
+                try {
+                    JSONObject current = githubApi("GET", apiPath + "?ref=" + java.net.URLEncoder.encode(branchName, "UTF-8"), null);
+                    existingSha = current.optString("sha", null);
+                } catch (Exception missing) {
+                    String message = missing.getMessage() == null ? "" : missing.getMessage();
+                    if (!message.contains("HTTP 404")) throw missing;
+                }
+                JSONObject filePayload = new JSONObject();
+                filePayload.put("message", "Update " + path + " via BO Kali AI review");
+                filePayload.put("content", android.util.Base64.encodeToString(content.getBytes(StandardCharsets.UTF_8), android.util.Base64.NO_WRAP));
+                filePayload.put("branch", branchName);
+                if (existingSha != null && !existingSha.isEmpty()) filePayload.put("sha", existingSha);
+                JSONObject fileResult = githubApi("PUT", apiPath, filePayload);
+                JSONObject commit = fileResult.optJSONObject("commit");
+                String commitSha = commit == null ? "" : commit.optString("sha", "");
+
+                JSONObject prPayload = new JSONObject();
+                prPayload.put("title", title);
+                prPayload.put("head", branchName);
+                prPayload.put("base", base);
+                prPayload.put("body", "Pull Request được tạo từ BO Kali AI.\\n\\nHãy kiểm tra toàn bộ diff, chạy build/test và chỉ merge sau khi xác minh.");
+                JSONObject pr = githubApi("POST", "/repos/" + repository + "/pulls", prPayload);
+                String html = pr.optString("html_url");
+                int number = pr.optInt("number", 0);
+                String report = "Đã tạo Pull Request #" + number + "\\nNhánh: " + branchName
+                    + (commitSha.isEmpty() ? "" : "\\nCommit: " + commitSha)
+                    + (html.isEmpty() ? "" : "\\n" + html);
+                runOnUiThread(() -> line(report, GREEN));
+            } catch (Exception e) {
+                runOnUiThread(() -> line("Tạo nhánh/Pull Request thất bại: " + e.getMessage()
+                    + "\\nNếu nhánh đã được tạo trước khi lỗi xảy ra, hãy kiểm tra GitHub để tránh tạo trùng.", 0xffff8080));
+            }
+        });
     }
 
     private String githubEncodedPath(String path) throws Exception {
