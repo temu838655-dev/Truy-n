@@ -25,6 +25,12 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         } else {
             String stdout = result.getString("stdout", "");
             String stderr = result.getString("stderr", "");
+            // Capture this compact marker before stdout is truncated for display.
+            String aiExecutionMarker = "";
+            java.util.regex.Matcher aiExecutionMatcher = java.util.regex.Pattern
+                .compile("BO_AI_EXEC_RESULT:([0-9a-fA-F-]{36}):(-?[0-9]+)")
+                .matcher(stdout);
+            if (aiExecutionMatcher.find()) aiExecutionMarker = aiExecutionMatcher.group();
             // Screenshot Base64 is decoded below; never copy its multi-megabyte payload
             // into the human-readable transcript builder.
             boolean screenshotPayload = stdout.startsWith("BO_SCREEN_BASE64:");
@@ -57,6 +63,10 @@ public class TermuxResultReceiver extends BroadcastReceiver {
             }
             if (stdout.isEmpty() && stderr.isEmpty() && errmsg.isEmpty()) {
                 output.append("Lệnh không tạo đầu ra. Kiểm tra mã thoát và thử lệnh khác nếu cần.\n");
+            }
+            // Preserve the execution marker even if the original stdout exceeded the display limit.
+            if (!aiExecutionMarker.isEmpty() && output.indexOf(aiExecutionMarker) < 0) {
+                output.append("\n").append(aiExecutionMarker).append("\n");
             }
         }
 
