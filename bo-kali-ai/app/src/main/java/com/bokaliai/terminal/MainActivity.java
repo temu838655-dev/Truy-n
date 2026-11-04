@@ -4231,12 +4231,12 @@ public class MainActivity extends Activity {
             "ro.build.version.release ro.build.version.sdk ro.product.cpu.abi ro.product.cpu.abilist " +
             "ro.bootloader ro.boot.bootloader ro.boot.slot_suffix ro.boot.verifiedbootstate " +
             "ro.boot.flash.locked ro.boot.vbmeta.device_state ro.crypto.state; do " +
-            "v=\$(getprop \"\$p\"); [ -n \"\$v\" ] && printf '%s=%s\\n' \"\$p\" \"\$v\"; done; " +
+            "v=$(getprop \"$p\"); [ -n \"$v\" ] && printf '%s=%s\\n' \"$p\" \"$v\"; done; " +
             "echo '=== KERNEL ==='; uname -a; " +
             "echo '=== CPU ==='; grep -m 8 -E '^(processor|Hardware|model name|CPU architecture|Features)' /proc/cpuinfo 2>/dev/null; " +
             "echo '=== SELINUX ==='; if command -v getenforce >/dev/null 2>&1; then getenforce; else echo 'getenforce unavailable'; fi; " +
             "echo '=== USER ==='; id; " +
-            "echo '=== STORAGE ==='; df -h \$HOME 2>/dev/null | tail -n 2; " +
+            "echo '=== STORAGE ==='; df -h $HOME 2>/dev/null | tail -n 2; " +
             "echo '=== END: no system changes made ==='";
         line("Đang thu thập thông tin phần cứng, kernel và trạng thái bootloader (chỉ đọc, không cần root)...", GREEN);
         runTermuxCommand(command);
