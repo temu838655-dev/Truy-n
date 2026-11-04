@@ -118,6 +118,9 @@ public class MainActivity extends Activity {
         Button deviceHub = button("TRUNG TÂM THIẾT BỊ ĐA NỀN TẢNG");
         deviceHub.setOnClickListener(v -> showUniversalDeviceHub());
         root.addView(deviceHub, new LinearLayout.LayoutParams(-1, dp(46)));
+        Button wifiLab = button("BO WI-FI SECURITY LAB • WIFITE");
+        wifiLab.setOnClickListener(v -> showWifiSecurityLab());
+        root.addView(wifiLab, new LinearLayout.LayoutParams(-1, dp(46)));
         Button routerWifi = button("KẾT NỐI MODEM / ROUTER WI-FI");
         routerWifi.setOnClickListener(v -> showWifiRouterManager());
         root.addView(routerWifi, new LinearLayout.LayoutParams(-1, dp(46)));
@@ -236,6 +239,53 @@ public class MainActivity extends Activity {
         }
     }
 
+
+    // Dedicated Wi-Fi security workspace. It installs/checks the official Wifite package
+    // and reports hardware capabilities; it does not launch password attacks.
+    private void showWifiSecurityLab() {
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(1);
+        page.setPadding(18, 18, 18, 18);
+        page.setBackgroundColor(BG);
+        TextView heading = text("BO WI-FI SECURITY LAB", GREEN, 20, true);
+        page.addView(heading);
+        page.addView(text("WIFITE · KALI NETHUNTER ROOTLESS · HARDWARE CHECK", 0xff91a9bd, 11, true));
+        TextView info = text("Không phải mọi điện thoại đều hỗ trợ monitor mode hoặc packet injection. NetHunter Rootless không tự cấp driver hay quyền phần cứng. Module này cài gói Wifite chính thức và kiểm tra khả năng tương thích; không tự động thử mật khẩu hoặc tấn công mạng.", WHITE, 13, false);
+        info.setPadding(0, dp(12), 0, dp(12));
+        page.addView(info);
+        Button check = button("KIỂM TRA WIFITE / CARD / MONITOR MODE");
+        check.setOnClickListener(v -> {
+            String cmd = "echo '=== WIFITE ==='; command -v wifite || echo 'Wifite chưa cài'; "
+                + "wifite --version 2>&1 | head -n 3; "
+                + "echo '=== WIFI INTERFACES ==='; command -v iw >/dev/null 2>&1 && iw dev 2>&1 || echo 'iw chưa cài'; "
+                + "echo '=== MONITOR / INJECTION CAPABILITY (DRIVER REPORT) ==='; "
+                + "command -v iw >/dev/null 2>&1 && iw list 2>/dev/null | grep -A 12 -E 'Supported interface modes|valid interface combinations' | head -n 30; "
+                + "echo '=== USB WIFI ADAPTERS ==='; command -v lsusb >/dev/null 2>&1 && lsusb || echo 'Chưa có usbutils'; "
+                + "echo '=== ENVIRONMENT ==='; id; uname -a";
+            runKaliCommand(cmd);
+        });
+        page.addView(check, new LinearLayout.LayoutParams(-1, dp(48)));
+        Button install = button("CÀI WIFITE + CÔNG CỤ CHẨN ĐOÁN");
+        install.setOnClickListener(v -> new AlertDialog.Builder(this)
+            .setTitle("Cài Wifite chính thức trong Kali")
+            .setMessage("Sẽ cập nhật danh sách gói và cài wifite, iw, wireless-tools, usbutils trong Kali Rootless. Việc cài đặt không bật monitor mode và không chạy kiểm thử tấn công. Tiếp tục?")
+            .setPositiveButton("CÀI ĐẶT", (d, w) -> runKaliCommand("apt update && apt install -y wifite iw wireless-tools usbutils"))
+            .setNegativeButton("HỦY", null).show());
+        page.addView(install, new LinearLayout.LayoutParams(-1, dp(48)));
+        Button shell = button("MỞ KALI SHELL");
+        shell.setOnClickListener(v -> runKaliDirectly());
+        page.addView(shell, new LinearLayout.LayoutParams(-1, dp(46)));
+        Button guide = button("HƯỚNG DẪN TƯƠNG THÍCH PHẦN CỨNG");
+        guide.setOnClickListener(v -> new AlertDialog.Builder(this)
+            .setTitle("Yêu cầu phần cứng Wi-Fi")
+            .setMessage("• Wi-Fi tích hợp trên điện thoại thường không hỗ trợ monitor mode/injection qua Android Rootless.\\n\\n• Có thể cần USB Wi-Fi OTG tương thích chipset, driver Linux phù hợp và cấp nguồn OTG ổn định.\\n\\n• Chỉ kiểm thử thiết bị/mạng thuộc quyền quản lý hoặc có văn bản ủy quyền.\\n\\n• Nếu iw không liệt kê monitor mode thì Wifite không thể tự khắc phục bằng phần mềm.")
+            .setPositiveButton("ĐÃ HIỂU", null).show());
+        page.addView(guide, new LinearLayout.LayoutParams(-1, dp(46)));
+        Button back = button("← QUAY LẠI BO KALI AI");
+        back.setOnClickListener(v -> buildUi());
+        page.addView(back, new LinearLayout.LayoutParams(-1, dp(46)));
+        setContentView(page);
+    }
 
     // Router management starts from the active Wi-Fi DHCP gateway. It never guesses
     // credentials or attempts to bypass the router's administrator authentication.
