@@ -3409,8 +3409,9 @@ public class MainActivity extends Activity {
                 : "openai".equals(provider) ? "OpenAI"
                 : "gemini".equals(provider) ? "Gemini"
                 : "claude".equals(provider) ? "Claude" : "OpenAI Codex";
+            final String effectiveRisk = risk;
             String message = "AI: " + providerName + "\nThiết bị: " + serial + "\nQuyền: " + scope
-                + "\nRủi ro AI tự đánh giá: " + risk + "\n\nLệnh trên thiết bị:\n" + command
+                + "\nRủi ro AI tự đánh giá: " + effectiveRisk + "\n\nLệnh trên thiết bị:\n" + command
                 + "\n\nLý do: " + reason + "\n\nBO chưa chạy lệnh.";
             new AlertDialog.Builder(this).setTitle("Xem xét kế hoạch ADB do AI đề xuất")
                 .setMessage(message).setPositiveButton("XÁC NHẬN & CHẠY", (d, w) -> {
@@ -3419,7 +3420,7 @@ public class MainActivity extends Activity {
                         reportAiProposalOutcome(provider, "rejected_before_execution", "Thiết bị đã ngắt hoặc quyền bị thu hồi trước khi chạy.");
                         return;
                     }
-                    if ("HIGH".equals(risk)) {
+                    if ("HIGH".equals(effectiveRisk)) {
                         new AlertDialog.Builder(this).setTitle("Lệnh có rủi ro cao")
                             .setMessage("Bạn đã xem lệnh và AI đánh giá rủi ro cao. Xác nhận lần cuối?\n\n" + command)
                             .setPositiveButton("TÔI HIỂU, CHẠY", (x, y) -> executeAiAdbCommand(serial, scope, command, provider))
