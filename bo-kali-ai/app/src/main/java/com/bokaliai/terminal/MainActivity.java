@@ -980,14 +980,14 @@ public class MainActivity extends Activity {
                     report.append(id).append(" · ").append(state);
                     if (!friendly.isEmpty() && !friendly.equals(id))
                         report.append(" · ").append(friendly);
-                    report.append("\\n");
+                    report.append("\n");
                 }
                 final String result = report.length() == 0
                     ? "Không tìm thấy entity." : report.toString();
                 final int total = entities.length();
                 runOnUiThread(() -> new AlertDialog.Builder(this)
                     .setTitle("HOME ASSISTANT · ENTITIES (" + total + ")")
-                    .setMessage(result + (total > count ? "\\n… và " + (total - count) + " entity khác." : ""))
+                    .setMessage(result + (total > count ? "\n… và " + (total - count) + " entity khác." : ""))
                     .setPositiveButton("ĐÓNG", null)
                     .setNeutralButton("SAO CHÉP", (dialog, which) ->
                         copyText(result, "Đã sao chép danh sách entity hiển thị."))
