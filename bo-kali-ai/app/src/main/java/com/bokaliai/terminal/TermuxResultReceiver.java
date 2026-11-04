@@ -11,6 +11,7 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         Bundle result = intent == null ? null : intent.getBundleExtra("result");
         StringBuilder output = new StringBuilder();
         int exitCode = -1;
+        boolean screenCaptureSaved = false;
 
         if (result == null) {
             output.append("Termux không trả về gói kết quả. Có thể lệnh chưa chạy, Termux quá cũ hoặc quyền RUN_COMMAND chưa được cấp.\n");
@@ -35,6 +36,34 @@ public class TermuxResultReceiver extends BroadcastReceiver {
             }
             if (stdout.isEmpty() && stderr.isEmpty() && errmsg.isEmpty()) {
                 output.append("Lệnh không tạo đầu ra. Kiểm tra mã thoát và thử lệnh khác nếu cần.\n");
+            }
+        }
+
+        // ADB screenshot payload is explicitly marked; decode it to app-private storage instead of
+        // forwarding a huge Base64 string through the activity transcript.
+        if (result != null) {
+            String stdout = result.getString("stdout", "");
+            final String prefix = "BO_SCREEN_BASE64:";
+            if (stdout.startsWith(prefix)) {
+                String encoded = stdout.substring(prefix.length()).trim();
+                try {
+                    if (encoded.length() > 8_000_000) throw new IllegalArgumentException("Ảnh vượt giới hạn 6 MB.");
+                    byte[] png = android.util.Base64.decode(encoded, android.util.Base64.DEFAULT);
+                    if (png.length < 8 || png.length > 6 * 1024 * 1024
+                        || png[0] != (byte) 0x89 || png[1] != 0x50 || png[2] != 0x4e || png[3] != 0x47) {
+                        throw new IllegalArgumentException("Dữ liệu không phải ảnh PNG hợp lệ hoặc ảnh quá lớn.");
+                    }
+                    try (java.io.FileOutputStream stream = context.openFileOutput("adb_screen.png", Context.MODE_PRIVATE)) {
+                        stream.write(png);
+                        stream.flush();
+                    }
+                    screenCaptureSaved = true;
+                    output.setLength(0);
+                    output.append("Đã nhận ảnh chụp màn hình ADB (").append(png.length).append(" byte).");
+                } catch (Exception e) {
+                    output.setLength(0);
+                    output.append("Không giải mã được ảnh màn hình: ").append(e.getMessage());
+                }
             }
         }
 
@@ -70,13 +99,15 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         Intent show = new Intent(context, MainActivity.class);
         show.setAction("com.bokaliai.terminal.TERMUX_RESULT");
         show.putExtra("termux_output", output.toString());
+        show.putExtra("bo_screen_capture", screenCaptureSaved);
         show.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         try {
             context.startActivity(show);
         } catch (Exception ignored) {
             // Android may prevent background UI launches; the result is stored for the next foreground opening.
             context.getSharedPreferences("bo_kali_results", Context.MODE_PRIVATE)
-                .edit().putString("pending_output", output.toString()).apply();
+                .edit().putString("pending_output", output.toString())
+                .putBoolean("pending_screen_capture", screenCaptureSaved).apply();
         }
     }
 }
