@@ -181,8 +181,10 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             byte[] initialSession = new byte[12];
             input.readFully(initialSession);
             ByteBuffer initialHeader = ByteBuffer.wrap(initialSession).order(ByteOrder.BIG_ENDIAN);
-            long initialFlags = initialHeader.getLong();
-            if ((initialFlags & FLAG_SESSION) == 0) {
+            // scrcpy v4.0 session header is exactly 12 bytes:
+            // 4-byte flags/padding, 4-byte width, then 4-byte height.
+            int initialFlags = initialHeader.getInt();
+            if ((initialFlags & 0x80000000) == 0) {
                 throw new IOException("Thiếu gói khởi tạo phiên video scrcpy");
             }
             int width = initialHeader.getInt();
