@@ -2855,7 +2855,7 @@ public class MainActivity extends Activity {
             "disable-user", "disable ", "resetprop", "mount ", "umount "};
         for (String token : blocked) if (lower.contains(token)) return false;
         if ("READ_INFO".equals(scope))
-            return lower.matches("^(getprop|df|uptime|uname|dumpsys battery|dumpsys display|ip addr|cat /proc/(meminfo|uptime|cpuinfo))(\\\\s.*)?$");
+            return lower.matches("^(getprop|df|uptime|uname|dumpsys battery|dumpsys display|ip addr|cat /proc/(meminfo|uptime|cpuinfo))(\\s.*)?$");
         if ("READ_LOGS".equals(scope))
             return lower.matches("^(logcat|dumpsys)(\\\\s.*)?$");
         if ("APP_LIST".equals(scope))
@@ -2895,7 +2895,7 @@ public class MainActivity extends Activity {
                 || command.contains("\n") || command.contains("\r") || command.contains(";")
                 || command.contains("&") || command.contains("|") || command.contains("<")
                 || command.contains(">") || command.contains("$") || command.indexOf(96) >= 0
-                || command.contains("\\\\") || command.contains("'") || command.contains("\\\"")
+                || command.contains("\\") || command.contains("'") || command.contains("\"")
                 || command.contains("adb ") || command.startsWith("adb")
                 || !isAiCommandAllowedForScope(scope, command)) {
                 line("Kế hoạch AI bị từ chối: lệnh không khớp quyền, chứa cú pháp shell hoặc thuộc nhóm thao tác bị chặn.", 0xffff8080); return;
