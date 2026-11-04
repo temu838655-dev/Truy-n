@@ -69,6 +69,8 @@ public class MainActivity extends Activity {
     private Runnable adbResolveTimeout;
     private NsdManager.DiscoveryListener adbDiscoveryListener;
     private NsdManager.DiscoveryListener adbPairingDiscoveryListener;
+    private Runnable adbDiscoveryTimeout;
+    private Runnable adbPairingDiscoveryTimeout;
     private boolean adbPairingScanActive = false;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean adbScanActive = false;
@@ -1252,12 +1254,20 @@ public class MainActivity extends Activity {
     }
 
     private void stopAdbServiceScans() {
+        NsdManager.DiscoveryListener connectListener = adbDiscoveryListener;
+        NsdManager.DiscoveryListener pairingListener = adbPairingDiscoveryListener;
+        adbDiscoveryListener = null;
+        adbPairingDiscoveryListener = null;
+        if (adbDiscoveryTimeout != null) mainHandler.removeCallbacks(adbDiscoveryTimeout);
+        if (adbPairingDiscoveryTimeout != null) mainHandler.removeCallbacks(adbPairingDiscoveryTimeout);
+        adbDiscoveryTimeout = null;
+        adbPairingDiscoveryTimeout = null;
         if (nsdManager != null) {
-            if (adbDiscoveryListener != null) {
-                try { nsdManager.stopServiceDiscovery(adbDiscoveryListener); } catch (Exception ignored) { }
+            if (connectListener != null) {
+                try { nsdManager.stopServiceDiscovery(connectListener); } catch (Exception ignored) { }
             }
-            if (adbPairingDiscoveryListener != null) {
-                try { nsdManager.stopServiceDiscovery(adbPairingDiscoveryListener); } catch (Exception ignored) { }
+            if (pairingListener != null) {
+                try { nsdManager.stopServiceDiscovery(pairingListener); } catch (Exception ignored) { }
             }
         }
         adbScanActive = false;
@@ -1273,25 +1283,83 @@ public class MainActivity extends Activity {
     }
 
     private void scanAdbPairingServices() {
-        if (adbPairingScanActive || adbScanActive || adbResolveInFlight || !adbResolveQueue.isEmpty()) { line("Đang có một lượt quét/phân giải ADB khác. Hãy đợi lượt đó kết thúc.", 0xffffca70); return; }
+        if (adbPairingScanActive || adbScanActive || adbResolveInFlight || !adbResolveQueue.isEmpty()) {
+            line("Đang có một lượt quét/phân giải ADB khác. Hãy đợi lượt đó kết thúc.", 0xffffca70);
+            return;
+        }
         adbResolveQueuedKeys.clear();
         nsdManager = (NsdManager) getSystemService(Context.NSD_SERVICE);
         if (nsdManager == null) { line("Thiết bị không hỗ trợ Network Service Discovery.", 0xffff8080); return; }
         adbPairingScanActive = true;
         acquireHubMulticastLock();
         line("Đang tìm dịch vụ ADB pairing trên mạng Wi-Fi...", GREEN);
-        adbPairingDiscoveryListener = new NsdManager.DiscoveryListener() {
-            @Override public void onDiscoveryStarted(String type) { line("Đang quét " + type, 0xff79c9ff); }
-            @Override public void onServiceFound(NsdServiceInfo service) { enqueueAdbServiceResolve(service, true); }
-            @Override public void onServiceLost(NsdServiceInfo service) { line("Dịch vụ pairing đã ngừng quảng bá: " + service.getServiceName(), 0xffffca70); }
-            @Override public void onStartDiscoveryFailed(String type, int error) { adbPairingScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} releaseHubMulticastLock(); line("Quét pairing thất bại, mã " + error, 0xffff8080); }
-            @Override public void onStopDiscoveryFailed(String type, int error) { adbPairingScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} releaseHubMulticastLock(); }
-            @Override public void onDiscoveryStopped(String type) { adbPairingScanActive = false; releaseHubMulticastLock(); line("Đã kết thúc quét cổng pairing.", GREEN); }
+        final NsdManager.DiscoveryListener listener = new NsdManager.DiscoveryListener() {
+            @Override public void onDiscoveryStarted(String type) {
+                if (adbPairingDiscoveryListener == this) line("Đang quét " + type, 0xff79c9ff);
+            }
+            @Override public void onServiceFound(NsdServiceInfo service) {
+                if (adbPairingDiscoveryListener == this && adbPairingScanActive) enqueueAdbServiceResolve(service, true);
+            }
+            @Override public void onServiceLost(NsdServiceInfo service) {
+                if (adbPairingDiscoveryListener == this) line("Dịch vụ pairing đã ngừng quảng bá: " + service.getServiceName(), 0xffffca70);
+            }
+            @Override public void onStartDiscoveryFailed(String type, int error) {
+                if (adbPairingDiscoveryListener != this) return;
+                adbPairingScanActive = false;
+                if (adbPairingDiscoveryTimeout != null) mainHandler.removeCallbacks(adbPairingDiscoveryTimeout);
+                adbPairingDiscoveryTimeout = null;
+                adbPairingDiscoveryListener = null;
+                try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) { }
+                releaseHubMulticastLock();
+                line("Quét pairing thất bại, mã " + error, 0xffff8080);
+            }
+            @Override public void onStopDiscoveryFailed(String type, int error) {
+                if (adbPairingDiscoveryListener != this) return;
+                adbPairingScanActive = false;
+                if (adbPairingDiscoveryTimeout != null) mainHandler.removeCallbacks(adbPairingDiscoveryTimeout);
+                adbPairingDiscoveryTimeout = null;
+                adbPairingDiscoveryListener = null;
+                try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) { }
+                releaseHubMulticastLock();
+                line("Không dừng được lượt quét pairing bình thường, mã " + error, 0xffffca70);
+            }
+            @Override public void onDiscoveryStopped(String type) {
+                if (adbPairingDiscoveryListener != this) return;
+                adbPairingScanActive = false;
+                if (adbPairingDiscoveryTimeout != null) mainHandler.removeCallbacks(adbPairingDiscoveryTimeout);
+                adbPairingDiscoveryTimeout = null;
+                adbPairingDiscoveryListener = null;
+                releaseHubMulticastLock();
+                line("Đã kết thúc quét cổng pairing.", GREEN);
+            }
         };
+        adbPairingDiscoveryListener = listener;
         try {
-            nsdManager.discoverServices("_adb-tls-pairing._tcp.", NsdManager.PROTOCOL_DNS_SD, adbPairingDiscoveryListener);
-            mainHandler.postDelayed(() -> { if (adbPairingScanActive && adbPairingDiscoveryListener != null) { try { nsdManager.stopServiceDiscovery(adbPairingDiscoveryListener); } catch (Exception ignored) { adbPairingScanActive = false; releaseHubMulticastLock(); } } }, 12000);
-        } catch (Exception e) { adbPairingScanActive = false; releaseHubMulticastLock(); line("Lỗi quét pairing: " + e.getMessage(), 0xffff8080); }
+            nsdManager.discoverServices("_adb-tls-pairing._tcp.", NsdManager.PROTOCOL_DNS_SD, listener);
+            adbPairingDiscoveryTimeout = () -> {
+                if (!adbPairingScanActive || adbPairingDiscoveryListener != listener) return;
+                adbPairingDiscoveryTimeout = null;
+                try { nsdManager.stopServiceDiscovery(listener); }
+                catch (Exception error) {
+                    if (adbPairingDiscoveryListener == listener) {
+                        adbPairingScanActive = false;
+                        adbPairingDiscoveryListener = null;
+                        releaseHubMulticastLock();
+                        line("Không thể kết thúc lượt quét pairing: " + error.getMessage(), 0xffffca70);
+                    }
+                }
+            };
+            mainHandler.postDelayed(adbPairingDiscoveryTimeout, 12000L);
+        } catch (Exception e) {
+            if (adbPairingDiscoveryListener == listener) {
+                adbPairingScanActive = false;
+                adbPairingDiscoveryListener = null;
+            }
+            if (adbPairingDiscoveryTimeout != null) mainHandler.removeCallbacks(adbPairingDiscoveryTimeout);
+            adbPairingDiscoveryTimeout = null;
+            releaseHubMulticastLock();
+            line("Lỗi quét pairing: " + e.getMessage(), 0xffff8080);
+        }
     }
 
     // Read-only diagnostics for ADB's mDNS stack and discovered service endpoints.
@@ -1308,7 +1376,10 @@ public class MainActivity extends Activity {
 
     // Discovers Wireless Debugging endpoints; discovery alone does not pair or authenticate.
     private void scanAdbServices() {
-        if (adbScanActive || adbPairingScanActive || adbResolveInFlight || !adbResolveQueue.isEmpty()) { line("Đang có một lượt quét/phân giải ADB khác. Hãy đợi lượt đó kết thúc.", 0xffffca70); return; }
+        if (adbScanActive || adbPairingScanActive || adbResolveInFlight || !adbResolveQueue.isEmpty()) {
+            line("Đang có một lượt quét/phân giải ADB khác. Hãy đợi lượt đó kết thúc.", 0xffffca70);
+            return;
+        }
         adbResolveQueuedKeys.clear();
         nsdManager = (NsdManager) getSystemService(Context.NSD_SERVICE);
         if (nsdManager == null) { line("Thiết bị không hỗ trợ Network Service Discovery.", 0xffff8080); return; }
@@ -1316,20 +1387,74 @@ public class MainActivity extends Activity {
         acquireHubMulticastLock();
         line("Đang tìm Wireless debugging trên cùng mạng Wi-Fi...", GREEN);
         line("Tìm thấy endpoint chưa có nghĩa là đã ghép đôi.", 0xffffca70);
-        adbDiscoveryListener = new NsdManager.DiscoveryListener() {
-            @Override public void onDiscoveryStarted(String type) { line("Đang quét " + type, 0xff79c9ff); }
-            @Override public void onServiceFound(NsdServiceInfo service) { enqueueAdbServiceResolve(service, false); }
-            @Override public void onServiceLost(NsdServiceInfo service) { line("Mất dịch vụ: " + service.getServiceName(), 0xffffca70); }
-            @Override public void onStartDiscoveryFailed(String type, int error) { adbScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} releaseHubMulticastLock(); line("Quét ADB thất bại, mã " + error, 0xffff8080); }
-            @Override public void onStopDiscoveryFailed(String type, int error) { adbScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} releaseHubMulticastLock(); }
-            @Override public void onDiscoveryStopped(String type) { adbScanActive = false; releaseHubMulticastLock(); line("Đã kết thúc quét ADB.", GREEN); }
+        final NsdManager.DiscoveryListener listener = new NsdManager.DiscoveryListener() {
+            @Override public void onDiscoveryStarted(String type) {
+                if (adbDiscoveryListener == this) line("Đang quét " + type, 0xff79c9ff);
+            }
+            @Override public void onServiceFound(NsdServiceInfo service) {
+                if (adbDiscoveryListener == this && adbScanActive) enqueueAdbServiceResolve(service, false);
+            }
+            @Override public void onServiceLost(NsdServiceInfo service) {
+                if (adbDiscoveryListener == this) line("Mất dịch vụ: " + service.getServiceName(), 0xffffca70);
+            }
+            @Override public void onStartDiscoveryFailed(String type, int error) {
+                if (adbDiscoveryListener != this) return;
+                adbScanActive = false;
+                if (adbDiscoveryTimeout != null) mainHandler.removeCallbacks(adbDiscoveryTimeout);
+                adbDiscoveryTimeout = null;
+                adbDiscoveryListener = null;
+                try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) { }
+                releaseHubMulticastLock();
+                line("Quét ADB thất bại, mã " + error, 0xffff8080);
+            }
+            @Override public void onStopDiscoveryFailed(String type, int error) {
+                if (adbDiscoveryListener != this) return;
+                adbScanActive = false;
+                if (adbDiscoveryTimeout != null) mainHandler.removeCallbacks(adbDiscoveryTimeout);
+                adbDiscoveryTimeout = null;
+                adbDiscoveryListener = null;
+                try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) { }
+                releaseHubMulticastLock();
+                line("Không dừng được lượt quét ADB bình thường, mã " + error, 0xffffca70);
+            }
+            @Override public void onDiscoveryStopped(String type) {
+                if (adbDiscoveryListener != this) return;
+                adbScanActive = false;
+                if (adbDiscoveryTimeout != null) mainHandler.removeCallbacks(adbDiscoveryTimeout);
+                adbDiscoveryTimeout = null;
+                adbDiscoveryListener = null;
+                releaseHubMulticastLock();
+                line("Đã kết thúc quét ADB.", GREEN);
+            }
         };
+        adbDiscoveryListener = listener;
         try {
-            nsdManager.discoverServices("_adb-tls-connect._tcp.", NsdManager.PROTOCOL_DNS_SD, adbDiscoveryListener);
-            mainHandler.postDelayed(() -> { if (adbScanActive && adbDiscoveryListener != null) { try { nsdManager.stopServiceDiscovery(adbDiscoveryListener); } catch (Exception ignored) { adbScanActive = false; releaseHubMulticastLock(); } } }, 12000);
-        } catch (Exception e) { adbScanActive = false; releaseHubMulticastLock(); line("Lỗi quét ADB: " + e.getMessage(), 0xffff8080); }
+            nsdManager.discoverServices("_adb-tls-connect._tcp.", NsdManager.PROTOCOL_DNS_SD, listener);
+            adbDiscoveryTimeout = () -> {
+                if (!adbScanActive || adbDiscoveryListener != listener) return;
+                adbDiscoveryTimeout = null;
+                try { nsdManager.stopServiceDiscovery(listener); }
+                catch (Exception error) {
+                    if (adbDiscoveryListener == listener) {
+                        adbScanActive = false;
+                        adbDiscoveryListener = null;
+                        releaseHubMulticastLock();
+                        line("Không thể kết thúc lượt quét ADB: " + error.getMessage(), 0xffffca70);
+                    }
+                }
+            };
+            mainHandler.postDelayed(adbDiscoveryTimeout, 12000L);
+        } catch (Exception e) {
+            if (adbDiscoveryListener == listener) {
+                adbScanActive = false;
+                adbDiscoveryListener = null;
+            }
+            if (adbDiscoveryTimeout != null) mainHandler.removeCallbacks(adbDiscoveryTimeout);
+            adbDiscoveryTimeout = null;
+            releaseHubMulticastLock();
+            line("Lỗi quét ADB: " + e.getMessage(), 0xffff8080);
+        }
     }
-
 
     private void showUpdateManager() {
         String[] choices = {
