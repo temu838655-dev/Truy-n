@@ -212,6 +212,9 @@ public class MainActivity extends Activity {
             .setMessage("BO Kali AI sẽ tải máy chủ scrcpy chính thức từ GitHub, khởi chạy tạm thời trên thiết bị đã kết nối và truyền hình ảnh cùng thao tác chạm qua ADB. Chỉ tiếp tục khi bạn sở hữu thiết bị hoặc có sự đồng ý của chủ thiết bị.")
             .setPositiveButton("BẮT ĐẦU", (d, w) -> {
                 activeMirrorSerial = serial;
+                startAdbKeepAlive(serial);
+                getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE).edit()
+                    .putString("active_serial", serial).putBoolean("keep_alive", true).apply();
                 if (activeMirrorView != null) activeMirrorView.setStatus("Đang chuẩn bị máy chủ truyền màn hình...");
                 String serverHash = "84924bd564a1eb6089c872c7521f968058977f91f5ff02514a8c74aff3210f3a";
                 String serverUrl = "https://github.com/Genymobile/scrcpy/releases/download/v4.0/scrcpy-server-v4.0";
@@ -234,8 +237,25 @@ public class MainActivity extends Activity {
             .setNegativeButton("HỦY", null).show();
     }
 
+    private void startAdbKeepAlive(String serial) {
+        Intent keepAlive = new Intent(this, AdbKeepAliveService.class);
+        keepAlive.setAction(AdbKeepAliveService.ACTION_START);
+        keepAlive.putExtra(AdbKeepAliveService.EXTRA_SERIAL, serial);
+        if (Build.VERSION.SDK_INT >= 26) startForegroundService(keepAlive);
+        else startService(keepAlive);
+    }
+
+    private void stopAdbKeepAlive() {
+        Intent keepAlive = new Intent(this, AdbKeepAliveService.class);
+        keepAlive.setAction(AdbKeepAliveService.ACTION_STOP);
+        startService(keepAlive);
+    }
+
     private void stopAdbMirror(String serial) {
         if (activeMirrorView != null) activeMirrorView.stop();
+        getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE).edit()
+            .putBoolean("keep_alive", false).remove("active_serial").apply();
+        stopAdbKeepAlive();
         if (serial != null && !serial.isEmpty()) {
             runTermuxCommand("adb -s " + shellQuote(serial) + " forward --remove tcp:27183 >/dev/null 2>&1 || true");
         }
