@@ -864,18 +864,47 @@ public class MainActivity extends Activity {
     }
 
     private void showDeviceProfileActions(DeviceHubProfile profile) {
-        String[] actions = {"KẾT NỐI", "XÓA PROFILE", "HỦY"};
+        boolean isHomeAssistant = DeviceHubProfile.HOME_ASSISTANT.equals(profile.platform);
+        String[] actions = isHomeAssistant
+            ? new String[]{"MỞ GIAO DIỆN", "LƯU / THAY TOKEN API", "XÓA TOKEN API", "XÓA PROFILE", "HỦY"}
+            : new String[]{"KẾT NỐI", "XÓA PROFILE", "HỦY"};
         new AlertDialog.Builder(this).setTitle(profile.name)
             .setItems(actions, (d, which) -> {
-                if (which == 0) connectDeviceProfile(profile);
-                else if (which == 1) new AlertDialog.Builder(this)
-                    .setTitle("Xóa profile?")
-                    .setMessage("Chỉ xóa thông tin kết nối đã lưu trong BO Kali AI. Không xóa dữ liệu trên thiết bị.")
-                    .setPositiveButton("XÓA", (x, y) -> {
-                        DeviceHubProfile.delete(this, profile.id);
-                        line("Đã xóa profile " + profile.name + ".", GREEN);
-                        showUniversalDeviceHub();
-                    }).setNegativeButton("HỦY", null).show();
+                if (isHomeAssistant && which == 1) {
+                    EditText tokenInput = input("Long-Lived Access Token");
+                    tokenInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+                    new AlertDialog.Builder(this).setTitle("TOKEN HOME ASSISTANT")
+                        .setMessage("Token được mã hóa cục bộ bằng AES-GCM và khóa Android Keystore. Không chia sẻ token hoặc đưa token lên GitHub.")
+                        .setView(tokenInput)
+                        .setPositiveButton("LƯU AN TOÀN", (x, y) -> {
+                            String token = tokenInput.getText().toString().trim();
+                            if (token.length() < 20 || token.length() > 8192 || token.indexOf('\\n') >= 0) {
+                                line("Token không hợp lệ hoặc vượt giới hạn.", 0xffff8080);
+                                return;
+                            }
+                            try {
+                                HomeAssistantTokenStore.save(this, profile.id, token);
+                                line("Đã lưu token mã hóa cho " + profile.name + ".", GREEN);
+                            } catch (Exception error) {
+                                line("Không lưu được token: " + error.getMessage(), 0xffff8080);
+                            }
+                        }).setNegativeButton("HỦY", null).show();
+                } else if (isHomeAssistant && which == 2) {
+                    HomeAssistantTokenStore.delete(this, profile.id);
+                    line("Đã xóa token API của " + profile.name + ".", GREEN);
+                } else if ((isHomeAssistant && which == 3) || (!isHomeAssistant && which == 1)) {
+                    new AlertDialog.Builder(this)
+                        .setTitle("Xóa profile?")
+                        .setMessage("Chỉ xóa thông tin kết nối đã lưu trong BO Kali AI. Không xóa dữ liệu trên thiết bị.")
+                        .setPositiveButton("XÓA", (x, y) -> {
+                            if (isHomeAssistant) HomeAssistantTokenStore.delete(this, profile.id);
+                            DeviceHubProfile.delete(this, profile.id);
+                            line("Đã xóa profile " + profile.name + ".", GREEN);
+                            showUniversalDeviceHub();
+                        }).setNegativeButton("HỦY", null).show();
+                } else if (which == 0) {
+                    connectDeviceProfile(profile);
+                }
             }).show();
     }
 
