@@ -139,16 +139,19 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             }
             setStatus("Đã kết nối · Đang truyền màn hình trực tiếp");
             Socket videoStream = video;
-            decoderExecutor.execute(() -> decodeVideo(videoStream));
+            Socket controlStream = control;
+            decoderExecutor.execute(() -> decodeVideo(videoStream, controlStream));
         } catch (Exception error) {
             closeQuietly(video);
             closeQuietly(control);
-            stopSockets();
+            if (videoSocket == video) videoSocket = null;
+            if (controlSocket == control) controlSocket = null;
+            if (controlSocket == null) controlOutput = null;
             if (running.get()) setStatus("Không mở được luồng scrcpy: " + safeMessage(error));
         }
     }
 
-    private void decodeVideo(Socket socket) {
+    private void decodeVideo(Socket socket, Socket sessionControlSocket) {
         MediaCodec codec = null;
         try {
             DataInputStream input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 256 * 1024));
@@ -222,7 +225,13 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
                 try { codec.release(); } catch (Exception ignored) { }
             }
             if (decoder == codec) decoder = null;
-            stopSockets();
+            closeQuietly(socket);
+            closeQuietly(sessionControlSocket);
+            if (videoSocket == socket) videoSocket = null;
+            if (controlSocket == sessionControlSocket) {
+                controlSocket = null;
+                controlOutput = null;
+            }
         }
     }
 
