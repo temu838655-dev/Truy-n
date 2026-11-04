@@ -35,7 +35,7 @@ public class TermuxResultReceiver extends BroadcastReceiver {
             if (aiExecutionMatcher.find()) aiExecutionMarker = aiExecutionMatcher.group();
             String aiPlanMarker = "";
             java.util.regex.Matcher aiPlanMatcher = java.util.regex.Pattern
-                .compile("(?m)^BO_AI_PLAN:([0-9a-fA-F-]{36}):(\\\\{[^\\\\r\\\\n]{1,5000}\\\\})\\\\s*$")
+                .compile("(?m)^BO_AI_PLAN:([0-9a-fA-F-]{36}):(\\{[^\\r\\n]{1,5000}\\})\\s*$")
                 .matcher(stdout);
             if (aiPlanMatcher.find()) aiPlanMarker = aiPlanMatcher.group();
             // Screenshot Base64 is decoded below; never copy its multi-megabyte payload
