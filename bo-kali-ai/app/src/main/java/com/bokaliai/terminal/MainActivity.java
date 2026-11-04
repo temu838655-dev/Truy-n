@@ -4893,7 +4893,7 @@ public class MainActivity extends Activity {
                     conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("POST");
                     conn.setRequestProperty("x-goog-api-key", apiKey);
-                    conn.setConnectTimeout(20000); conn.setReadTimeout(180000);
+                    conn.setConnectTimeout(20000); conn.setReadTimeout(300000);
                     conn.setDoOutput(true); conn.setRequestProperty("Content-Type", "application/json");
                     try (OutputStream os = conn.getOutputStream()) { os.write(body.toString().getBytes(StandardCharsets.UTF_8)); }
                     code = conn.getResponseCode();
