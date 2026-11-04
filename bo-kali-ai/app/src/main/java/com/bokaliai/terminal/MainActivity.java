@@ -843,10 +843,10 @@ public class MainActivity extends Activity {
             line("Chưa có kết quả Termux để chia sẻ. Hãy chạy một lệnh ADB/Kali trước.", 0xffffca70);
             return;
         }
-        String preview = report.length() > 1400 ? report.substring(0, 1400) + "\\n… (đã rút gọn phần xem trước)" : report;
+        String preview = report.length() > 1400 ? report.substring(0, 1400) + "\n… (đã rút gọn phần xem trước)" : report;
         new AlertDialog.Builder(this)
             .setTitle("Kiểm tra trước khi chia sẻ")
-            .setMessage("Đây là kết quả Termux gần nhất, không nhất thiết là báo cáo chẩn đoán đầy đủ. Nội dung có thể chứa serial ADB, địa chỉ IP, tên thiết bị hoặc dữ liệu riêng tư. Hãy xem lại trước khi gửi.\\n\\n" + preview)
+            .setMessage("Đây là kết quả Termux gần nhất, không nhất thiết là báo cáo chẩn đoán đầy đủ. Nội dung có thể chứa serial ADB, địa chỉ IP, tên thiết bị hoặc dữ liệu riêng tư. Hãy xem lại trước khi gửi.\n\n" + preview)
             .setPositiveButton("CHIA SẺ", (d, w) -> {
                 new AlertDialog.Builder(this).setTitle("Chọn mức chia sẻ")
                     .setItems(new String[]{"Chia sẻ nguyên bản", "Ẩn IP và serial ADB trước khi chia sẻ"}, (choiceDialog, which) -> {
