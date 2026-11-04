@@ -4205,6 +4205,7 @@ public class MainActivity extends Activity {
             "KIỂM TRA WI-FI / BLUETOOTH / USB / ADB",
             "PHÂN TÍCH TƯƠNG THÍCH KALI",
             "QUẢN LÝ CÔNG CỤ TERMUX / KALI",
+            "CHẨN ĐOÁN MẠNG / DNS / KẾT NỐI",
             "HƯỚNG DẪN KALI ROOT / ROOTLESS"
         };
         new AlertDialog.Builder(this)
@@ -4221,6 +4222,7 @@ public class MainActivity extends Activity {
                 else if (which == 5) checkConnectivityHardware();
                 else if (which == 6) checkKaliCompatibility();
                 else if (which == 7) showKaliToolManager();
+                else if (which == 8) runNetworkDiagnostics();
                 else showKaliInstructions();
             })
             .setNegativeButton("ĐÓNG", null)
@@ -4424,6 +4426,31 @@ public class MainActivity extends Activity {
             "echo 'BOOTLOADER=Unknown values are not proof that unlocking or flashing is supported.'; " +
             "echo 'END=No root request, install, setting change, unlock, flash, or partition write was performed.'";
         line("Đang phân tích khả năng Kali theo kiến trúc, kernel và trạng thái hệ thống; không yêu cầu quyền root...", GREEN);
+        runTermuxCommand(command);
+    }
+
+    // Safe, read-only network diagnostics. No scanning of third-party hosts and no network configuration changes.
+    private void runNetworkDiagnostics() {
+        final String command =
+            "echo '=== BO KALI AI NETWORK DIAGNOSTICS (READ ONLY) ==='; " +
+            "echo '=== TIME / HOST ==='; date 2>&1; hostname 2>&1; " +
+            "echo '=== INTERFACES / ADDRESSES ==='; " +
+            "if command -v ip >/dev/null 2>&1; then ip -brief address 2>&1; ip route 2>&1; " +
+            "else ifconfig 2>&1 | head -n 50; fi; " +
+            "echo '=== DNS CONFIGURATION ==='; " +
+            "if [ -r /etc/resolv.conf ]; then cat /etc/resolv.conf; else echo 'resolv.conf unavailable'; fi; " +
+            "echo '=== DNS LOOKUP (FIXED TEST DOMAINS) ==='; " +
+            "if command -v getent >/dev/null 2>&1; then getent hosts example.com 2>&1; " +
+            "elif command -v nslookup >/dev/null 2>&1; then nslookup example.com 2>&1; " +
+            "else echo 'getent/nslookup unavailable; no package installed'; fi; " +
+            "echo '=== HTTPS CONNECTIVITY (FIXED TEST ENDPOINT) ==='; " +
+            "if command -v curl >/dev/null 2>&1; then curl -I -L --connect-timeout 8 --max-time 12 https://example.com 2>&1 | head -n 18; " +
+            "else echo 'curl unavailable; install only after explicit confirmation'; fi; " +
+            "echo '=== LISTENING SOCKETS (LOCAL DEVICE ONLY) ==='; " +
+            "if command -v ss >/dev/null 2>&1; then ss -lnt 2>&1 | head -n 40; " +
+            "else echo 'ss unavailable'; fi; " +
+            "echo '=== END: no port scan, packet injection, radio toggle, or configuration change performed ==='";
+        line("Đang chẩn đoán IP, DNS, HTTPS và cổng đang lắng nghe trên chính môi trường này; chỉ đọc...", GREEN);
         runTermuxCommand(command);
     }
 
