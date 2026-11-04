@@ -4079,17 +4079,13 @@ public class MainActivity extends Activity {
 
     private void showAntigravityMenu() {
         new AlertDialog.Builder(this).setTitle("Google Antigravity Agent")
-            .setMessage("Kết nối qua Antigravity CLI chính thức của Google trong Debian proot (Termux). Lần đầu cần cài CLI và đăng nhập Google trong phiên terminal tương tác. BO không yêu cầu bạn gửi mật khẩu hoặc token Google. Chat -p chạy tác vụ trong môi trường Debian; chưa tự có quyền điều khiển mọi thiết bị ADB.")
-            .setPositiveButton("CHAT VỚI ANTIGRAVITY", (d, w) -> showAntigravityChat())
-            .setNeutralButton("AI ĐỌC TỆP GITHUB", (d, w) -> showGithubAiReviewDialog(false))
-            .setNegativeButton("THÊM TÙY CHỌN", (d, w) -> new AlertDialog.Builder(this).setTitle("Antigravity")
-                .setItems(new String[]{"Cài / kiểm tra CLI", "Đăng nhập Google", "AI đọc tệp GitHub"}, (x, which) -> {
-                    if (which == 0) installAntigravityCli();
-                    else if (which == 1) launchAntigravityLogin();
-                    else showGithubAiReviewDialog(false);
-                }).show())
-            .setNeutralButton("ĐĂNG NHẬP GOOGLE", (d, w) -> launchAntigravityLogin())
-            .show();
+            .setMessage("Antigravity CLI chính thức chạy trong Debian proot (Termux). Chọn chat, phân tích mã GitHub, cài CLI hoặc đăng nhập Google. Việc đọc GitHub chỉ gửi nội dung tệp sau khi bạn xác nhận; không gửi GitHub token.")
+            .setItems(new String[]{"CHAT VỚI ANTIGRAVITY", "AI ĐỌC TỆP GITHUB", "CÀI / KIỂM TRA CLI", "ĐĂNG NHẬP GOOGLE"}, (d, which) -> {
+                if (which == 0) showAntigravityChat();
+                else if (which == 1) showGithubAiReviewDialog(false);
+                else if (which == 2) installAntigravityCli();
+                else launchAntigravityLogin();
+            }).setNegativeButton("ĐÓNG", null).show();
     }
 
     private void installAntigravityCli() {
