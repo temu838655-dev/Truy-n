@@ -3252,12 +3252,11 @@ public class MainActivity extends Activity {
                     line("Không xác định được phiên ADB yêu cầu; bỏ qua dữ liệu định danh.", 0xffffca70);
                     continue;
                 }
-                String matched = "";
+                java.util.ArrayList<String> matches = new java.util.ArrayList<>();
                 for (String saved : serials) {
                     if (!saved.equals(adbSerial)
                         && fingerprint.toString().equals(prefs.getString("identity_hash_" + saved, ""))) {
-                        matched = saved;
-                        break;
+                        matches.add(saved);
                     }
                 }
                 prefs.edit().putString("identity_hash_" + adbSerial, fingerprint.toString())
@@ -3265,10 +3264,25 @@ public class MainActivity extends Activity {
                     .putString("identity_brand_" + adbSerial, brand).apply();
                 line("Đã lưu dấu vân tay phần cứng SHA-256 cho " + adbSerial
                     + (brand.isEmpty() && model.isEmpty() ? "" : " · " + brand + " " + model), GREEN);
-                if (!matched.isEmpty()) {
+                if (matches.size() == 1) {
+                    String matched = matches.get(0);
                     String alias = prefs.getString("alias_" + matched, "");
-                    line("Dấu vân tay trùng với thiết bị đã lưu " + (alias.isEmpty() ? matched : alias + " (" + matched + ")")
-                        + ". Đây là đối chiếu serial phần cứng; hãy xác nhận đúng thiết bị trước khi thao tác.", 0xff79c9ff);
+                    String label = alias.isEmpty() ? matched : alias + " (" + matched + ")";
+                    line("Dấu vân tay phần cứng trùng với thiết bị đã lưu " + label
+                        + ". BO đề xuất tên cũ nhưng không tự gộp hoặc tự kết nối.", 0xff79c9ff);
+                    if (!alias.isEmpty()) {
+                        new AlertDialog.Builder(this).setTitle("Có phải thiết bị cũ?")
+                            .setMessage("Thiết bị mới " + adbSerial + " có dấu vân tay SHA-256 trùng với " + label
+                                + (brand.isEmpty() && model.isEmpty() ? "" : "\\nModel hiện tại: " + brand + " " + model)
+                                + "\\n\\nBạn có xác nhận đây là cùng một thiết bị và muốn dùng lại tên gợi nhớ không? Serial ADB cũ vẫn được giữ.")
+                            .setPositiveButton("DÙNG TÊN GỢI NHỚ CŨ", (d, w) -> {
+                                prefs.edit().putString("alias_" + adbSerial, alias).apply();
+                                line("Đã gán tên gợi nhớ " + alias + " cho serial ADB mới. Bản ghi cũ vẫn được giữ.", GREEN);
+                            })
+                            .setNegativeButton("KHÔNG", null).show();
+                    }
+                } else if (matches.size() > 1) {
+                    line("Dấu vân tay trùng với nhiều thiết bị đã lưu (" + matches.size() + "). Không tự chọn tên để tránh gán nhầm.", 0xffffca70);
                 } else {
                     line("Chưa có thiết bị lưu nào khác trùng dấu vân tay này. Lần kết nối sau có thể dùng để đối chiếu.", WHITE);
                 }
