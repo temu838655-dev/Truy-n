@@ -223,7 +223,7 @@ public class MainActivity extends Activity {
                 if (activeMirrorView != null) activeMirrorView.setStatus("Đang chuẩn bị máy chủ truyền màn hình...");
                 String serverHash = "84924bd564a1eb6089c872c7521f968058977f91f5ff02514a8c74aff3210f3a";
                 String serverUrl = "https://github.com/Genymobile/scrcpy/releases/download/v4.0/scrcpy-server-v4.0";
-                String remoteStart = "CLASSPATH=/data/local/tmp/bo-kali-scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 4.0 scid=00000001 tunnel_forward=false audio=false video_codec=h264 max_size=1280 video_bit_rate=4000000 max_fps=30 send_device_meta=false send_dummy_byte=false cleanup=true >/dev/null 2>&1 </dev/null &";
+                String remoteStart = "CLASSPATH=/data/local/tmp/bo-kali-scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 4.0 scid=00000001 tunnel_forward=true audio=false video_codec=h264 max_size=1280 video_bit_rate=4000000 max_fps=30 send_device_meta=false send_dummy_byte=false cleanup=true >/dev/null 2>&1 </dev/null &";
                 String serialArg = shellQuote(serial);
                 String command = "set -e; pkg install -y android-tools curl coreutils >/dev/null; "
                     + "mkdir -p \"$HOME/.bo-kali-ai\"; SERVER=\"$HOME/.bo-kali-ai/scrcpy-server-v4.0\"; "
@@ -2467,7 +2467,7 @@ public class MainActivity extends Activity {
         adbMirrorResumePending = true;
         activeMirrorView.prepareForReconnect();
         String serialArg = shellQuote(serial);
-        String remoteStart = "CLASSPATH=/data/local/tmp/bo-kali-scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 4.0 scid=00000001 tunnel_forward=false audio=false video_codec=h264 max_size=1280 video_bit_rate=4000000 max_fps=30 send_device_meta=false send_dummy_byte=false cleanup=true >/dev/null 2>&1 </dev/null &";
+        String remoteStart = "CLASSPATH=/data/local/tmp/bo-kali-scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 4.0 scid=00000001 tunnel_forward=true audio=false video_codec=h264 max_size=1280 video_bit_rate=4000000 max_fps=30 send_device_meta=false send_dummy_byte=false cleanup=true >/dev/null 2>&1 </dev/null &";
         String socketCheck = "grep -F 'scrcpy_00000001' /proc/net/unix >/dev/null 2>&1";
         String waitForSocket = "for i in 1 2 3 4 5 6 7 8 9 10; do grep -F 'scrcpy_00000001' /proc/net/unix >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1";
         String command = "adb -s " + serialArg + " get-state >/dev/null 2>&1 || { echo 'BO_SCRCPY_ERROR: Thiết bị ADB chưa trực tuyến'; exit 1; }; "

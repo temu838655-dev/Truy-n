@@ -154,12 +154,31 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             int codecId = input.readInt();
             if (codecId != CODEC_H264) throw new IOException("Codec không hỗ trợ: 0x" + Integer.toHexString(codecId));
 
+            // scrcpy sends stream metadata immediately after the codec identifier:
+            // video width and height, followed by 12-byte frame headers.
+            int width = input.readInt();
+            int height = input.readInt();
+            if (width <= 0 || height <= 0 || width > 8192 || height > 8192) {
+                throw new IOException("Kích thước video không hợp lệ: " + width + "x" + height);
+            }
+            videoWidth = width;
+            videoHeight = height;
+            post(this::updateVideoSurfaceLayout);
+            Surface surface = surfaceView.getHolder().getSurface();
+            if (!surface.isValid()) throw new IOException("Bề mặt hiển thị đã đóng");
+            MediaFormat format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height);
+            if (Build.VERSION.SDK_INT >= 30) format.setInteger(MediaFormat.KEY_LOW_LATENCY, 1);
+            codec = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
+            codec.configure(format, surface, null, 0);
+            codec.start();
+            decoder = codec;
+            setStatus("Đang xem trực tiếp · " + width + " × " + height + " · Chạm để điều khiển");
+
             while (running.get()) {
                 byte[] header = new byte[12];
                 input.readFully(header);
-                ByteBuffer headerBuffer = ByteBuffer.wrap(header).order(ByteOrder.BIG_ENDIAN);
-                // Device metadata is disabled in the server command. Every packet therefore
-                // starts with the 64-bit PTS/flags field followed by a 32-bit payload size.
+                // Device metadata is disabled by the server command. Every frame starts
+                // with the 64-bit PTS/flags field followed by a 32-bit payload size.
                 long ptsAndFlags = ByteBuffer.wrap(header).order(ByteOrder.BIG_ENDIAN).getLong();
                 int packetSize = ByteBuffer.wrap(header, 8, 4).order(ByteOrder.BIG_ENDIAN).getInt();
                 if (packetSize < 1 || packetSize > MAX_PACKET) throw new IOException("Gói video quá lớn hoặc không hợp lệ");
