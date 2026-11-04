@@ -2941,7 +2941,7 @@ public class MainActivity extends Activity {
             return lower.matches("^pm list packages( -3|-s)?$");
         }
         if ("APP_LAUNCH".equals(scope)) {
-            return lower.matches("^monkey -p [a-z][a-z0-9_]*(\\\\.[a-z0-9_]+)+ 1$");
+            return lower.matches("^monkey -p [a-z][a-z0-9_]*([.][a-z0-9_]+)+ 1$");
         }
         if ("APP_INSTALL_REMOVE".equals(scope)) {
             // Installing an APK from a host file is not done through device shell.
