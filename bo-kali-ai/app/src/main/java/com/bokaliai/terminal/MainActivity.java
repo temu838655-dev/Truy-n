@@ -848,19 +848,37 @@ public class MainActivity extends Activity {
             .setTitle("Kiểm tra trước khi chia sẻ")
             .setMessage("Đây là kết quả Termux gần nhất, không nhất thiết là báo cáo chẩn đoán đầy đủ. Nội dung có thể chứa serial ADB, địa chỉ IP, tên thiết bị hoặc dữ liệu riêng tư. Hãy xem lại trước khi gửi.\\n\\n" + preview)
             .setPositiveButton("CHIA SẺ", (d, w) -> {
-                Intent share = new Intent(Intent.ACTION_SEND);
-                share.setType("text/plain");
-                share.putExtra(Intent.EXTRA_SUBJECT, "BO Kali AI - Kết quả Termux");
-                share.putExtra(Intent.EXTRA_TEXT, report);
-                try {
-                    startActivity(Intent.createChooser(share, "Chia sẻ kết quả Termux"));
-                } catch (Exception e) {
-                    line("Không mở được ứng dụng chia sẻ: " + e.getMessage(), 0xffff8080);
-                }
+                new AlertDialog.Builder(this).setTitle("Chọn mức chia sẻ")
+                    .setItems(new String[]{"Chia sẻ nguyên bản", "Ẩn IP và serial ADB trước khi chia sẻ"}, (choiceDialog, which) -> {
+                        String content = which == 0 ? report : redactNetworkIdentifiers(report);
+                        Intent share = new Intent(Intent.ACTION_SEND);
+                        share.setType("text/plain");
+                        share.putExtra(Intent.EXTRA_SUBJECT, "BO Kali AI - Kết quả Termux");
+                        share.putExtra(Intent.EXTRA_TEXT, content);
+                        try {
+                            startActivity(Intent.createChooser(share, "Chia sẻ kết quả Termux"));
+                        } catch (Exception e) {
+                            line("Không mở được ứng dụng chia sẻ: " + e.getMessage(), 0xffff8080);
+                        }
+                    }).setNegativeButton("HỦY", null).show();
             })
             .setNeutralButton("SAO CHÉP", (d, w) -> copyText(report, "Đã sao chép kết quả Termux."))
             .setNegativeButton("HỦY", null)
             .show();
+    }
+
+    private String redactNetworkIdentifiers(String value) {
+        if (value == null) return "";
+        String redacted = value.replaceAll(
+            "(?m)^([\\\\t ]*[A-Za-z0-9._:-]+)([\\\\t ]+(?:device|offline|unauthorized)\\\\b)",
+            "$1".replaceAll("[^\\\\t ]", "*") + "$2");
+        redacted = redacted.replaceAll(
+            "(?<![0-9])(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})(?:\\\\.(?:25[0-5]|2[0-4][0-9]|1?[0-9]{1,2})){3}(?![0-9])",
+            "[IP ĐÃ ẨN]");
+        redacted = redacted.replaceAll(
+            "(?i)\\\\b(?:[0-9a-f]{1,4}:){2,}[0-9a-f:]{0,}[0-9a-f]\\\\b",
+            "[IPv6 ĐÃ ẨN]");
+        return redacted;
     }
 
     private void copyText(String value, String message) {
