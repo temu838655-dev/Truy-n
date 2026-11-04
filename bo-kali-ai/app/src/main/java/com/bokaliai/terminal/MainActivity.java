@@ -60,6 +60,7 @@ public class MainActivity extends Activity {
     private String pendingExportText = "";
     private static final AtomicInteger TERMUX_REQUEST = new AtomicInteger(2000);
     private NsdManager nsdManager;
+    private WifiManager.MulticastLock hubMulticastLock;
     private NsdManager.DiscoveryListener adbDiscoveryListener;
     private NsdManager.DiscoveryListener adbPairingDiscoveryListener;
     private boolean adbPairingScanActive = false;
@@ -490,6 +491,17 @@ public class MainActivity extends Activity {
         hubResolvingService = false;
         hubDiscoveryListeners.clear();
         hubDiscoveryActive = true;
+        try {
+            WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wifi != null) {
+                hubMulticastLock = wifi.createMulticastLock("BoKaliAI-mDNS");
+                hubMulticastLock.setReferenceCounted(false);
+                hubMulticastLock.acquire();
+            }
+        } catch (Exception error) {
+            releaseHubMulticastLock();
+            line("Không lấy được quyền nhận multicast; kết quả mDNS có thể bị hạn chế: " + error.getMessage(), 0xffffca70);
+        }
         line("Đang tìm dịch vụ SSH, HTTP/HTTPS và Home Assistant trong mạng Wi-Fi cục bộ...", GREEN);
         String[] serviceTypes = {"_ssh._tcp.", "_http._tcp.", "_https._tcp.", "_home-assistant._tcp."};
         for (String serviceType : serviceTypes) {
@@ -575,6 +587,15 @@ public class MainActivity extends Activity {
         hubResolveGeneration++;
         hubResolveQueue.clear();
         hubResolvingService = false;
+        releaseHubMulticastLock();
+    }
+
+    private void releaseHubMulticastLock() {
+        WifiManager.MulticastLock lock = hubMulticastLock;
+        hubMulticastLock = null;
+        if (lock != null) {
+            try { if (lock.isHeld()) lock.release(); } catch (RuntimeException ignored) { }
+        }
     }
 
     private void finishUniversalNetworkScan() {
