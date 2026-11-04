@@ -2695,7 +2695,7 @@ public class MainActivity extends Activity {
     // AI access grants are session-only, per-device, and never imply Android/root privileges.
     private static final String[] AI_DEVICE_SCOPE_IDS = {
         "READ_INFO", "READ_LOGS", "APP_LIST", "APP_INSTALL_REMOVE",
-        "SCREEN_CONTROL", "DEVICE_SETTINGS", "RAW_ADB_SHELL"
+        "SCREEN_CONTROL", "DEVICE_SETTINGS", "NETWORK_DIAGNOSTICS", "RAW_ADB_SHELL"
     };
     private static final String[] AI_DEVICE_SCOPE_LABELS = {
         "Đọc thông tin thiết bị (model, Android, bộ nhớ)",
@@ -2704,6 +2704,7 @@ public class MainActivity extends Activity {
         "Cài / gỡ ứng dụng (luôn hỏi xác nhận từng lần)",
         "Điều khiển màn hình, chạm và nhập liệu",
         "Thay đổi cài đặt thiết bị (luôn hỏi xác nhận từng lần)",
+        "Chẩn đoán mạng / Wi-Fi (ping và đọc trạng thái mạng)",
         "Chạy lệnh ADB Shell tùy ý (luôn xem lệnh và xác nhận)"
     };
 
@@ -2839,7 +2840,7 @@ public class MainActivity extends Activity {
                     .putString("request_id", planId).putString("serial", serial)
                     .putString("provider", provider).putLong("requested_at", System.currentTimeMillis()).commit();
                 String prompt = "Bạn là bộ lập kế hoạch ADB của BO Kali AI. Trả lời CHỈ MỘT DÒNG theo dạng BO_AI_PLAN:" + planId + ":{JSON}, không markdown; bắt buộc giữ nguyên request ID và tiền tố BO_AI_PLAN:. Schema: "
-                    + "{\"scope\":\"READ_INFO|READ_LOGS|APP_LIST|APP_INSTALL_REMOVE|SCREEN_CONTROL|DEVICE_SETTINGS|RAW_ADB_SHELL\","
+                    + "{\"scope\":\"READ_INFO|READ_LOGS|APP_LIST|APP_INSTALL_REMOVE|SCREEN_CONTROL|DEVICE_SETTINGS|NETWORK_DIAGNOSTICS|RAW_ADB_SHELL\","
                     + "\"command\":\"một lệnh Android shell duy nhất\",\"reason\":\"giải thích ngắn bằng tiếng Việt\",\"risk\":\"LOW|MEDIUM|HIGH\"}. "
                     + "Chỉ chọn scope nhỏ nhất phù hợp; không tự nâng lên RAW_ADB_SHELL nếu người dùng không yêu cầu rõ. " 
                     + "Lệnh READ_INFO hợp lệ: getprop ro.product.model, getprop ro.product.manufacturer, getprop ro.build.version.release, getprop ro.build.version.sdk, df -h, uptime, uname -a, dumpsys battery, dumpsys display, ip addr show wlan0, cat /proc/meminfo. "
@@ -2847,6 +2848,7 @@ public class MainActivity extends Activity {
                     + "APP_LIST: pm list packages hoặc pm list packages -3. APP_INSTALL_REMOVE: pm uninstall com.example.app hoặc cmd package install-existing com.example.app; đây là thao tác rủi ro cao. "
                     + "SCREEN_CONTROL: input keyevent 3|4|19|20|21|22|23|24|25|66|82; input tap x y; input swipe x1 y1 x2 y2 duration; input text abc (chỉ ký tự a-z 0-9 . _ % -). "
                     + "DEVICE_SETTINGS chỉ dùng settings get/put system screen_brightness, screen_off_timeout, font_scale, accelerometer_rotation với giá trị hợp lệ; hoặc wm size, wm density, cmd uimode night yes/no. "
+                    + "NETWORK_DIAGNOSTICS: ip route, ip addr show wlan0, dumpsys wifi, dumpsys connectivity, ping -c 4 1.1.1.1, ping -c 4 8.8.8.8 hoặc ping -c 4 google.com. "
                     + "Không thêm adb vào command. Không dùng newline, dấu chấm phẩy, &&, ||, pipe, redirect, backtick, biến shell, dấu nháy hoặc chuỗi lệnh ghép. "
                     + "Không đề xuất xóa dữ liệu, factory reset, tắt bảo mật, lấy mật khẩu, vượt xác thực, khai thác lỗ hổng hoặc truy cập thiết bị khác. "
                     + "Nếu không thể thực hiện an toàn bằng một lệnh, trả command rỗng và risk HIGH. Chỉ lập kế hoạch, không tuyên bố đã thực thi. "
@@ -2901,6 +2903,12 @@ public class MainActivity extends Activity {
             if (lower.matches("^input tap [0-9]{1,4} [0-9]{1,4}$")) return true;
             if (lower.matches("^input swipe [0-9]{1,4} [0-9]{1,4} [0-9]{1,4} [0-9]{1,4} ([1-9][0-9]{0,3}|5000)$")) return true;
             return lower.matches("^input text [a-z0-9._%-]{1,80}$");
+        }
+        if ("NETWORK_DIAGNOSTICS".equals(scope)) {
+            return lower.equals("ip route") || lower.equals("ip addr show wlan0")
+                || lower.equals("dumpsys wifi") || lower.equals("dumpsys connectivity")
+                || lower.equals("ping -c 4 1.1.1.1") || lower.equals("ping -c 4 8.8.8.8")
+                || lower.equals("ping -c 4 google.com");
         }
         if ("DEVICE_SETTINGS".equals(scope)) {
             if (lower.matches("^settings get system (screen_brightness|screen_off_timeout|font_scale|accelerometer_rotation)$")) return true;
