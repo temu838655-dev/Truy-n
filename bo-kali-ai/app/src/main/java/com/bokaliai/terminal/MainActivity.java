@@ -75,11 +75,16 @@ public class MainActivity extends Activity {
     private boolean adbPairingScanActive = false;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean adbScanActive = false;
+    private ConnectivityManager.NetworkCallback adbNetworkCallback;
+    private Network adbObservedDefaultNetwork;
+    private boolean adbNetworkCallbackRegistered = false;
+    private boolean activityResumed = false;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         buildUi();
+        registerAdbNetworkCallback();
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 3101);
         }
@@ -3383,8 +3388,120 @@ public class MainActivity extends Activity {
         mainHandler.postDelayed(scrcpyResumeRetryRunnable, 5000L);
     }
 
+    /**
+     * Observe default-network changes while preserving the authorized ADB session.
+     * A network transition invalidates only the old scrcpy request and local sockets;
+     * it never sends adb disconnect or stops the foreground keep-alive service.
+     */
+    private void registerAdbNetworkCallback() {
+        if (Build.VERSION.SDK_INT < 24 || adbNetworkCallbackRegistered) return;
+        ConnectivityManager manager =
+            (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (manager == null) return;
+
+        adbNetworkCallback = new ConnectivityManager.NetworkCallback() {
+            @Override public void onAvailable(Network network) {
+                mainHandler.post(() -> {
+                    boolean changed = adbObservedDefaultNetwork != null
+                        && !adbObservedDefaultNetwork.equals(network);
+                    adbObservedDefaultNetwork = network;
+                    if (!activityResumed) return;
+
+                    android.content.SharedPreferences session =
+                        getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
+                    if (!session.getBoolean("keep_alive", false)) return;
+                    String serial = session.getString("active_serial", "");
+                    if (serial == null || serial.isEmpty() || activeMirrorView == null
+                        || !serial.equals(dualWorkspaceSerial)) return;
+
+                    if (changed) {
+                        invalidateScrcpyForNetworkChange(session);
+                        activeMirrorView.setStatus(
+                            "Mạng vừa thay đổi · Đang khôi phục luồng màn hình, giữ nguyên ADB...");
+                    }
+                    if (!activeMirrorView.isRunning() && !adbMirrorResumePending) {
+                        resumeAdbMirrorAfterUnlock();
+                    }
+                });
+            }
+
+            @Override public void onLost(Network network) {
+                mainHandler.post(() -> {
+                    // Ignore loss notifications for an old network after a replacement
+                    // default network has already become active.
+                    if (adbObservedDefaultNetwork == null
+                        || !adbObservedDefaultNetwork.equals(network)) return;
+                    ConnectivityManager currentManager =
+                        (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+                    Network currentDefault = currentManager == null
+                        ? null : currentManager.getActiveNetwork();
+                    if (currentDefault != null) {
+                        adbObservedDefaultNetwork = currentDefault;
+                        return;
+                    }
+                    adbObservedDefaultNetwork = null;
+
+                    android.content.SharedPreferences session =
+                        getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
+                    if (!session.getBoolean("keep_alive", false)) return;
+                    String serial = session.getString("active_serial", "");
+                    invalidateScrcpyForNetworkChange(session);
+                    if (activeMirrorView != null && serial != null
+                        && serial.equals(activeMirrorSerial)) {
+                        activeMirrorView.stop();
+                        activeMirrorView.setStatus(
+                            "Mất mạng · Phiên ADB được giữ lại · Chờ mạng kết nối để khôi phục...");
+                    }
+                    line("Mạng bị ngắt. BO giữ phiên ADB; luồng scrcpy sẽ được thử khôi phục khi mạng trở lại.",
+                        0xffffca70);
+                });
+            }
+        };
+
+        try {
+            manager.registerDefaultNetworkCallback(adbNetworkCallback);
+            adbNetworkCallbackRegistered = true;
+            Network active = manager.getActiveNetwork();
+            if (active != null) adbObservedDefaultNetwork = active;
+        } catch (RuntimeException error) {
+            adbNetworkCallback = null;
+            adbNetworkCallbackRegistered = false;
+            line("Không bật được theo dõi mạng tự động: " + error.getMessage(),
+                0xffffca70);
+        }
+    }
+
+    private void invalidateScrcpyForNetworkChange(
+        android.content.SharedPreferences session) {
+        cancelScrcpyResumeRetry();
+        adbMirrorResumePending = false;
+        // Old Termux callbacks must not revive a socket created for the previous network.
+        session.edit().putString("active_request_token",
+            java.util.UUID.randomUUID().toString()).apply();
+        if (activeMirrorView != null) activeMirrorView.stop();
+    }
+
+    private void unregisterAdbNetworkCallback() {
+        if (!adbNetworkCallbackRegistered || adbNetworkCallback == null) return;
+        ConnectivityManager manager =
+            (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (manager != null) {
+            try { manager.unregisterNetworkCallback(adbNetworkCallback); }
+            catch (RuntimeException ignored) { }
+        }
+        adbNetworkCallback = null;
+        adbNetworkCallbackRegistered = false;
+        adbObservedDefaultNetwork = null;
+    }
+
+    @Override protected void onPause() {
+        activityResumed = false;
+        super.onPause();
+    }
+
     @Override protected void onResume() {
         super.onResume();
+        activityResumed = true;
         android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_results", MODE_PRIVATE);
         String pending = prefs.getString("pending_output", null);
         boolean pendingScreenCapture = prefs.getBoolean("pending_screen_capture", false);
@@ -3910,6 +4027,8 @@ public class MainActivity extends Activity {
 
     private int dp(int n) { return (int)(n*getResources().getDisplayMetrics().density+0.5f); }
     @Override protected void onDestroy() {
+        activityResumed = false;
+        unregisterAdbNetworkCallback();
         stopHubDiscovery();
         stopAdbServiceScans();
         super.onDestroy();
