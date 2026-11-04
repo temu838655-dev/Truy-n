@@ -3176,8 +3176,6 @@ public class MainActivity extends Activity {
             }).setNegativeButton("HỦY", null).show();
     }
 
-    private String pendingIdentityAdbSerial = "";
-
     private void handleAdbDevicesOutput(String output) {
         handleAdbHardwareIdentityOutput(output);
         if (output == null || !output.contains("List of devices attached")) return;
@@ -3211,8 +3209,8 @@ public class MainActivity extends Activity {
     // The raw serial is never persisted; BO stores a SHA-256 fingerprint for later comparison.
     private void recordAdbHardwareIdentity(String adbSerial) {
         if (adbSerial == null || adbSerial.trim().isEmpty()) return;
-        pendingIdentityAdbSerial = adbSerial;
-        String script = "printf 'BO_ADB_IDENTITY|%s|%s|%s\\n' "
+        String script = "printf 'BO_ADB_IDENTITY|%s|%s|%s|%s\\n' "
+            + shellQuote(adbSerial) + " "
             + "\"$(getprop ro.serialno)\" "
             + "\"$(getprop ro.product.model)\" "
             + "\"$(getprop ro.product.brand)\"";
@@ -3229,13 +3227,14 @@ public class MainActivity extends Activity {
             String trimmed = row.trim();
             if (!trimmed.startsWith("BO_ADB_IDENTITY|")) continue;
             String[] fields = trimmed.split("\\|", -1);
-            if (fields.length < 4) {
+            if (fields.length < 5) {
                 line("Dữ liệu định danh ADB không đầy đủ; không lưu.", 0xffffca70);
                 continue;
             }
-            String hardwareSerial = fields[1].trim();
-            String model = fields[2].trim();
-            String brand = fields[3].trim();
+            String adbSerial = fields[1].trim();
+            String hardwareSerial = fields[2].trim();
+            String model = fields[3].trim();
+            String brand = fields[4].trim();
             if (hardwareSerial.isEmpty() || hardwareSerial.equalsIgnoreCase("unknown")
                 || hardwareSerial.equals("0")) {
                 line("Thiết bị không cung cấp serial phần cứng đáng tin cậy. Không tạo dấu vân tay để tránh nhận nhầm.", 0xffffca70);
@@ -3249,9 +3248,7 @@ public class MainActivity extends Activity {
                 android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
                 java.util.HashSet<String> serials = new java.util.HashSet<>(
                     prefs.getStringSet("serials", new java.util.HashSet<>()));
-                String adbSerial = pendingIdentityAdbSerial;
-                pendingIdentityAdbSerial = "";
-                if (adbSerial == null || adbSerial.isEmpty()) {
+                if (adbSerial.isEmpty() || !adbSerial.matches("[A-Za-z0-9._:-]+")) {
                     line("Không xác định được phiên ADB yêu cầu; bỏ qua dữ liệu định danh.", 0xffffca70);
                     continue;
                 }
