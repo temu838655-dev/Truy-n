@@ -257,7 +257,7 @@ public class MainActivity extends Activity {
             .putBoolean("keep_alive", false).remove("active_serial").apply();
         stopAdbKeepAlive();
         if (serial != null && !serial.isEmpty()) {
-            runTermuxCommand("adb -s " + shellQuote(serial) + " forward --remove tcp:27183 >/dev/null 2>&1 || true");
+            runTermuxCommand("adb -s " + shellQuote(serial) + " forward --remove tcp:27183 >/dev/null 2>&1 || true; adb disconnect " + shellQuote(serial) + " >/dev/null 2>&1 || true; adb kill-server >/dev/null 2>&1 || true; echo BO_ADB_STOPPED");
         }
     }
 
