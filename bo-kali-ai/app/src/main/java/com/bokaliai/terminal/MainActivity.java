@@ -173,7 +173,7 @@ public class MainActivity extends Activity {
                         android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
                         java.util.Set<String> saved = new java.util.HashSet<>(prefs.getStringSet("pairing_endpoints", new java.util.HashSet<>()));
                         saved.add(endpoint);
-                        prefs.edit().putStringSet("pairing_endpoints", saved).putString("pairing_service_" + endpoint, name).apply();
+                        prefs.edit().putStringSet("pairing_endpoints", saved).putString("pairing_service_" + endpoint, name).putLong("pairing_discovered_at_" + endpoint, System.currentTimeMillis()).apply();
                         line("Đã tìm thấy cổng ghép đôi: " + name + " — " + endpoint, GREEN);
                         line("Cổng này dùng cho adb pair; cổng KẾT NỐI IP là một cổng khác.", 0xff79c9ff);
                     }
@@ -223,7 +223,7 @@ public class MainActivity extends Activity {
                         android.content.SharedPreferences saved = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
                         java.util.Set<String> endpoints = new java.util.HashSet<>(saved.getStringSet("discovered_endpoints", new java.util.HashSet<>()));
                         endpoints.add(endpoint);
-                        saved.edit().putStringSet("discovered_endpoints", endpoints).putString("service_" + endpoint, serviceName).apply();
+                        saved.edit().putStringSet("discovered_endpoints", endpoints).putString("service_" + endpoint, serviceName).putLong("discovered_at_" + endpoint, System.currentTimeMillis()).apply();
                         line("Tìm thấy ADB: " + serviceName + " — " + endpoint, GREEN);
                         line("Đã lưu endpoint kết nối; nếu thiết bị chưa ghép đôi, hãy dùng GHÉP ĐÔI ADB với cổng pairing riêng.", WHITE);
                         line("Mở KẾT NỐI IP để chọn endpoint vừa tìm thấy.", 0xff79c9ff);
@@ -446,9 +446,17 @@ public class MainActivity extends Activity {
             showAdbPairForm("");
             return;
         }
-        String[] choices = endpoints.toArray(new String[0]);
+        String[] choices = new String[endpoints.size()];
+        for (int i = 0; i < endpoints.size(); i++) {
+            String ep = endpoints.get(i);
+            String service = prefs.getString("pairing_service_" + ep, "");
+            long found = prefs.getLong("pairing_discovered_at_" + ep, 0L);
+            String when = found == 0L ? "chưa rõ thời điểm" :
+                new java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(new java.util.Date(found));
+            choices[i] = ep + (service.isEmpty() ? "" : "  ·  " + service) + "  ·  thấy lần cuối " + when;
+        }
         new AlertDialog.Builder(this).setTitle("Chọn cổng ghép đôi đã quét")
-            .setItems(choices, (d, which) -> showAdbPairForm(choices[which]))
+            .setItems(choices, (d, which) -> showAdbPairForm(endpoints.get(which)))
             .setPositiveButton("NHẬP THỦ CÔNG", (d,w) -> showAdbPairForm(""))
             .setNeutralButton("QUẢN LÝ ENDPOINT", (d,w) -> showManageAdbEndpoints(true))
             .setNegativeButton("HỦY", null).show();
@@ -474,10 +482,18 @@ public class MainActivity extends Activity {
         java.util.ArrayList<String> discovered = new java.util.ArrayList<>(
             prefs.getStringSet("discovered_endpoints", new java.util.HashSet<>()));
         java.util.Collections.sort(discovered);
-        String[] choices = discovered.toArray(new String[0]);
+        String[] choices = new String[discovered.size()];
+        for (int i = 0; i < discovered.size(); i++) {
+            String ep = discovered.get(i);
+            String service = prefs.getString("service_" + ep, "");
+            long found = prefs.getLong("discovered_at_" + ep, 0L);
+            String when = found == 0L ? "chưa rõ thời điểm" :
+                new java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(new java.util.Date(found));
+            choices[i] = ep + (service.isEmpty() ? "" : "  ·  " + service) + "  ·  thấy lần cuối " + when;
+        }
         AlertDialog.Builder builder = new AlertDialog.Builder(this).setTitle("Kết nối ADB");
         if (choices.length > 0) {
-            builder.setItems(choices, (d, which) -> connectAdbEndpoint(choices[which]));
+            builder.setItems(choices, (d, which) -> connectAdbEndpoint(discovered.get(which)));
             builder.setPositiveButton("NHẬP IP:CỔNG", (d, w) -> showManualAdbConnectDialog());
             builder.setNeutralButton("QUẢN LÝ ENDPOINT", (d, w) -> showManageAdbEndpoints(false));
             builder.setNegativeButton("ĐÓNG", null).show();
