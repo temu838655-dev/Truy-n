@@ -147,6 +147,12 @@ public class MainActivity extends Activity {
         Button aiDeviceControl = button("AI • CẤP QUYỀN ĐIỀU KHIỂN THIẾT BỊ ADB");
         aiDeviceControl.setOnClickListener(v -> showAiDeviceControlMenu());
         root.addView(aiDeviceControl, new LinearLayout.LayoutParams(-1, dp(46)));
+        Button aiDeviceTask = button("AI • LẬP KẾ HOẠCH & ĐIỀU KHIỂN ADB");
+        aiDeviceTask.setOnClickListener(v -> showAiDeviceTaskDialog());
+        root.addView(aiDeviceTask, new LinearLayout.LayoutParams(-1, dp(46)));
+        Button aiDeviceTask = button("AI • LẬP KẾ HOẠCH & ĐIỀU KHIỂN ADB");
+        aiDeviceTask.setOnClickListener(v -> showAiDeviceTaskDialog());
+        root.addView(aiDeviceTask, new LinearLayout.LayoutParams(-1, dp(46)));
         Button routerWifi = button("KẾT NỐI MODEM / ROUTER WI-FI");
         routerWifi.setOnClickListener(v -> showWifiRouterManager());
         root.addView(routerWifi, new LinearLayout.LayoutParams(-1, dp(46)));
@@ -2772,6 +2778,145 @@ public class MainActivity extends Activity {
         return granted != null && granted.contains(scope);
     }
 
+    private void showAiDeviceTaskDialog() {
+        java.util.ArrayList<String> devices = getFreshAdbDevices();
+        if (devices.isEmpty()) {
+            new AlertDialog.Builder(this).setTitle("AI điều khiển ADB")
+                .setMessage("Chưa có thiết bị ADB trực tuyến. Hãy ghép đôi/kết nối và quét ADB trước.")
+                .setPositiveButton("QUÉT ADB", (d, w) -> runTermuxCommand("pkg install -y android-tools && adb devices -l"))
+                .setNegativeButton("ĐÓNG", null).show();
+            return;
+        }
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(1); form.setPadding(dp(8), dp(4), dp(8), dp(4));
+        String[] labels = new String[devices.size()];
+        android.content.SharedPreferences devicePrefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        for (int i = 0; i < devices.size(); i++) {
+            String serial = devices.get(i);
+            String alias = devicePrefs.getString("alias_" + serial, "");
+            labels[i] = alias.isEmpty() ? serial : alias + " • " + serial;
+        }
+        android.widget.Spinner devicePicker = new android.widget.Spinner(this);
+        devicePicker.setAdapter(new android.widget.ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, labels));
+        android.widget.Spinner providerPicker = new android.widget.Spinner(this);
+        providerPicker.setAdapter(new android.widget.ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item,
+            new String[]{"OpenAI Codex", "Google Antigravity"}));
+        EditText request = new EditText(this);
+        request.setTextColor(WHITE); request.setHintTextColor(0xff91a9bd);
+        request.setMinLines(3); request.setGravity(Gravity.TOP | Gravity.START);
+        request.setHint("Ví dụ: kiểm tra model, dung lượng và pin; giải thích cách tối ưu thiết bị...");
+        form.addView(text("THIẾT BỊ ĐÍCH", 0xff79c9ff, 12, true));
+        form.addView(devicePicker, new LinearLayout.LayoutParams(-1, dp(48)));
+        form.addView(text("AI LẬP KẾ HOẠCH", 0xff79c9ff, 12, true));
+        form.addView(providerPicker, new LinearLayout.LayoutParams(-1, dp(48)));
+        form.addView(text("MỤC TIÊU CỦA BẠN", 0xff79c9ff, 12, true));
+        form.addView(request, new LinearLayout.LayoutParams(-1, dp(112)));
+        new AlertDialog.Builder(this).setTitle("BO Kali AI • Điều khiển thiết bị")
+            .setMessage("AI chỉ lập kế hoạch ADB cho thiết bị đã chọn. BO kiểm tra quyền, hiển thị lệnh và hỏi bạn trước khi chạy. AI không tự chạy lệnh.")
+            .setView(form).setPositiveButton("YÊU CẦU AI LẬP KẾ HOẠCH", (d, w) -> {
+                int index = devicePicker.getSelectedItemPosition();
+                if (index < 0 || index >= devices.size()) return;
+                String serial = devices.get(index);
+                String task = request.getText().toString().trim();
+                if (task.isEmpty() || task.length() > 3000) { line("Hãy nhập mục tiêu (tối đa 3.000 ký tự).", 0xffffca70); return; }
+                if (!isFreshAdbDevice(serial)) { line("Thiết bị không còn trực tuyến; hãy quét lại.", 0xffffca70); return; }
+                String provider = providerPicker.getSelectedItemPosition() == 1 ? "antigravity" : "codex";
+                getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE).edit()
+                    .putString("serial", serial).putString("provider", provider)
+                    .putLong("requested_at", System.currentTimeMillis()).commit();
+                String prompt = "Bạn là bộ lập kế hoạch ADB của BO Kali AI. Trả lời CHỈ MỘT DÒNG JSON, không markdown, schema: "
+                    + "{\"scope\":\"READ_INFO|READ_LOGS|APP_LIST|APP_INSTALL_REMOVE|SCREEN_CONTROL|DEVICE_SETTINGS|RAW_ADB_SHELL\","
+                    + "\"command\":\"một lệnh Android shell duy nhất\",\"reason\":\"giải thích ngắn bằng tiếng Việt\",\"risk\":\"LOW|MEDIUM|HIGH\"}. "
+                    + "Không thêm adb vào command. Không dùng newline, dấu chấm phẩy, &&, ||, pipe, redirect, backtick, biến shell hoặc chuỗi lệnh ghép. "
+                    + "Không đề xuất xóa dữ liệu, factory reset, tắt bảo mật, lấy mật khẩu, vượt xác thực, khai thác lỗ hổng hoặc truy cập thiết bị khác. "
+                    + "Nếu không thể thực hiện an toàn bằng một lệnh, trả command rỗng và risk HIGH. Chỉ lập kế hoạch, không tuyên bố đã thực thi. "
+                    + "Thiết bị: " + serial + ". Mục tiêu: " + task;
+                String script;
+                if ("codex".equals(provider)) {
+                    script = "export PATH=\"$HOME/.codex/bin:$HOME/.local/bin:$PATH\"; "
+                        + "if ! command -v codex >/dev/null 2>&1; then echo 'Codex CLI chưa cài'; exit 127; fi; "
+                        + "codex exec --cd \"$HOME\" --sandbox read-only --ask-for-approval never " + shellQuote(prompt);
+                    runTermuxCommand(CODEX_PROOT + shellQuote(script));
+                } else {
+                    script = "export PATH=\"$HOME/.local/bin:$PATH\"; "
+                        + "if ! command -v agy >/dev/null 2>&1; then echo 'Antigravity CLI chưa cài'; exit 127; fi; "
+                        + "agy -p " + shellQuote(prompt);
+                    runTermuxCommand(ANTIGRAVITY_PROOT + shellQuote(script));
+                }
+                line("Đã yêu cầu " + ("codex".equals(provider) ? "Codex" : "Antigravity")
+                    + " lập kế hoạch cho " + serial + ". Chưa có lệnh nào được thực thi.", 0xff79c9ff);
+            }).setNegativeButton("HỦY", null).show();
+    }
+
+    private void processAiDevicePlanOutput(String output) {
+        if (output == null || !output.contains("BO_AI_PLAN:")) return;
+        android.content.SharedPreferences pending = getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE);
+        String serial = pending.getString("serial", "");
+        String provider = pending.getString("provider", "");
+        long requestedAt = pending.getLong("requested_at", 0L);
+        pending.edit().clear().commit();
+        if (serial.isEmpty() || requestedAt == 0L || System.currentTimeMillis() - requestedAt > 600000L) {
+            line("Bỏ qua kế hoạch AI vì yêu cầu không tồn tại hoặc đã hết hạn.", 0xffffca70); return;
+        }
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+            .compile("(?m)^BO_AI_PLAN:(\\{[^\\r\\n]{1,5000}\\})\\s*$").matcher(output);
+        if (!matcher.find()) { line("AI không trả đúng BO_AI_PLAN JSON. Không thực thi lệnh.", 0xffffca70); return; }
+        try {
+            JSONObject plan = new JSONObject(matcher.group(1));
+            String scope = plan.optString("scope", "");
+            String command = plan.optString("command", "").trim();
+            String reason = plan.optString("reason", "AI không nêu lý do.");
+            String risk = plan.optString("risk", "HIGH").toUpperCase(java.util.Locale.ROOT);
+            boolean knownScope = false;
+            for (String allowed : AI_DEVICE_SCOPE_IDS) if (allowed.equals(scope)) knownScope = true;
+            if (!knownScope || command.isEmpty() || command.length() > 1200 || command.indexOf(0) >= 0
+                || command.contains("\n") || command.contains("\r") || command.contains(";")
+                || command.contains("&") || command.contains("|") || command.contains("<")
+                || command.contains(">") || command.contains("$") || command.indexOf(96) >= 0
+                || command.contains("adb ") || command.startsWith("adb")) {
+                line("Kế hoạch AI bị từ chối: lệnh trống, ghép nhiều lệnh hoặc chứa cú pháp shell không được hỗ trợ.", 0xffff8080); return;
+            }
+            if (!isFreshAdbDevice(serial)) { line("Kế hoạch bị hủy: thiết bị đích không còn trực tuyến.", 0xffffca70); return; }
+            if (!hasAiDevicePermission(serial, scope)) {
+                line("Kế hoạch bị chặn: chưa cấp quyền " + scope + " cho " + serial + ".", 0xffffca70);
+                new AlertDialog.Builder(this).setTitle("AI chưa được cấp quyền")
+                    .setMessage("Thiết bị: " + serial + "\nNhóm quyền cần: " + scope
+                        + "\nMở phần cấp quyền, sau đó yêu cầu AI lập kế hoạch lại.")
+                    .setPositiveButton("MỞ CẤP QUYỀN", (d, w) -> showAiDevicePermissionDialog(serial))
+                    .setNegativeButton("ĐÓNG", null).show();
+                return;
+            }
+            String providerName = "antigravity".equals(provider) ? "Google Antigravity" : "OpenAI Codex";
+            String message = "AI: " + providerName + "\nThiết bị: " + serial + "\nQuyền: " + scope
+                + "\nRủi ro AI tự đánh giá: " + risk + "\n\nLệnh trên thiết bị:\n" + command
+                + "\n\nLý do: " + reason + "\n\nBO chưa chạy lệnh.";
+            new AlertDialog.Builder(this).setTitle("Xem xét kế hoạch ADB do AI đề xuất")
+                .setMessage(message).setPositiveButton("XÁC NHẬN & CHẠY", (d, w) -> {
+                    if (!isFreshAdbDevice(serial) || !hasAiDevicePermission(serial, scope)) {
+                        line("Không thực thi: thiết bị đã ngắt hoặc quyền đã bị thu hồi.", 0xffff8080); return;
+                    }
+                    if ("HIGH".equals(risk)) {
+                        new AlertDialog.Builder(this).setTitle("Lệnh có rủi ro cao")
+                            .setMessage("Bạn đã xem lệnh và AI đánh giá rủi ro cao. Xác nhận lần cuối?\n\n" + command)
+                            .setPositiveButton("TÔI HIỂU, CHẠY", (x, y) -> executeAiAdbCommand(serial, scope, command))
+                            .setNegativeButton("HỦY", null).show();
+                    } else executeAiAdbCommand(serial, scope, command);
+                }).setNegativeButton("HỦY", null).show();
+        } catch (Exception e) { line("Không đọc được kế hoạch JSON: " + e.getMessage(), 0xffff8080); }
+    }
+
+    private void executeAiAdbCommand(String serial, String scope, String command) {
+        if (!isFreshAdbDevice(serial) || !hasAiDevicePermission(serial, scope)) {
+            line("Chặn thực thi: thiết bị không trực tuyến hoặc quyền đã bị thu hồi.", 0xffff8080); return;
+        }
+        if (command == null || command.trim().isEmpty() || command.length() > 1200
+            || command.matches("(?s).*[;&|<>$].*") || command.indexOf(96) >= 0) {
+            line("Lệnh không qua kiểm tra cuối cùng; không thực thi.", 0xffff8080); return;
+        }
+        line("AI → ADB: thực thi trên " + serial + " theo quyền " + scope, 0xff79c9ff);
+        runTermuxCommand("adb -s " + shellQuote(serial) + " shell " + shellQuote(command));
+    }
+
     private void showAdbDeviceManager() {
         android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
         java.util.ArrayList<String> devices = new java.util.ArrayList<>(
@@ -3719,6 +3864,7 @@ public class MainActivity extends Activity {
                 .remove("pending_scrcpy_ready").remove("pending_scrcpy_token").commit();
             if (pending != null && !pending.isEmpty()) {
                 lastCommandOutput = pending;
+                processAiDevicePlanOutput(pending);
                 handleAdbDevicesOutput(pending);
                 line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
                 for (String part : pending.split("\\n")) line(part, WHITE);
@@ -3840,6 +3986,7 @@ public class MainActivity extends Activity {
                     scheduleScrcpyResumeRetry(lastCommandOutput);
                 }
             }
+            processAiDevicePlanOutput(lastCommandOutput);
             handleAdbDevicesOutput(lastCommandOutput);
             line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
             for (String part : lastCommandOutput.split("\\n")) line(part, WHITE);
