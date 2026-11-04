@@ -2707,10 +2707,11 @@ public class MainActivity extends Activity {
 
     private void showAiDeviceControlMenu() {
         java.util.ArrayList<String> online = getFreshAdbDevices();
-        String[] actions = {"CẤP / ĐIỀU CHỈNH QUYỀN CHO THIẾT BỊ", "THU HỒI TOÀN BỘ QUYỀN AI"};
+        String[] actions = {"CẤP / ĐIỀU CHỈNH QUYỀN CHO THIẾT BỊ", "THU HỒI TOÀN BỘ QUYỀN AI", "XEM NHẬT KÝ ĐIỀU KHIỂN AI"};
         new AlertDialog.Builder(this).setTitle("AI • Quyền điều khiển thiết bị")
             .setMessage("Quyền chỉ tồn tại trong phiên BO hiện tại và gắn với đúng serial ADB. AI không có quyền root, không thể vượt qua xác thực Android. Mỗi thao tác nhạy cảm vẫn cần bạn xác nhận.")
             .setItems(actions, (d, which) -> {
+                if (which == 2) { showAiDeviceAuditLog(); return; }
                 if (which == 1) {
                     aiDevicePermissions.clear();
                     line("Đã thu hồi toàn bộ quyền điều khiển AI trong phiên hiện tại.", GREEN);
@@ -2942,8 +2943,64 @@ public class MainActivity extends Activity {
             || !isAiCommandAllowedForScope(scope, command)) {
             line("Lệnh không qua kiểm tra cuối cùng; không thực thi.", 0xffff8080); return;
         }
+        String executionId = java.util.UUID.randomUUID().toString();
+        String detail = "Thiết bị=" + serial + " | quyền=" + scope + " | lệnh=" + command;
+        android.content.SharedPreferences audit = getSharedPreferences("bo_kali_ai_device_audit", MODE_PRIVATE);
+        audit.edit().putString("pending_" + executionId, detail).apply();
+        appendAiDeviceAudit("ĐÃ XÁC NHẬN / GỬI THERMUX | " + detail);
         line("AI → ADB: thực thi trên " + serial + " theo quyền " + scope, 0xff79c9ff);
-        runTermuxCommand("adb -s " + shellQuote(serial) + " shell " + shellQuote(command));
+        String commandLine = "adb -s " + shellQuote(serial) + " shell " + shellQuote(command)
+            + "; __bo_ai_status=$?; printf '\\nBO_AI_EXEC_RESULT:" + executionId
+            + ":%s\\n' \"$__bo_ai_status\"; exit \"$__bo_ai_status\"";
+        runTermuxCommand(commandLine);
+    }
+
+    private void appendAiDeviceAudit(String entry) {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_ai_device_audit", MODE_PRIVATE);
+        String old = prefs.getString("entries", "");
+        String combined = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+            .format(new java.util.Date()) + " | " + entry + (old.isEmpty() ? "" : "\n" + old);
+        String[] rows = combined.split("\n");
+        StringBuilder kept = new StringBuilder();
+        for (int i = 0; i < rows.length && i < 40; i++) {
+            if (kept.length() > 0) kept.append("\n");
+            kept.append(rows[i].length() > 1000 ? rows[i].substring(0, 1000) : rows[i]);
+        }
+        prefs.edit().putString("entries", kept.toString()).apply();
+    }
+
+    private void showAiDeviceAuditLog() {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_ai_device_audit", MODE_PRIVATE);
+        String entries = prefs.getString("entries", "");
+        if (entries.isEmpty()) entries = "Chưa có hoạt động điều khiển AI nào được ghi nhận.";
+        new AlertDialog.Builder(this).setTitle("Nhật ký điều khiển AI")
+            .setMessage(entries)
+            .setPositiveButton("XÓA NHẬT KÝ", (d, w) -> {
+                new AlertDialog.Builder(this).setTitle("Xóa nhật ký?")
+                    .setMessage("Thao tác này chỉ xóa lịch sử cục bộ, không thay đổi thiết bị đích.")
+                    .setPositiveButton("XÓA", (x, y) -> {
+                        prefs.edit().clear().apply();
+                        line("Đã xóa nhật ký điều khiển AI trên thiết bị này.", GREEN);
+                    }).setNegativeButton("HỦY", null).show();
+            })
+            .setNegativeButton("ĐÓNG", null).show();
+    }
+
+    private void processAiDeviceExecutionResult(String output) {
+        if (output == null || !output.contains("BO_AI_EXEC_RESULT:")) return;
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+            .compile("BO_AI_EXEC_RESULT:([0-9a-fA-F-]{36}):(-?[0-9]+)").matcher(output);
+        while (matcher.find()) {
+            String id = matcher.group(1);
+            String status = matcher.group(2);
+            android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_ai_device_audit", MODE_PRIVATE);
+            String detail = prefs.getString("pending_" + id, "");
+            if (detail.isEmpty()) continue;
+            prefs.edit().remove("pending_" + id).apply();
+            appendAiDeviceAudit("KẾT QUẢ exit=" + status + " | " + detail);
+            line("AI ADB hoàn tất: mã thoát " + status + ". Xem Nhật ký điều khiển AI để biết chi tiết.", 
+                "0".equals(status) ? GREEN : 0xffffca70);
+        }
     }
 
     private void showAdbDeviceManager() {
@@ -3894,6 +3951,7 @@ public class MainActivity extends Activity {
             if (pending != null && !pending.isEmpty()) {
                 lastCommandOutput = pending;
                 processAiDevicePlanOutput(pending);
+                processAiDeviceExecutionResult(pending);
                 handleAdbDevicesOutput(pending);
                 line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
                 for (String part : pending.split("\\n")) line(part, WHITE);
@@ -4016,6 +4074,7 @@ public class MainActivity extends Activity {
                 }
             }
             processAiDevicePlanOutput(lastCommandOutput);
+            processAiDeviceExecutionResult(lastCommandOutput);
             handleAdbDevicesOutput(lastCommandOutput);
             line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
             for (String part : lastCommandOutput.split("\\n")) line(part, WHITE);
