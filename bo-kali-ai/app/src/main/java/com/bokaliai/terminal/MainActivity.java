@@ -2933,7 +2933,7 @@ public class MainActivity extends Activity {
         if ("SCREEN_CONTROL".equals(scope)) {
             if (lower.matches("^input keyevent (3|4|19|20|21|22|23|24|25|66|82)$")) return true;
             if (lower.matches("^input tap [0-9]{1,4} [0-9]{1,4}$")) return true;
-            if (lower.matches("^input swipe [0-9]{1,4} [0-9]{1,4} [0-9]{1,4} [0-9]{1,4} ([1-9][0-9]{0,3}|5000)$")) return true;
+            if (lower.matches("^input swipe [0-9]{1,4} [0-9]{1,4} [0-9]{1,4} [0-9]{1,4} ([1-9][0-9]{0,2}|[1-4][0-9]{3}|5000)$")) return true;
             return lower.matches("^input text [a-z0-9._%-]{1,80}$");
         }
         if ("NETWORK_DIAGNOSTICS".equals(scope)) {
@@ -2945,7 +2945,7 @@ public class MainActivity extends Activity {
         if ("DEVICE_SETTINGS".equals(scope)) {
             if (lower.matches("^settings get system (screen_brightness|screen_off_timeout|font_scale|accelerometer_rotation)$")) return true;
             if (lower.matches("^settings put system screen_brightness ([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$")) return true;
-            if (lower.matches("^settings put system screen_off_timeout ([1-9][0-9]{3,6})$")) return true;
+            if (lower.matches("^settings put system screen_off_timeout ([1-9][0-9]{3,5})$")) return true;
             if (lower.matches("^settings put system font_scale (0\\.[8-9]|1(\\.[0-5])?)$")) return true;
             if (lower.matches("^settings put system accelerometer_rotation [01]$")) return true;
             return lower.equals("wm size") || lower.equals("wm density") || lower.equals("cmd uimode night yes")
