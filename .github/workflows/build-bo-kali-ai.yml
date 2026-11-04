@@ -76,3 +76,5 @@ jobs:
             gh release create "$TAG" "bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk" --title "BO Kali AI — bản mới nhất" --notes "APK mới nhất từ main. Version code: $GITHUB_RUN_NUMBER; Version name: 0.1.$GITHUB_RUN_NUMBER. Mã nguồn: $GITHUB_SHA" --prerelease
           fi
           gh release upload "$TAG" "bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk" "bo-kali-ai/app/build/outputs/apk/debug/bo-kali-ai-update.json" --clobber
+
+# Keep the BO Kali AI workflow in sync with main source updates.
