@@ -2577,8 +2577,15 @@ public class MainActivity extends Activity {
         factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
         factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
         factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-        factory.setAttribute(javax.xml.XMLConstants.ACCESS_EXTERNAL_DTD, "");
-        factory.setAttribute(javax.xml.XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        // Android's XMLConstants may not expose JAXP external-access constants.
+        // Keep the mandatory DOCTYPE/entity protections above and apply these
+        // additional restrictions when the platform parser supports the properties.
+        try {
+            factory.setAttribute("http://javax.xml.XMLConstants/property/accessExternalDTD", "");
+        } catch (IllegalArgumentException unsupported) { /* Mandatory entity features remain enabled. */ }
+        try {
+            factory.setAttribute("http://javax.xml.XMLConstants/property/accessExternalSchema", "");
+        } catch (IllegalArgumentException unsupported) { /* Mandatory entity features remain enabled. */ }
         factory.setXIncludeAware(false);
         factory.setExpandEntityReferences(false);
         return factory.newDocumentBuilder().parse(new java.io.ByteArrayInputStream(xml));
@@ -5047,6 +5054,7 @@ public class MainActivity extends Activity {
                 JSONObject result;
                 int code;
                 JSONArray geminiContents = new JSONArray();
+                JSONArray claudeContent = null;
                 if ("Antigravity".equals(provider)) {
                     android.content.SharedPreferences agentSession = getSharedPreferences("bo_kali_antigravity_session", MODE_PRIVATE);
                     String previousId = agentSession.getString("interaction_id", "");
@@ -5097,7 +5105,7 @@ public class MainActivity extends Activity {
                     code = conn.getResponseCode();
                     result = new JSONObject(readAiHttpResponse(conn, code));
                 } else if ("Claude".equals(provider)) {
-                    JSONArray claudeContent = new JSONArray().put(new JSONObject().put("type", "text").put("text", prompt));
+                    claudeContent = new JSONArray().put(new JSONObject().put("type", "text").put("text", prompt));
                     if (!imageData.isEmpty()) claudeContent.put(new JSONObject().put("type", "image")
                         .put("source", new JSONObject().put("type", "base64")
                             .put("media_type", imageMime).put("data", imageData)));
