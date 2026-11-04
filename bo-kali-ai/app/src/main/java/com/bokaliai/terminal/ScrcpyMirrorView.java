@@ -274,6 +274,17 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
                 controlSocket = null;
                 controlOutput = null;
             }
+            // EOF, Wi-Fi loss, or a remote scrcpy exit must clear the local
+            // running flag. Otherwise Activity thinks a dead socket is healthy
+            // and refuses to run its reconnect handshake after the network returns.
+            if (sessionGeneration.get() == generation) {
+                running.set(false);
+                post(() -> {
+                    if (sessionGeneration.get() == generation) {
+                        statusView.setText("Mất luồng scrcpy · ADB chưa bị ngắt · Mở lại màn hình để kết nối lại");
+                    }
+                });
+            }
         }
     }
 
@@ -362,6 +373,9 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             return true;
         } catch (IOException error) {
             setStatus("Mất kênh điều khiển: " + safeMessage(error));
+            // A dead control socket means the mirrored session is no longer usable.
+            // Stop both channels so the next Activity resume can rebuild them together.
+            stop();
             return false;
         }
     }
