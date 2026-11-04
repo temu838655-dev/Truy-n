@@ -865,8 +865,10 @@ public class MainActivity extends Activity {
         }
         if ((DeviceHubProfile.SSH.equals(profile.platform) || DeviceHubProfile.ROUTER_SSH.equals(profile.platform))) {
             String sshHost = formatEndpointHost(profile.host);
-            String command = "pkg install -y openssh && ssh -p " + profile.port
-                + " -o ConnectTimeout=10 " + shellQuote(profile.username + "@" + sshHost);
+            // Force a PTY so interactive SSH authentication and router CLIs work in Termux.
+            String command = "pkg install -y openssh && ssh -tt -p " + profile.port
+                + " -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=3 "
+                + shellQuote(profile.username + "@" + sshHost);
             new AlertDialog.Builder(this).setTitle((DeviceHubProfile.ROUTER_SSH.equals(profile.platform) ? "SSH MODEM / ROUTER · " : "Kết nối SSH · ") + profile.name)
                 .setMessage("Mở phiên SSH trong Termux. Router phải bật SSH Server và cho phép tài khoản này đăng nhập. Lần đầu xác nhận host key; nhập mật khẩu trực tiếp trong Termux. BO Kali AI không lưu mật khẩu. Quyền chạy lệnh phụ thuộc tài khoản và firmware router.")
                 .setPositiveButton("MỞ PHIÊN SSH", (d, w) -> runTermuxInteractiveCommand(command))
