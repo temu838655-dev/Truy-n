@@ -294,10 +294,45 @@ public class MainActivity extends Activity {
             .setMessage("• Wi-Fi tích hợp trên điện thoại thường không hỗ trợ monitor mode/injection qua Android Rootless.\\n\\n• Có thể cần USB Wi-Fi OTG tương thích chipset, driver Linux phù hợp và cấp nguồn OTG ổn định.\\n\\n• Chỉ kiểm thử thiết bị/mạng thuộc quyền quản lý hoặc có văn bản ủy quyền.\\n\\n• Nếu iw không liệt kê monitor mode thì Wifite không thể tự khắc phục bằng phần mềm.")
             .setPositiveButton("ĐÃ HIỂU", null).show());
         page.addView(guide, new LinearLayout.LayoutParams(-1, dp(46)));
+        Button monitorDemo = button("MONITOR MODE SIMULATOR • DEMO");
+        monitorDemo.setOnClickListener(v -> showWifiMonitorSimulation());
+        page.addView(monitorDemo, new LinearLayout.LayoutParams(-1, dp(48)));
         Button back = button("← QUAY LẠI BO KALI AI");
         back.setOnClickListener(v -> buildUi());
         page.addView(back, new LinearLayout.LayoutParams(-1, dp(46)));
         setContentView(page);
+    }
+
+ 
+    // Educational-only monitor-mode simulator. It uses synthetic data and never
+    // creates a kernel monitor interface or captures real wireless traffic.
+    private void showWifiMonitorSimulation() {
+        String report =
+            "BO KALI AI · MONITOR MODE SIMULATOR\\n"
+            + "STATUS: DEMO / SIMULATED — NOT REAL HARDWARE\\n\\n"
+            + "[wlan-demo0]  type: monitor (virtual demo)\\n"
+            + "Driver: demo_driver (not loaded)\\n"
+            + "Packet capture: DISABLED\\n"
+            + "Live RF access: NONE\\n\\n"
+            + "DỮ LIỆU MẪU (KHÔNG PHẢI MẠNG THẬT)\\n"
+            + "01  Demo-Lab-2G     WPA2  Ch 1   Signal -48 dBm\\n"
+            + "02  Demo-Lab-5G     WPA3  Ch 36  Signal -61 dBm\\n"
+            + "03  Demo-Guest      WPA2  Ch 6   Signal -73 dBm\\n\\n"
+            + "Bạn có thể dùng màn hình này để làm quen với trạng thái interface, "
+            + "kênh và cường độ tín hiệu. Không có gói tin nào được thu, giải mã "
+            + "hay gửi đi. Muốn kiểm tra monitor mode thật, hãy dùng mục chẩn đoán "
+            + "card Wi-Fi USB/driver và phần cứng tương thích.";
+        new AlertDialog.Builder(this)
+            .setTitle("MONITOR MODE · SIMULATION")
+            .setMessage(report)
+            .setPositiveButton("ĐÓNG", null)
+            .setNeutralButton("KIỂM TRA PHẦN CỨNG THẬT", (d, w) -> {
+                runKaliCommand("echo '=== REAL MONITOR MODE CHECK ==='; "
+                    + "command -v iw >/dev/null 2>&1 && iw list 2>&1 | grep -A 12 'Supported interface modes' "
+                    + "|| echo 'iw chưa cài hoặc kernel không công bố khả năng này'; "
+                    + "echo '=== INTERFACES ==='; ip -br link 2>&1");
+            })
+            .show();
     }
 
     // Router management starts from the active Wi-Fi DHCP gateway. It never guesses
