@@ -65,6 +65,7 @@ public class MainActivity extends Activity {
     private final java.util.HashSet<String> adbResolveQueuedKeys = new java.util.HashSet<>();
     private boolean adbResolveInFlight = false;
     private int adbResolveTaskToken = 0;
+    private String adbResolveCurrentKey = "";
     private Runnable adbResolveTimeout;
     private NsdManager.DiscoveryListener adbDiscoveryListener;
     private NsdManager.DiscoveryListener adbPairingDiscoveryListener;
@@ -1169,8 +1170,10 @@ public class MainActivity extends Activity {
             if (!adbResolveInFlight || token != adbResolveTaskToken) return;
             adbResolveInFlight = false;
             adbResolveTimeout = null;
-            line("Hết thời gian phân giải một dịch vụ ADB; tiếp tục xử lý hàng đợi.", 0xffffca70);
-            task.run();
+            adbResolveQueuedKeys.remove(adbResolveCurrentKey);
+            adbResolveCurrentKey = "";
+            line("Hết thời gian phân giải một dịch vụ ADB; bỏ qua dịch vụ này và tiếp tục hàng đợi.", 0xffffca70);
+            resolveNextAdbService();
         };
         // The task starts the NSD resolver. The timeout only invalidates the current
         // callback and advances the queue; task.run() is invoked below once.
@@ -1184,10 +1187,12 @@ public class MainActivity extends Activity {
         adbResolveTimeout = null;
         adbResolveInFlight = false;
         adbResolveQueuedKeys.remove(key);
+        adbResolveCurrentKey = "";
         resolveNextAdbService();
     }
 
     private void resolveAdbServiceNow(NsdServiceInfo service, boolean pairing, String key) {
+        adbResolveCurrentKey = key;
         final int token = adbResolveTaskToken;
         final String name = service.getServiceName();
         try {
