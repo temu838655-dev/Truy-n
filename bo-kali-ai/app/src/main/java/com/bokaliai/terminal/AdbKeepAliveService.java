@@ -35,14 +35,16 @@ public class AdbKeepAliveService extends Service {
         android.content.SharedPreferences session =
             getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
         boolean sessionRequested = session.getBoolean("keep_alive", false);
-        String serial = intent == null
-            ? session.getString("active_serial", "")
-            : intent.getStringExtra(EXTRA_SERIAL);
-        if (intent == null && !sessionRequested) {
+        String savedSerial = session.getString("active_serial", "");
+        String serial = intent == null ? savedSerial : intent.getStringExtra(EXTRA_SERIAL);
+        // Reject stale START intents after the user has stopped the session or switched devices.
+        if (!sessionRequested || serial == null || serial.isEmpty()
+            || !serial.equals(savedSerial)) {
+            releaseLocks();
+            stopForeground(true);
             stopSelf();
             return START_NOT_STICKY;
         }
-        if (serial == null) serial = "";
         Notification notification = buildNotification(serial);
         if (Build.VERSION.SDK_INT >= 29) {
             startForeground(NOTIFICATION_ID, notification,
