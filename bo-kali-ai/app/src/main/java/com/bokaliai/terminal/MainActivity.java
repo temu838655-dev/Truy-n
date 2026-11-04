@@ -291,8 +291,8 @@ public class MainActivity extends Activity {
         controls.addView(swap, new LinearLayout.LayoutParams(0, dp(42), 1));
         page.addView(controls);
 
-        LinearLayout.LayoutParams codeParams = new LinearLayout.LayoutParams(0, 0, 1f);
-        LinearLayout.LayoutParams deviceParams = new LinearLayout.LayoutParams(0, 0, 1f);
+        LinearLayout.LayoutParams codeParams = new LinearLayout.LayoutParams(0, -1, 1f);
+        LinearLayout.LayoutParams deviceParams = new LinearLayout.LayoutParams(0, -1, 1f);
         split.addView(codePane, codeParams);
         split.addView(devicePane, deviceParams);
         page.addView(split, new LinearLayout.LayoutParams(-1, 0, 1f));
@@ -300,25 +300,25 @@ public class MainActivity extends Activity {
         Runnable applySplit = () -> {
             codePane.setVisibility(View.VISIBLE);
             devicePane.setVisibility(View.VISIBLE);
-            codePane.setLayoutParams(new LinearLayout.LayoutParams(0, 0, deviceExpanded[0] ? 1f : 1f));
-            devicePane.setLayoutParams(new LinearLayout.LayoutParams(0, 0, deviceExpanded[0] ? 4f : 1f));
+            codePane.setLayoutParams(new LinearLayout.LayoutParams(0, -1, deviceExpanded[0] ? 1f : 1f));
+            devicePane.setLayoutParams(new LinearLayout.LayoutParams(0, -1, deviceExpanded[0] ? 4f : 1f));
             if (deviceExpanded[0]) {
-                codePane.setLayoutParams(new LinearLayout.LayoutParams(0, 0, 1f));
-                devicePane.setLayoutParams(new LinearLayout.LayoutParams(0, 0, 4f));
+                codePane.setLayoutParams(new LinearLayout.LayoutParams(0, -1, 1f));
+                devicePane.setLayoutParams(new LinearLayout.LayoutParams(0, -1, 4f));
             }
             if (swapped[0]) {
                 split.removeAllViews();
                 if (deviceExpanded[0]) {
-                    split.addView(devicePane, new LinearLayout.LayoutParams(0, 0, 4f));
-                    split.addView(codePane, new LinearLayout.LayoutParams(0, 0, 1f));
+                    split.addView(devicePane, new LinearLayout.LayoutParams(0, -1, 4f));
+                    split.addView(codePane, new LinearLayout.LayoutParams(0, -1, 1f));
                 } else {
-                    split.addView(devicePane, new LinearLayout.LayoutParams(0, 0, 1f));
-                    split.addView(codePane, new LinearLayout.LayoutParams(0, 0, 1f));
+                    split.addView(devicePane, new LinearLayout.LayoutParams(0, -1, 1f));
+                    split.addView(codePane, new LinearLayout.LayoutParams(0, -1, 1f));
                 }
             } else {
                 split.removeAllViews();
-                split.addView(codePane, new LinearLayout.LayoutParams(0, 0, deviceExpanded[0] ? 1f : 1f));
-                split.addView(devicePane, new LinearLayout.LayoutParams(0, 0, deviceExpanded[0] ? 4f : 1f));
+                split.addView(codePane, new LinearLayout.LayoutParams(0, -1, deviceExpanded[0] ? 1f : 1f));
+                split.addView(devicePane, new LinearLayout.LayoutParams(0, -1, deviceExpanded[0] ? 4f : 1f));
             }
         };
         expandCode.setOnClickListener(v -> {
@@ -326,8 +326,8 @@ public class MainActivity extends Activity {
             codePane.setVisibility(View.VISIBLE);
             devicePane.setVisibility(View.VISIBLE);
             split.removeAllViews();
-            split.addView(codePane, new LinearLayout.LayoutParams(0, 0, 4f));
-            split.addView(devicePane, new LinearLayout.LayoutParams(0, 0, 1f));
+            split.addView(codePane, new LinearLayout.LayoutParams(0, -1, 4f));
+            split.addView(devicePane, new LinearLayout.LayoutParams(0, -1, 1f));
         });
         expandDevice.setOnClickListener(v -> {
             if (!isFreshAdbDevice(serial)) {
@@ -338,11 +338,11 @@ public class MainActivity extends Activity {
             deviceExpanded[0] = true;
             split.removeAllViews();
             if (swapped[0]) {
-                split.addView(devicePane, new LinearLayout.LayoutParams(0, 0, 4f));
-                split.addView(codePane, new LinearLayout.LayoutParams(0, 0, 1f));
+                split.addView(devicePane, new LinearLayout.LayoutParams(0, -1, 4f));
+                split.addView(codePane, new LinearLayout.LayoutParams(0, -1, 1f));
             } else {
-                split.addView(codePane, new LinearLayout.LayoutParams(0, 0, 1f));
-                split.addView(devicePane, new LinearLayout.LayoutParams(0, 0, 4f));
+                split.addView(codePane, new LinearLayout.LayoutParams(0, -1, 1f));
+                split.addView(devicePane, new LinearLayout.LayoutParams(0, -1, 4f));
             }
         });
         splitAgain.setOnClickListener(v -> {
