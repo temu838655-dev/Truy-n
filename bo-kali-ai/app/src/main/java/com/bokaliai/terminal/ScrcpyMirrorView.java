@@ -301,11 +301,11 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
         int x = Math.min(width - 1, Math.max(0, Math.round(xRatio * width)));
         int y = Math.min(height - 1, Math.max(0, Math.round(yRatio * height)));
         int pressure = Math.round(Math.max(0f, Math.min(1f, event.getPressure(index))) * 65535f);
-        ByteBuffer message = ByteBuffer.allocate(32).order(ByteOrder.BIG_ENDIAN);
+        ByteBuffer message = ByteBuffer.allocate(28).order(ByteOrder.BIG_ENDIAN);
         message.put((byte) 2).put((byte) action).putLong(event.getPointerId(index));
         message.putInt(x).putInt(y).putShort((short) Math.min(width, 65535));
         message.putShort((short) Math.min(height, 65535)).putShort((short) pressure);
-        message.putInt(0).putInt(0);
+        message.putInt(0);
         synchronized (output) {
             output.write(message.array());
             output.flush();
