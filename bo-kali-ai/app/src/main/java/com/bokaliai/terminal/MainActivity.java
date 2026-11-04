@@ -2824,6 +2824,19 @@ public class MainActivity extends Activity {
         if (serialOrNull == null || serialOrNull.equals(pendingSerial)) pending.edit().clear().commit();
     }
 
+    private String grantedAiScopesForPrompt(String serial) {
+        java.util.HashSet<String> granted = aiDevicePermissions.get(serial);
+        if (granted == null || granted.isEmpty()) return "NONE";
+        StringBuilder value = new StringBuilder();
+        for (String scope : AI_DEVICE_SCOPE_IDS) {
+            if (granted.contains(scope)) {
+                if (value.length() > 0) value.append(", ");
+                value.append(scope);
+            }
+        }
+        return value.length() == 0 ? "NONE" : value.toString();
+    }
+
     private void showAiDeviceTaskDialog() {
         java.util.ArrayList<String> devices = getFreshAdbDevices();
         if (devices.isEmpty()) {
@@ -2884,6 +2897,8 @@ public class MainActivity extends Activity {
                     + "Không thêm adb vào command. Không dùng newline, dấu chấm phẩy, &&, ||, pipe, redirect, backtick, biến shell, dấu nháy hoặc chuỗi lệnh ghép. "
                     + "Không đề xuất xóa dữ liệu, factory reset, tắt bảo mật, lấy mật khẩu, vượt xác thực, khai thác lỗ hổng hoặc truy cập thiết bị khác. "
                     + "Nếu không thể thực hiện an toàn bằng một lệnh, trả command rỗng và risk HIGH. Chỉ lập kế hoạch, không tuyên bố đã thực thi. "
+                    + "Quyền đã được chủ thiết bị cấp riêng cho serial này: "
+                    + grantedAiScopesForPrompt(serial) + ". Chỉ chọn một scope nằm trong danh sách quyền đã cấp; nếu không có scope phù hợp, trả command rỗng và risk HIGH. "
                     + "Thiết bị: " + serial + ". Mục tiêu: " + task;
                 String script;
                 if ("codex".equals(provider)) {
