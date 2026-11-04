@@ -245,7 +245,7 @@ public class MainActivity extends Activity {
                 String remoteStart = "CLASSPATH=/data/local/tmp/bo-kali-scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 4.0 scid=" + mirrorId + " tunnel_forward=true audio=false video_codec=h264 max_size=1280 video_bit_rate=4000000 max_fps=30 send_device_meta=false send_dummy_byte=false cleanup=true >/dev/null 2>&1 </dev/null &";
                 String socketName = "scrcpy_" + mirrorId;
                 String serialArg = shellQuote(serial);
-                String command = "set -e; pkg install -y android-tools curl coreutils >/dev/null; "
+                String command = "echo BO_SCRCPY_REQUEST:" + scrcpyRequestToken + "; set -e; pkg install -y android-tools curl coreutils >/dev/null; "
                     + "mkdir -p \"$HOME/.bo-kali-ai\"; SERVER=\"$HOME/.bo-kali-ai/scrcpy-server-v4.0\"; "
                     + "if [ ! -s \"$SERVER\" ] || [ \"$(sha256sum \"$SERVER\" | cut -d' ' -f1)\" != \"" + serverHash + "\" ]; then "
                     + "curl -fL --retry 3 \"" + serverUrl + "\" -o \"$SERVER.tmp\"; "
@@ -2545,8 +2545,12 @@ public class MainActivity extends Activity {
                     line("Bỏ qua kết quả scrcpy cũ vì phiên thiết bị đã thay đổi.", 0xffffca70);
                 }
             } else if (pending != null) {
+                android.content.SharedPreferences session =
+                    getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
+                boolean currentRequest = !pendingScrcpyToken.isEmpty()
+                    && pendingScrcpyToken.equals(session.getString("active_request_token", ""));
                 adbMirrorResumePending = false;
-                scheduleScrcpyResumeRetry(pending);
+                if (currentRequest) scheduleScrcpyResumeRetry(pending);
             }
         }
         resumeAdbMirrorAfterUnlock();
@@ -2581,7 +2585,7 @@ public class MainActivity extends Activity {
         String portArg = "tcp:" + mirrorPort;
         String socketCheck = "grep -F '" + socketName + "' /proc/net/unix >/dev/null 2>&1";
         String waitForSocket = "for i in 1 2 3 4 5 6 7 8 9 10; do grep -F '" + socketName + "' /proc/net/unix >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1";
-        String command = "adb -s " + serialArg + " get-state >/dev/null 2>&1 || { echo 'BO_SCRCPY_ERROR: Thiết bị ADB chưa trực tuyến'; exit 1; }; "
+        String command = "echo BO_SCRCPY_REQUEST:" + scrcpyRequestToken + "; adb -s " + serialArg + " get-state >/dev/null 2>&1 || { echo 'BO_SCRCPY_ERROR: Thiết bị ADB chưa trực tuyến'; exit 1; }; "
             + "adb -s " + serialArg + " forward --remove tcp:" + mirrorPort + " >/dev/null 2>&1 || true; "
             + "adb -s " + serialArg + " forward tcp:" + mirrorPort + " localabstract:" + socketName + " || exit 1; "
             + "if ! adb -s " + serialArg + " shell " + shellQuote(socketCheck) + "; then "
@@ -2624,7 +2628,12 @@ public class MainActivity extends Activity {
                     line("Bỏ qua kết quả scrcpy cũ vì phiên thiết bị đã thay đổi.", 0xffffca70);
                 }
             } else {
-                scheduleScrcpyResumeRetry(lastCommandOutput);
+                android.content.SharedPreferences session =
+                    getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
+                String resultToken = intent.getStringExtra("bo_scrcpy_token");
+                if (resultToken != null && resultToken.equals(session.getString("active_request_token", ""))) {
+                    scheduleScrcpyResumeRetry(lastCommandOutput);
+                }
             }
             handleAdbDevicesOutput(lastCommandOutput);
             line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);

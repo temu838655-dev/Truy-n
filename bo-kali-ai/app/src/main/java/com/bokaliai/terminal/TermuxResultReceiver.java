@@ -24,9 +24,11 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         } else {
             String stdout = result.getString("stdout", "");
             String stderr = result.getString("stderr", "");
+            java.util.regex.Matcher requestMatcher = java.util.regex.Pattern
+                .compile("BO_SCRCPY_REQUEST:([0-9a-fA-F-]{36})").matcher(stdout);
+            if (requestMatcher.find()) scrcpyToken = requestMatcher.group(1);
             java.util.regex.Matcher readyMatcher = java.util.regex.Pattern
-                .compile("BO_SCRCPY_READY:([0-9a-fA-F-]{36}):[0-9]+")
-                .matcher(stdout);
+                .compile("BO_SCRCPY_READY:([0-9a-fA-F-]{36}):[0-9]+").matcher(stdout);
             scrcpyReady = readyMatcher.find();
             if (scrcpyReady) scrcpyToken = readyMatcher.group(1);
             exitCode = result.getInt("exitCode", -1);
