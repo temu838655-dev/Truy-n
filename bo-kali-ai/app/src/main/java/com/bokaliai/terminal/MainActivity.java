@@ -106,6 +106,9 @@ public class MainActivity extends Activity {
         shellAdb.setOnClickListener(v -> showAdbShellDialog());
         adbRow.addView(shellAdb, new LinearLayout.LayoutParams(0, dp(42), 1));
         root.addView(adbRow);
+        Button adbBackup = button("SAO LƯU / KHÔI PHỤC ADB");
+        adbBackup.setOnClickListener(v -> showAdbBackupMenu());
+        root.addView(adbBackup);
         Button scanPairing = button("QUÉT CỔNG GHÉP ĐÔI");
         scanPairing.setOnClickListener(v -> scanAdbPairingServices());
         root.addView(scanPairing, new LinearLayout.LayoutParams(-1, dp(40)));
@@ -693,6 +696,128 @@ public class MainActivity extends Activity {
             line("Đã gửi tác vụ ADB đến Termux. Đang chờ kết quả...", GREEN);
         } catch (SecurityException e) { line("Termux chưa bật allow-external-apps hoặc chưa cấp quyền RUN_COMMAND.", 0xffffca70); openTermux(); }
           catch (Exception e) { line("Không chạy được ADB trong Termux: " + e.getMessage(), 0xffff8080); }
+    }
+
+    
+    private static final int REQ_ADB_BACKUP_EXPORT = 4101;
+    private static final int REQ_ADB_BACKUP_IMPORT = 4102;
+
+    private void showAdbBackupMenu() {
+        new AlertDialog.Builder(this).setTitle("Sao lưu / khôi phục ADB")
+            .setMessage("Tệp sao lưu chứa serial, tên gợi nhớ, trạng thái, endpoint Wi-Fi và lệnh thường dùng đã lưu. Hãy giữ tệp riêng tư.")
+            .setItems(new String[]{"Xuất bản sao lưu JSON", "Nhập bản sao lưu JSON"}, (d, which) -> {
+                if (which == 0) {
+                    Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    intent.setType("application/json");
+                    intent.putExtra(Intent.EXTRA_TITLE, "bo-kali-adb-backup.json");
+                    startActivityForResult(intent, REQ_ADB_BACKUP_EXPORT);
+                } else {
+                    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    intent.setType("*/*");
+                    startActivityForResult(intent, REQ_ADB_BACKUP_IMPORT);
+                }
+            }).setNegativeButton("ĐÓNG", null).show();
+    }
+
+    private JSONObject createAdbBackupJson() throws Exception {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        JSONObject rootJson = new JSONObject();
+        rootJson.put("format", "bo-kali-adb-backup");
+        rootJson.put("version", 1);
+        rootJson.put("createdAt", System.currentTimeMillis());
+        JSONObject data = new JSONObject();
+        java.util.Map<String, ?> all = prefs.getAll();
+        for (java.util.Map.Entry<String, ?> entry : all.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            if ("serials".equals(key) || "discovered_endpoints".equals(key) || "pairing_endpoints".equals(key)) {
+                JSONArray array = new JSONArray();
+                if (value instanceof java.util.Set) {
+                    for (Object item : (java.util.Set<?>) value) array.put(String.valueOf(item));
+                }
+                data.put(key, array);
+            } else if ("last_scan_time".equals(key) || key.startsWith("state_") || key.startsWith("seen_")
+                || key.startsWith("alias_") || key.startsWith("preset_") || key.startsWith("service_")
+                || key.startsWith("discovered_at_") || key.startsWith("pairing_service_")
+                || key.startsWith("pairing_discovered_at_")) {
+                if (value instanceof String || value instanceof Number || value instanceof Boolean) data.put(key, value);
+            }
+        }
+        rootJson.put("data", data);
+        return rootJson;
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        Uri uri = data.getData();
+        if (requestCode == REQ_ADB_BACKUP_EXPORT) {
+            try (OutputStream out = getContentResolver().openOutputStream(uri)) {
+                if (out == null) throw new java.io.IOException("Không mở được tệp đích");
+                out.write(createAdbBackupJson().toString(2).getBytes(StandardCharsets.UTF_8));
+                out.flush();
+                line("Đã xuất bản sao lưu cấu hình ADB dạng JSON.", GREEN);
+                new AlertDialog.Builder(this).setMessage("Đã tạo tệp sao lưu. Hãy lưu ở nơi an toàn; tệp có thể chứa địa chỉ mạng và lệnh riêng của bạn.")
+                    .setPositiveButton("ĐÓNG", null).show();
+            } catch (Exception e) { line("Không xuất được sao lưu: " + e.getMessage(), 0xffff8080); }
+        } else if (requestCode == REQ_ADB_BACKUP_IMPORT) {
+            new AlertDialog.Builder(this).setTitle("Khôi phục cấu hình ADB?")
+                .setMessage("Dữ liệu trong tệp sẽ được gộp vào danh sách hiện tại; không tự kết nối hoặc chạy lệnh. Chỉ nhập tệp sao lưu BO Kali AI đáng tin cậy.")
+                .setPositiveButton("NHẬP / GỘP", (d, w) -> importAdbBackup(uri))
+                .setNegativeButton("HỦY", null).show();
+        }
+    }
+
+    private void importAdbBackup(Uri uri) {
+        try (java.io.InputStream in = getContentResolver().openInputStream(uri)) {
+            if (in == null) throw new java.io.IOException("Không đọc được tệp");
+            java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+            byte[] chunk = new byte[4096]; int count; int total = 0;
+            while ((count = in.read(chunk)) != -1) {
+                total += count;
+                if (total > 1024 * 1024) throw new java.io.IOException("Tệp sao lưu vượt quá 1 MB");
+                buffer.write(chunk, 0, count);
+            }
+            JSONObject rootJson = new JSONObject(new String(buffer.toByteArray(), StandardCharsets.UTF_8));
+            if (!"bo-kali-adb-backup".equals(rootJson.optString("format")) || rootJson.optInt("version") != 1)
+                throw new IllegalArgumentException("Định dạng hoặc phiên bản sao lưu không được hỗ trợ");
+            JSONObject data = rootJson.getJSONObject("data");
+            android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+            android.content.SharedPreferences.Editor editor = prefs.edit();
+            String[] setKeys = {"serials", "discovered_endpoints", "pairing_endpoints"};
+            for (String key : setKeys) {
+                JSONArray values = data.optJSONArray(key);
+                if (values == null) continue;
+                java.util.HashSet<String> merged = new java.util.HashSet<>(prefs.getStringSet(key, new java.util.HashSet<>()));
+                for (int i = 0; i < values.length(); i++) {
+                    String value = values.optString(i, "").trim();
+                    if (!value.isEmpty() && value.length() <= 512) merged.add(value);
+                }
+                editor.putStringSet(key, merged);
+            }
+            java.util.Iterator<String> keys = data.keys();
+            int restored = 0;
+            while (keys.hasNext()) {
+                String key = keys.next();
+                if ("serials".equals(key) || "discovered_endpoints".equals(key) || "pairing_endpoints".equals(key)) continue;
+                boolean allowed = "last_scan_time".equals(key) || key.startsWith("state_") || key.startsWith("seen_")
+                    || key.startsWith("alias_") || key.startsWith("preset_") || key.startsWith("service_")
+                    || key.startsWith("discovered_at_") || key.startsWith("pairing_service_")
+                    || key.startsWith("pairing_discovered_at_");
+                if (!allowed || key.length() > 600) continue;
+                Object value = data.get(key);
+                if (value instanceof String) editor.putString(key, ((String) value).substring(0, Math.min(((String) value).length(), 4000)));
+                else if (value instanceof Number) editor.putLong(key, ((Number) value).longValue());
+                else if (value instanceof Boolean) editor.putBoolean(key, (Boolean) value);
+                restored++;
+            }
+            editor.apply();
+            line("Đã khôi phục/gộp cấu hình ADB. Không tự kết nối hoặc chạy lệnh.", GREEN);
+            new AlertDialog.Builder(this).setMessage("Đã nhập dữ liệu sao lưu. Hãy quét ADB lại để cập nhật trạng thái trực tuyến.")
+                .setPositiveButton("ĐÓNG", null).show();
+        } catch (Exception e) { line("Không khôi phục được sao lưu: " + e.getMessage(), 0xffff8080); }
     }
 
     private void showAdbDeviceManager() {
