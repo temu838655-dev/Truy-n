@@ -4788,6 +4788,65 @@ public class MainActivity extends Activity {
         return context.toString();
     }
 
+    /** Return a guarded BO tool result to Antigravity; no ADB action is executed here. */
+    private void requestAntigravityToolFollowUp(String apiKey, String previousId,
+                                                 String environmentId, String callId,
+                                                 String toolResultText) {
+        worker.execute(() -> {
+            HttpURLConnection followConn = null;
+            try {
+                JSONArray input = new JSONArray().put(new JSONObject()
+                    .put("type", "function_result")
+                    .put("name", "adb_propose_shell_command")
+                    .put("call_id", callId)
+                    .put("result", new JSONObject()
+                        .put("status", "queued_for_user_review")
+                        .put("message", toolResultText)));
+                JSONObject body = new JSONObject()
+                    .put("agent", "antigravity-preview-09-2026")
+                    .put("previous_interaction_id", previousId)
+                    .put("environment", environmentId == null || environmentId.isEmpty() ? "remote" : environmentId)
+                    .put("input", input)
+                    .put("tools", AiToolRegistry.antigravityTools())
+                    .put("store", true);
+                URL url = new URL("https://generativelanguage.googleapis.com/v1beta/interactions");
+                followConn = (HttpURLConnection) url.openConnection();
+                followConn.setRequestMethod("POST");
+                followConn.setRequestProperty("x-goog-api-key", apiKey);
+                followConn.setConnectTimeout(20000);
+                followConn.setReadTimeout(300000);
+                followConn.setDoOutput(true);
+                followConn.setRequestProperty("Content-Type", "application/json");
+                try (OutputStream os = followConn.getOutputStream()) {
+                    os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                }
+                int followCode = followConn.getResponseCode();
+                JSONObject followResult = new JSONObject(readAiHttpResponse(followConn, followCode));
+                String nextId = followResult.optString("id", "");
+                String nextEnvironment = followResult.optString("environment_id", "");
+                if (!nextId.isEmpty()) {
+                    android.content.SharedPreferences.Editor edit =
+                        getSharedPreferences("bo_kali_antigravity_session", MODE_PRIVATE).edit();
+                    edit.putString("interaction_id", nextId);
+                    if (!nextEnvironment.isEmpty()) edit.putString("environment_id", nextEnvironment);
+                    edit.putLong("updated_at", System.currentTimeMillis()).apply();
+                }
+                String answer = extractAntigravityAnswer(followResult);
+                if (followCode < 200 || followCode >= 300) {
+                    answer = "API chưa nhận được kết quả công cụ (HTTP " + followCode + "): " + answer;
+                }
+                final String out = answer.isEmpty()
+                    ? "Đã gửi trạng thái duyệt cho Antigravity. Không có phản hồi văn bản bổ sung."
+                    : answer;
+                runOnUiThread(() -> line("Antigravity Agent: " + out, WHITE));
+            } catch (Exception e) {
+                runOnUiThread(() -> line("Không gửi được kết quả công cụ cho Antigravity: " + e.getMessage(), 0xffff8080));
+            } finally {
+                if (followConn != null) followConn.disconnect();
+            }
+        });
+    }
+
     private String extractAntigravityAnswer(JSONObject result) {
         String direct = result.optString("output_text", "").trim();
         if (!direct.isEmpty()) return direct;
@@ -4883,7 +4942,8 @@ public class MainActivity extends Activity {
                     JSONObject body = new JSONObject()
                         .put("agent", "antigravity-preview-09-2026")
                         .put("input", agentPrompt)
-                        .put("agent_config", new JSONObject().put("type", "antigravity").put("max_total_tokens", 20000));
+                        .put("tools", AiToolRegistry.antigravityTools())
+                        .put("store", true);
                     if (!previousId.isEmpty() && !environmentId.isEmpty()) {
                         body.put("previous_interaction_id", previousId).put("environment", environmentId);
                     } else {
@@ -4973,9 +5033,28 @@ public class MainActivity extends Activity {
                         if (!environmentId.isEmpty()) sessionEdit.putString("environment_id", environmentId);
                         sessionEdit.putLong("updated_at", System.currentTimeMillis()).apply();
                     }
-                    String answer = extractAntigravityAnswer(result);
-                    final String out = answer.isEmpty() ? "Agent đã phản hồi nhưng không tìm thấy nội dung văn bản. Mã tương tác: " + interactionId : answer;
-                    runOnUiThread(() -> line("Antigravity Agent: " + out, WHITE));
+                    JSONArray antigravityCalls = AiToolRegistry.extractAntigravityFunctionCalls(result);
+                    if (antigravityCalls.length() > 0) {
+                        if (antigravityCalls.length() != 1) {
+                            runOnUiThread(() -> line("Antigravity yêu cầu nhiều công cụ BO cùng lúc. Tạm dừng để tránh chạy song song ngoài ý muốn.", 0xffffca70));
+                        } else {
+                            JSONObject call = antigravityCalls.optJSONObject(0);
+                            String functionName = call == null ? "" : call.optString("name", "");
+                            String callId = call == null ? "" : call.optString("call_id", "");
+                            JSONObject args = call == null ? null : call.optJSONObject("arguments");
+                            if (!"adb_propose_shell_command".equals(functionName) || callId.isEmpty() || args == null) {
+                                runOnUiThread(() -> line("BO từ chối công cụ Antigravity không được hỗ trợ hoặc thiếu đối số.", 0xffff8080));
+                            } else {
+                                runOnUiThread(() -> acceptAiAdbProposal(args, "antigravity"));
+                                requestAntigravityToolFollowUp(apiKey, interactionId, environmentId, callId,
+                                    "BO đã nhận đề xuất ADB và chuyển sang kiểm tra quyền/duyệt của người dùng. Chưa có lệnh nào được thực thi. Không được tuyên bố thiết bị đã thay đổi.");
+                            }
+                        }
+                    } else {
+                        String answer = extractAntigravityAnswer(result);
+                        final String out = answer.isEmpty() ? "Agent đã phản hồi nhưng không tìm thấy nội dung văn bản. Mã tương tác: " + interactionId : answer;
+                        runOnUiThread(() -> line("Antigravity Agent: " + out, WHITE));
+                    }
                 } else if ("Claude".equals(provider) && code >= 200 && code < 300) {
                     JSONArray calls = AiToolRegistry.extractClaudeToolUses(result);
                     if (calls.length() > 0) {
