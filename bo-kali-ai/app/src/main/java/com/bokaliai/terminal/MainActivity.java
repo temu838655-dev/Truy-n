@@ -3316,7 +3316,8 @@ public class MainActivity extends Activity {
                     .setNegativeButton("ĐÓNG", null).show();
                 return;
             }
-            String providerName = "antigravity".equals(provider) ? "Google Antigravity" : "OpenAI Codex";
+            String providerName = "antigravity".equals(provider) ? "Google Antigravity"
+                : "openai".equals(provider) ? "OpenAI" : "OpenAI Codex";
             String message = "AI: " + providerName + "\nThiết bị: " + serial + "\nQuyền: " + scope
                 + "\nRủi ro AI tự đánh giá: " + risk + "\n\nLệnh trên thiết bị:\n" + command
                 + "\n\nLý do: " + reason + "\n\nBO chưa chạy lệnh.";
@@ -4873,7 +4874,10 @@ public class MainActivity extends Activity {
                         .put("model", "gpt-6.1-sol")
                         .put("max_output_tokens", 2048)
                         .put("input", new JSONArray().put(new JSONObject()
-                            .put("role", "user").put("content", inputContent)));
+                            .put("role", "user").put("content", inputContent)))
+                        .put("tools", AiToolRegistry.openAiProposalTools())
+                        .put("tool_choice", "auto")
+                        .put("parallel_tool_calls", false);
                     URL url = new URL("https://api.openai.com/v1/responses");
                     conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("POST");
@@ -4884,9 +4888,30 @@ public class MainActivity extends Activity {
                     code = conn.getResponseCode();
                     result = new JSONObject(readAiHttpResponse(conn, code));
                 }
-                String answer = extractAiAnswer(provider, result, code);
-                final String out = answer;
-                runOnUiThread(() -> line(provider + ": " + out, WHITE));
+                if ("OpenAI".equals(provider) && code >= 200 && code < 300) {
+                    JSONArray calls = AiToolRegistry.extractOpenAiFunctionCalls(result);
+                    if (calls.length() > 0) {
+                        if (calls.length() != 1) {
+                            runOnUiThread(() -> line("OpenAI trả về nhiều lệnh trong một lượt. BO từ chối để bạn duyệt từng lệnh riêng.", 0xffffca70));
+                        } else {
+                            JSONObject call = calls.optJSONObject(0);
+                            if (call == null || !"adb.propose_shell_command".equals(call.optString("name"))) {
+                                runOnUiThread(() -> line("BO từ chối công cụ OpenAI không được hỗ trợ.", 0xffff8080));
+                            } else {
+                                JSONObject args = call.optJSONObject("arguments");
+                                runOnUiThread(() -> acceptOpenAiAdbProposal(args));
+                            }
+                        }
+                    } else {
+                        String answer = extractAiAnswer(provider, result, code);
+                        final String out = answer;
+                        runOnUiThread(() -> line(provider + ": " + out, WHITE));
+                    }
+                } else {
+                    String answer = extractAiAnswer(provider, result, code);
+                    final String out = answer;
+                    runOnUiThread(() -> line(provider + ": " + out, WHITE));
+                }
             } catch (Exception e) {
                 final String error = "Lỗi kết nối " + provider + ": " + e.getMessage();
                 runOnUiThread(() -> line(error, 0xffff8080));
@@ -4894,6 +4919,52 @@ public class MainActivity extends Activity {
                 if (conn != null) conn.disconnect();
             }
         });
+    }
+
+    /**
+     * Convert a model function call into the existing guarded ADB review flow.
+     * This method never executes a command; processAiDevicePlanOutput shows the
+     * existing review/confirmation dialogs and performs the final checks.
+     */
+    private void acceptOpenAiAdbProposal(JSONObject args) {
+        if (args == null) {
+            line("BO từ chối đề xuất OpenAI: thiếu đối số.", 0xffff8080);
+            return;
+        }
+        String serial = args.optString("serial", "").trim();
+        String scope = args.optString("scope", "").trim();
+        String command = args.optString("command", "").trim();
+        String reason = args.optString("reason", "OpenAI không nêu lý do.");
+        String risk = args.optString("risk", "HIGH").toUpperCase(java.util.Locale.ROOT);
+        if (!"LOW".equals(risk) && !"MEDIUM".equals(risk) && !"HIGH".equals(risk)) risk = "HIGH";
+        if (serial.isEmpty() || !isFreshAdbDevice(serial)) {
+            line("BO từ chối đề xuất OpenAI: thiết bị không trực tuyến hoặc serial không hợp lệ.", 0xffff8080);
+            return;
+        }
+        java.util.Set<String> grants = aiDevicePermissions.get(serial);
+        String validation = AiToolRegistry.validateAdbPlan(scope, serial, command, grants);
+        if (!"OK".equals(validation) || !hasAiDevicePermission(serial, scope)) {
+            line("BO từ chối đề xuất OpenAI: " + validation + ". Hãy cấp đúng quyền cho thiết bị rồi yêu cầu lại.", 0xffffca70);
+            return;
+        }
+        String requestId = java.util.UUID.randomUUID().toString();
+        getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE).edit()
+            .putString("request_id", requestId)
+            .putString("serial", serial)
+            .putString("provider", "openai")
+            .putLong("requested_at", System.currentTimeMillis())
+            .commit();
+        try {
+            JSONObject plan = new JSONObject()
+                .put("scope", scope)
+                .put("command", command)
+                .put("reason", reason)
+                .put("risk", risk);
+            processAiDevicePlanOutput("BO_AI_PLAN:" + requestId + ":" + plan.toString());
+        } catch (org.json.JSONException e) {
+            getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE).edit().clear().commit();
+            line("Không thể tạo bản xem xét lệnh OpenAI: " + e.getMessage(), 0xffff8080);
+        }
     }
 
     private String readAiHttpResponse(HttpURLConnection conn, int code) throws Exception {
