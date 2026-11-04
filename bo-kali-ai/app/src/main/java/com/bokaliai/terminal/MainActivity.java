@@ -191,6 +191,9 @@ public class MainActivity extends Activity {
         Button antigravity = button("GOOGLE ANTIGRAVITY • CHAT / AGENT");
         antigravity.setOnClickListener(v -> showAntigravityMenu());
         root.addView(antigravity, new LinearLayout.LayoutParams(-1, dp(44)));
+        Button codex = button("OPENAI CODEX • CHAT / LẬP TRÌNH");
+        codex.setOnClickListener(v -> showCodexMenu());
+        root.addView(codex, new LinearLayout.LayoutParams(-1, dp(44)));
         Button explain = button("GIẢI THÍCH KẾT QUẢ KALI BẰNG AI");
         explain.setOnClickListener(v -> explainLastOutput());
         root.addView(explain, new LinearLayout.LayoutParams(-1, dp(44)));
@@ -4148,6 +4151,99 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             line("Không mở được phiên Antigravity: " + e.getMessage(), 0xffff8080);
         }
+    }
+
+    // OpenAI Codex CLI runs in the user's Debian proot workspace.
+    private static final String CODEX_PROOT = "proot-distro login debian -- bash -lc ";
+
+    private void showCodexMenu() {
+        new AlertDialog.Builder(this).setTitle("OpenAI Codex • Coding Agent")
+            .setMessage("Codex CLI chạy trong Debian proot. Đăng nhập bằng ChatGPT OAuth hoặc API key ngay trong Termux; không gửi mật khẩu/token vào BO. Chế độ CHAT chỉ đọc mã. Chế độ SỬA CODE chỉ ghi trong workspace bạn chọn, không bật quyền toàn hệ thống.")
+            .setPositiveButton("CHAT / PHÂN TÍCH (CHỈ ĐỌC)", (d, w) -> showCodexTask(false))
+            .setNeutralButton("SỬA CODE (CÓ XÁC NHẬN)", (d, w) -> showCodexEditConfirmation())
+            .setNegativeButton("CÀI / ĐĂNG NHẬP", (d, w) -> showCodexSetupMenu())
+            .show();
+    }
+
+    private void showCodexSetupMenu() {
+        new AlertDialog.Builder(this).setTitle("Thiết lập OpenAI Codex")
+            .setItems(new String[]{"Cài / kiểm tra CLI", "Đăng nhập ChatGPT"}, (d, which) -> {
+                if (which == 0) installCodexCli(); else launchCodexLogin();
+            }).setNegativeButton("ĐÓNG", null).show();
+    }
+
+    private void installCodexCli() {
+        String script = "set -o pipefail; if ! command -v curl >/dev/null 2>&1; then apt-get update && apt-get install -y curl ca-certificates; fi; "
+            + "curl -fsSL https://chatgpt.com/codex/install.sh | sh; "
+            + "export PATH=\"$HOME/.codex/bin:$HOME/.local/bin:$PATH\"; codex --version";
+        line("Đang cài OpenAI Codex CLI chính thức trong Debian proot.", GREEN);
+        runTermuxCommand(CODEX_PROOT + shellQuote(script));
+    }
+
+    private void launchCodexLogin() {
+        String script = "export PATH=\"$HOME/.codex/bin:$HOME/.local/bin:$PATH\"; "
+            + "if ! command -v codex >/dev/null 2>&1; then echo 'Chưa cài Codex CLI. Hãy cài trước.'; exit 127; fi; "
+            + "codex login --device-auth";
+        line("Mở Termux để đăng nhập Codex bằng ChatGPT device authorization. Không chia sẻ mã xác thực với người khác.", GREEN);
+        runTermuxCommandInteractive(CODEX_PROOT + shellQuote(script));
+    }
+
+    private void showCodexTask(boolean allowEdits) {
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(1);
+        int pad = dp(8);
+        form.setPadding(pad, pad, pad, pad);
+        EditText workspace = new EditText(this);
+        workspace.setSingleLine(true);
+        workspace.setTextColor(WHITE);
+        workspace.setHintTextColor(0xff91a9bd);
+        workspace.setText("/root/bo-kali-workspace");
+        workspace.setHint("Đường dẫn thư mục Git trong Debian");
+        EditText task = new EditText(this);
+        task.setTextColor(WHITE);
+        task.setHintTextColor(0xff91a9bd);
+        task.setMinLines(3);
+        task.setGravity(Gravity.TOP | Gravity.START);
+        task.setHint("Ví dụ: Phân tích dự án, tìm lỗi build và đề xuất cách sửa...");
+        form.addView(text("THƯ MỤC DỰ ÁN (phải là Git repository)", 0xff79c9ff, 12, true));
+        form.addView(workspace, new LinearLayout.LayoutParams(-1, dp(48)));
+        form.addView(text(allowEdits ? "YÊU CẦU SỬA CODE" : "CÂU HỎI / YÊU CẦU PHÂN TÍCH", 0xff79c9ff, 12, true));
+        form.addView(task, new LinearLayout.LayoutParams(-1, dp(112)));
+        String title = allowEdits ? "Xác nhận giao quyền sửa code cho Codex" : "Chat với OpenAI Codex";
+        String message = allowEdits
+            ? "Codex được phép sửa tệp và chạy lệnh trong workspace đã chọn (workspace-write). Không cấp quyền ghi toàn hệ thống; mạng và thao tác ngoài workspace vẫn bị giới hạn."
+            : "Codex chỉ đọc workspace (read-only), không sửa tệp. Hãy đăng nhập Codex trước khi gửi.";
+        new AlertDialog.Builder(this).setTitle(title).setMessage(message).setView(form)
+            .setPositiveButton(allowEdits ? "XÁC NHẬN SỬA" : "GỬI", (d, w) -> {
+                String dir = workspace.getText().toString().trim();
+                String request = task.getText().toString().trim();
+                if (dir.isEmpty() || request.isEmpty()) {
+                    line("Cần nhập đường dẫn workspace và yêu cầu cho Codex.", 0xffffca70);
+                    return;
+                }
+                String sandbox = allowEdits ? "workspace-write" : "read-only";
+                String prompt = "Trả lời bằng tiếng Việt. Làm việc trong đúng workspace được chỉ định. "
+                    + "Không truy cập bí mật, không xuất token/khóa, không xóa dữ liệu hoặc chạy lệnh phá hủy. "
+                    + "Nếu thiếu thông tin, hãy hỏi lại. Báo cáo rõ tệp đã đọc/sửa và kiểm tra đã chạy. "
+                    + request;
+                String script = "export PATH=\"$HOME/.codex/bin:$HOME/.local/bin:$PATH\"; "
+                    + "if ! command -v codex >/dev/null 2>&1; then echo 'Chưa cài Codex CLI. Hãy cài trước.'; exit 127; fi; "
+                    + "if ! git -C " + shellQuote(dir) + " rev-parse --show-toplevel >/dev/null 2>&1; then "
+                    + "echo 'Workspace không phải Git repository hoặc đường dẫn không tồn tại. Hãy clone/mở dự án Git trước.'; exit 2; fi; "
+                    + "codex exec --cd " + shellQuote(dir)
+                    + " --sandbox " + sandbox + " --ask-for-approval never "
+                    + shellQuote(prompt);
+                line("Bạn → Codex (" + sandbox + "): " + request, 0xff79c9ff);
+                runTermuxCommand(CODEX_PROOT + shellQuote(script));
+            })
+            .setNegativeButton("HỦY", null).show();
+    }
+
+    private void showCodexEditConfirmation() {
+        new AlertDialog.Builder(this).setTitle("Cho phép Codex sửa mã nguồn?")
+            .setMessage("Chỉ cấp workspace-write cho thư mục Git bạn chọn. BO không bật --yolo hoặc quyền danger-full-access.")
+            .setPositiveButton("TIẾP TỤC", (d, w) -> showCodexTask(true))
+            .setNegativeButton("HỦY", null).show();
     }
 
     private void connectionSettings() {
