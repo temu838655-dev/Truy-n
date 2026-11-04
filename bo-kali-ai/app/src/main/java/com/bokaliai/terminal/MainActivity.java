@@ -3317,7 +3317,8 @@ public class MainActivity extends Activity {
                 return;
             }
             String providerName = "antigravity".equals(provider) ? "Google Antigravity"
-                : "openai".equals(provider) ? "OpenAI" : "OpenAI Codex";
+                : "openai".equals(provider) ? "OpenAI"
+                : "gemini".equals(provider) ? "Gemini" : "OpenAI Codex";
             String message = "AI: " + providerName + "\nThiết bị: " + serial + "\nQuyền: " + scope
                 + "\nRủi ro AI tự đánh giá: " + risk + "\n\nLệnh trên thiết bị:\n" + command
                 + "\n\nLý do: " + reason + "\n\nBO chưa chạy lệnh.";
@@ -4835,7 +4836,10 @@ public class MainActivity extends Activity {
                     if (!imageData.isEmpty()) parts.put(new JSONObject().put("inline_data",
                         new JSONObject().put("mime_type", imageMime).put("data", imageData)));
                     JSONObject body = new JSONObject().put("contents", new JSONArray().put(
-                        new JSONObject().put("parts", parts)));
+                        new JSONObject().put("parts", parts)))
+                        .put("tools", AiToolRegistry.geminiProposalTools())
+                        .put("tool_config", new JSONObject().put("function_calling_config",
+                            new JSONObject().put("mode", "AUTO")));
                     URL url = new URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent");
                     conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("POST");
@@ -4890,7 +4894,26 @@ public class MainActivity extends Activity {
                     code = conn.getResponseCode();
                     result = new JSONObject(readAiHttpResponse(conn, code));
                 }
-                if ("OpenAI".equals(provider) && code >= 200 && code < 300) {
+                if ("Gemini".equals(provider) && code >= 200 && code < 300) {
+                    JSONArray calls = AiToolRegistry.extractGeminiFunctionCalls(result);
+                    if (calls.length() > 0) {
+                        if (calls.length() != 1) {
+                            runOnUiThread(() -> line("Gemini trả về nhiều lệnh trong một lượt. BO từ chối để bạn duyệt từng lệnh riêng.", 0xffffca70));
+                        } else {
+                            JSONObject call = calls.optJSONObject(0);
+                            if (call == null || !"adb_propose_shell_command".equals(call.optString("name"))) {
+                                runOnUiThread(() -> line("BO từ chối công cụ Gemini không được hỗ trợ.", 0xffff8080));
+                            } else {
+                                JSONObject args = call.optJSONObject("arguments");
+                                runOnUiThread(() -> acceptAiAdbProposal(args, "gemini"));
+                            }
+                        }
+                    } else {
+                        String answer = extractAiAnswer(provider, result, code);
+                        final String out = answer;
+                        runOnUiThread(() -> line(provider + ": " + out, WHITE));
+                    }
+                } else if ("OpenAI".equals(provider) && code >= 200 && code < 300) {
                     JSONArray calls = AiToolRegistry.extractOpenAiFunctionCalls(result);
                     if (calls.length() > 0) {
                         if (calls.length() != 1) {
@@ -4901,7 +4924,7 @@ public class MainActivity extends Activity {
                                 runOnUiThread(() -> line("BO từ chối công cụ OpenAI không được hỗ trợ.", 0xffff8080));
                             } else {
                                 JSONObject args = call.optJSONObject("arguments");
-                                runOnUiThread(() -> acceptOpenAiAdbProposal(args));
+                                runOnUiThread(() -> acceptAiAdbProposal(args, "openai"));
                             }
                         }
                     } else {
@@ -4928,7 +4951,7 @@ public class MainActivity extends Activity {
      * This method never executes a command; processAiDevicePlanOutput shows the
      * existing review/confirmation dialogs and performs the final checks.
      */
-    private void acceptOpenAiAdbProposal(JSONObject args) {
+    private void acceptAiAdbProposal(JSONObject args, String providerId) {
         if (args == null) {
             line("BO từ chối đề xuất OpenAI: thiếu đối số.", 0xffff8080);
             return;
@@ -4953,7 +4976,7 @@ public class MainActivity extends Activity {
         getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE).edit()
             .putString("request_id", requestId)
             .putString("serial", serial)
-            .putString("provider", "openai")
+            .putString("provider", providerId)
             .putLong("requested_at", System.currentTimeMillis())
             .commit();
         try {
