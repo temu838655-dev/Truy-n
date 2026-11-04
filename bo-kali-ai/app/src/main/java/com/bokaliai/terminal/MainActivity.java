@@ -1168,8 +1168,8 @@ public class MainActivity extends Activity {
         };
         try {
             nsdManager.discoverServices("_adb-tls-pairing._tcp.", NsdManager.PROTOCOL_DNS_SD, adbPairingDiscoveryListener);
-            mainHandler.postDelayed(() -> { if (adbPairingScanActive && adbPairingDiscoveryListener != null) { try { nsdManager.stopServiceDiscovery(adbPairingDiscoveryListener); } catch (Exception ignored) { adbPairingScanActive = false; } } }, 12000);
-        } catch (Exception e) { adbPairingScanActive = false; line("Lỗi quét pairing: " + e.getMessage(), 0xffff8080); }
+            mainHandler.postDelayed(() -> { if (adbPairingScanActive && adbPairingDiscoveryListener != null) { try { nsdManager.stopServiceDiscovery(adbPairingDiscoveryListener); } catch (Exception ignored) { adbPairingScanActive = false; releaseHubMulticastLock(); } } }, 12000);
+        } catch (Exception e) { adbPairingScanActive = false; releaseHubMulticastLock(); line("Lỗi quét pairing: " + e.getMessage(), 0xffff8080); }
     }
 
     // Read-only diagnostics for ADB's mDNS stack and discovered service endpoints.
@@ -1220,8 +1220,8 @@ public class MainActivity extends Activity {
         };
         try {
             nsdManager.discoverServices("_adb-tls-connect._tcp.", NsdManager.PROTOCOL_DNS_SD, adbDiscoveryListener);
-            mainHandler.postDelayed(() -> { if (adbScanActive && adbDiscoveryListener != null) { try { nsdManager.stopServiceDiscovery(adbDiscoveryListener); } catch (Exception ignored) { adbScanActive = false; } } }, 12000);
-        } catch (Exception e) { adbScanActive = false; line("Lỗi quét ADB: " + e.getMessage(), 0xffff8080); }
+            mainHandler.postDelayed(() -> { if (adbScanActive && adbDiscoveryListener != null) { try { nsdManager.stopServiceDiscovery(adbDiscoveryListener); } catch (Exception ignored) { adbScanActive = false; releaseHubMulticastLock(); } } }, 12000);
+        } catch (Exception e) { adbScanActive = false; releaseHubMulticastLock(); line("Lỗi quét ADB: " + e.getMessage(), 0xffff8080); }
     }
 
 
