@@ -226,7 +226,9 @@ public class MainActivity extends Activity {
                     + "adb -s " + serialArg + " push \"$SERVER\" /data/local/tmp/bo-kali-scrcpy-server.jar >/dev/null; "
                     + "adb -s " + serialArg + " forward tcp:27183 localabstract:scrcpy_00000001; "
                     + "adb -s " + serialArg + " shell " + shellQuote(remoteStart) + "; "
-                    + "sleep 2; echo BO_SCRCPY_READY:27183";
+                    + "if adb -s " + serialArg + " shell " + shellQuote("for i in 1 2 3 4 5; do grep -F 'scrcpy_00000001' /proc/net/unix >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1") + "; then "
+                    + "echo BO_SCRCPY_READY:27183; "
+                    + "else echo 'BO_SCRCPY_ERROR: Máy chủ scrcpy không mở socket'; exit 1; fi";
                 runTermuxCommand(command);
             })
             .setNegativeButton("HỦY", null).show();
