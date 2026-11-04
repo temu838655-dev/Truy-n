@@ -4203,6 +4203,7 @@ public class MainActivity extends Activity {
             "KIỂM TRA QUYỀN ROOT ANDROID",
             "KIỂM TRA PHẦN CỨNG / KERNEL / BOOTLOADER",
             "KIỂM TRA WI-FI / BLUETOOTH / USB / ADB",
+            "PHÂN TÍCH TƯƠNG THÍCH KALI",
             "HƯỚNG DẪN KALI ROOT / ROOTLESS"
         };
         new AlertDialog.Builder(this)
@@ -4217,6 +4218,7 @@ public class MainActivity extends Activity {
                 } else if (which == 3) confirmAndroidRootCheck();
                 else if (which == 4) checkDeviceHardwareProfile();
                 else if (which == 5) checkConnectivityHardware();
+                else if (which == 6) checkKaliCompatibility();
                 else showKaliInstructions();
             })
             .setNegativeButton("ĐÓNG", null)
@@ -4241,6 +4243,49 @@ public class MainActivity extends Activity {
             "echo '=== STORAGE ==='; df -h $HOME 2>/dev/null | tail -n 2; " +
             "echo '=== END: no system changes made ==='";
         line("Đang thu thập thông tin phần cứng, kernel và trạng thái bootloader (chỉ đọc, không cần root)...", GREEN);
+        runTermuxCommand(command);
+    }
+
+    // Conservative, read-only compatibility assessment. It never requests root permission.
+    private void checkKaliCompatibility() {
+        String command =
+            "echo '=== BO KALI AI KALI COMPATIBILITY REPORT ==='; " +
+            "echo 'MODE=READ_ONLY_PRESERVE_FIRST'; " +
+            "echo '=== DEVICE / ABI ==='; " +
+            "echo \"MODEL=$(getprop ro.product.model 2>/dev/null)\"; " +
+            "echo \"ANDROID_RELEASE=$(getprop ro.build.version.release 2>/dev/null)\"; " +
+            "echo \"ANDROID_API=$(getprop ro.build.version.sdk 2>/dev/null)\"; " +
+            "echo \"ABI=$(getprop ro.product.cpu.abi 2>/dev/null)\"; " +
+            "echo \"ABI_LIST=$(getprop ro.product.cpu.abilist 2>/dev/null)\"; " +
+            "echo \"KERNEL=$(uname -r 2>/dev/null)\"; " +
+            "echo \"KERNEL_ARCH=$(uname -m 2>/dev/null)\"; " +
+            "echo '=== ROOT / BOOT STATE (NO GRANT REQUEST) ==='; " +
+            "if command -v su >/dev/null 2>&1; then echo 'SU_BINARY=PRESENT_ROOT_NOT_VERIFIED'; " +
+            "else echo 'SU_BINARY=NOT_FOUND'; fi; " +
+            "BL=$(getprop ro.boot.flash.locked 2>/dev/null); " +
+            "VB=$(getprop ro.boot.verifiedbootstate 2>/dev/null); " +
+            "DS=$(getprop ro.boot.vbmeta.device_state 2>/dev/null); " +
+            "if [ -n \"$BL\" ]; then echo \"BOOTLOADER_LOCK_PROPERTY=$BL\"; else echo 'BOOTLOADER_LOCK_PROPERTY=UNKNOWN'; fi; " +
+            "if [ -n \"$VB\" ]; then echo \"VERIFIED_BOOT=$VB\"; else echo 'VERIFIED_BOOT=UNKNOWN'; fi; " +
+            "if [ -n \"$DS\" ]; then echo \"VBMETA_DEVICE_STATE=$DS\"; else echo 'VBMETA_DEVICE_STATE=UNKNOWN'; fi; " +
+            "echo 'ROOT_MANAGER_PERMISSION=NOT_TESTED'; " +
+            "echo '=== ROOTLESS PREREQUISITES ==='; " +
+            "if [ -n \"$PREFIX\" ] && [ -d \"$PREFIX\" ]; then echo 'TERMUX_PREFIX=PRESENT'; else echo 'TERMUX_PREFIX=NOT_DETECTED'; fi; " +
+            "if command -v proot >/dev/null 2>&1; then echo 'PROOT=PRESENT'; else echo 'PROOT=NOT_FOUND'; fi; " +
+            "if command -v nh >/dev/null 2>&1; then echo 'NETHUNTER_COMMAND=PRESENT'; else echo 'NETHUNTER_COMMAND=NOT_FOUND'; fi; " +
+            "if command -v proot >/dev/null 2>&1 && [ -n \"$PREFIX\" ] && [ -d \"$PREFIX\" ]; then " +
+            "echo 'ROOTLESS_BASE=LIKELY_SUPPORTED'; else echo 'ROOTLESS_BASE=PREREQUISITES_MISSING_OR_UNAVAILABLE'; fi; " +
+            "echo '=== OPTIONAL KERNEL FEATURES ==='; " +
+            "if [ -c /dev/net/tun ]; then echo 'TUN_DEVICE=VISIBLE'; else echo 'TUN_DEVICE=NOT_VISIBLE'; fi; " +
+            "if [ -d /sys/fs/bpf ]; then echo 'BPF_FILESYSTEM=VISIBLE'; else echo 'BPF_FILESYSTEM=NOT_VISIBLE'; fi; " +
+            "if [ -r /proc/self/status ]; then grep -E '^(Uid|Gid|CapEff|NoNewPrivs):' /proc/self/status 2>/dev/null; fi; " +
+            "echo '=== STORAGE ==='; df -Pk \"$HOME\" 2>/dev/null | tail -n 1; " +
+            "echo '=== ASSESSMENT RULES ==='; " +
+            "echo 'ROOTLESS=Use Termux plus proot; availability depends on storage and Android restrictions.'; " +
+            "echo 'FULL_ROOT=Requires an explicit successful su permission test and compatible kernel; this report does not grant root.'; " +
+            "echo 'BOOTLOADER=Unknown values are not proof that unlocking or flashing is supported.'; " +
+            "echo 'END=No root request, install, setting change, unlock, flash, or partition write was performed.'";
+        line("Đang phân tích khả năng Kali theo kiến trúc, kernel và trạng thái hệ thống; không yêu cầu quyền root...", GREEN);
         runTermuxCommand(command);
     }
 
