@@ -1,5 +1,6 @@
 package com.bokaliai.terminal;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.Arrays;
 import java.util.Collections;
@@ -117,6 +118,63 @@ public final class AiToolRegistry {
             .put("description", "Đề xuất một lệnh ADB duy nhất cho thiết bị được người dùng chỉ định. Không thực thi. BO sẽ kiểm tra quyền và yêu cầu người dùng xác nhận.")
             .put("parameters", parameters).put("strict", true);
         return new JSONArray().put(function);
+    }
+
+    /**
+     * Gemini generateContent REST tool declaration for the same guarded ADB proposal.
+     * Gemini may suggest the call; BO remains responsible for validation and approval.
+     */
+    public static JSONArray geminiProposalTools() throws org.json.JSONException {
+        JSONObject properties = new JSONObject()
+            .put("serial", new JSONObject().put("type", "STRING")
+                .put("description", "Serial chính xác của thiết bị ADB đã được người dùng chọn."))
+            .put("scope", new JSONObject().put("type", "STRING")
+                .put("enum", new JSONArray().put(READ_INFO).put(READ_LOGS)
+                    .put(APP_LIST).put(APP_LAUNCH).put(APP_INSTALL_REMOVE)
+                    .put(SCREEN_CONTROL).put(DEVICE_SETTINGS).put(NETWORK_DIAGNOSTICS)
+                    .put(RAW_ADB_SHELL)))
+            .put("command", new JSONObject().put("type", "STRING")
+                .put("description", "Đúng một lệnh Android shell; không thêm adb -s."))
+            .put("reason", new JSONObject().put("type", "STRING"))
+            .put("risk", new JSONObject().put("type", "STRING")
+                .put("enum", new JSONArray().put("LOW").put("MEDIUM").put("HIGH")));
+        JSONObject parameters = new JSONObject().put("type", "OBJECT")
+            .put("properties", properties)
+            .put("required", new JSONArray().put("serial").put("scope")
+                .put("command").put("reason").put("risk"));
+        JSONObject declaration = new JSONObject()
+            .put("name", "adb_propose_shell_command")
+            .put("description", "Đề xuất một lệnh ADB duy nhất; không thực thi. BO sẽ kiểm tra quyền và yêu cầu người dùng xác nhận.")
+            .put("parameters", parameters);
+        return new JSONArray().put(new JSONObject()
+            .put("function_declarations", new JSONArray().put(declaration)));
+    }
+
+    /** Extract Gemini generateContent functionCall parts; malformed calls are ignored. */
+    public static JSONArray extractGeminiFunctionCalls(JSONObject response) {
+        JSONArray calls = new JSONArray();
+        if (response == null) return calls;
+        JSONArray candidates = response.optJSONArray("candidates");
+        if (candidates == null) return calls;
+        for (int c = 0; c < candidates.length(); c++) {
+            JSONObject candidate = candidates.optJSONObject(c);
+            JSONObject content = candidate == null ? null : candidate.optJSONObject("content");
+            JSONArray parts = content == null ? null : content.optJSONArray("parts");
+            if (parts == null) continue;
+            for (int i = 0; i < parts.length(); i++) {
+                JSONObject part = parts.optJSONObject(i);
+                if (part == null) continue;
+                JSONObject functionCall = part.optJSONObject("functionCall");
+                if (functionCall == null) functionCall = part.optJSONObject("function_call");
+                if (functionCall == null) continue;
+                String name = functionCall.optString("name", "").trim();
+                JSONObject args = functionCall.optJSONObject("args");
+                if (args == null) args = functionCall.optJSONObject("arguments");
+                if (name.isEmpty() || args == null) continue;
+                calls.put(new JSONObject().put("name", name).put("arguments", args));
+            }
+        }
+        return calls;
     }
 
     /** Extract direct Responses API function_call items; malformed calls are ignored. */
