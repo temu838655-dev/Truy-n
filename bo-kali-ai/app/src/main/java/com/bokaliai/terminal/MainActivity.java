@@ -1138,7 +1138,38 @@ public class MainActivity extends Activity {
                 try (OutputStream output = connection.getOutputStream()) { output.write(bytes); output.flush(); }
                 int status = connection.getResponseCode();
                 if (status >= 200 && status < 300) {
-                    runOnUiThread(() -> line("Home Assistant đã nhận lệnh " + service + " cho " + entityId + " (HTTP " + status + ").", GREEN));
+                    StringBuilder responseBody = new StringBuilder();
+                    try (BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+                        String row;
+                        while ((row = reader.readLine()) != null) {
+                            responseBody.append(row);
+                            if (responseBody.length() > 1024 * 1024)
+                                throw new IllegalStateException("Phản hồi điều khiển vượt giới hạn 1 MB.");
+                        }
+                    }
+                    String verifiedState = null;
+                    if (responseBody.length() > 0) {
+                        try {
+                            JSONArray changed = new JSONArray(responseBody.toString());
+                            for (int i = 0; i < changed.length(); i++) {
+                                JSONObject stateObject = changed.optJSONObject(i);
+                                if (stateObject != null && entityId.equals(stateObject.optString("entity_id"))) {
+                                    verifiedState = stateObject.optString("state", null);
+                                    break;
+                                }
+                            }
+                        } catch (Exception ignored) {
+                            // Some integrations return an empty or non-standard success body.
+                        }
+                    }
+                    final String stateResult = verifiedState;
+                    final String successMessage = stateResult == null || stateResult.isEmpty()
+                        ? "Home Assistant đã chấp nhận lệnh " + service + " cho " + entityId
+                            + " (HTTP " + status + "); API không trả trạng thái để xác minh."
+                        : "Home Assistant xác nhận " + entityId + " hiện ở trạng thái "
+                            + stateResult + " (HTTP " + status + ").";
+                    runOnUiThread(() -> line(successMessage, GREEN));
                 } else {
                     String message = status == 401 || status == 403 ? "Home Assistant từ chối token/quyền (HTTP " + status + ")." : "Home Assistant không thực hiện lệnh (HTTP " + status + ").";
                     runOnUiThread(() -> line(message, 0xffff8080));
