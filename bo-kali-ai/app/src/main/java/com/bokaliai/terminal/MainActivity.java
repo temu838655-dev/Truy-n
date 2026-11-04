@@ -109,6 +109,9 @@ public class MainActivity extends Activity {
         Button scanPairing = button("QUÉT CỔNG GHÉP ĐÔI");
         scanPairing.setOnClickListener(v -> scanAdbPairingServices());
         root.addView(scanPairing, new LinearLayout.LayoutParams(-1, dp(40)));
+        Button mdnsCheck = button("KIỂM TRA mDNS / ADB");
+        mdnsCheck.setOnClickListener(v -> checkAdbMdns());
+        root.addView(mdnsCheck, new LinearLayout.LayoutParams(-1, dp(40)));
         Button shareReport = button("CHIA SẺ KẾT QUẢ TERMUX");
         shareReport.setOnClickListener(v -> shareLastTermuxReport());
         root.addView(shareReport, new LinearLayout.LayoutParams(-1, dp(42)));
@@ -185,6 +188,18 @@ public class MainActivity extends Activity {
             nsdManager.discoverServices("_adb-tls-pairing._tcp.", NsdManager.PROTOCOL_DNS_SD, adbPairingDiscoveryListener);
             mainHandler.postDelayed(() -> { if (adbPairingScanActive && adbPairingDiscoveryListener != null) { try { nsdManager.stopServiceDiscovery(adbPairingDiscoveryListener); } catch (Exception ignored) { adbPairingScanActive = false; } } }, 12000);
         } catch (Exception e) { adbPairingScanActive = false; line("Lỗi quét pairing: " + e.getMessage(), 0xffff8080); }
+    }
+
+    // Read-only diagnostics for ADB's mDNS stack and discovered service endpoints.
+    private void checkAdbMdns() {
+        line("Đang kiểm tra mDNS của ADB trong Termux (chỉ đọc, không ghép đôi/ngắt kết nối)...", GREEN);
+        String cmd = "echo '=== ADB AVAILABILITY ==='; " +
+            "if ! command -v adb >/dev/null 2>&1; then echo 'ADB chưa cài. Vào Trung tâm cập nhật để cài android-tools.'; exit 127; fi; " +
+            "echo '=== ADB VERSION ==='; adb version; " +
+            "echo '=== mDNS STACK ==='; adb mdns check; " +
+            "echo '=== DISCOVERED mDNS SERVICES ==='; adb mdns services; " +
+            "echo '=== CONNECTED DEVICES ==='; adb devices -l";
+        runTermuxCommand(cmd);
     }
 
     // Discovers Wireless Debugging endpoints; discovery alone does not pair or authenticate.
