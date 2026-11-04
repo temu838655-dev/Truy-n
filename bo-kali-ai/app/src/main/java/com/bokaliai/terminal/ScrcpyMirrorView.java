@@ -158,11 +158,17 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             int codecId = input.readInt();
             if (codecId != CODEC_H264) throw new IOException("Codec không hỗ trợ: 0x" + Integer.toHexString(codecId));
 
-            // Stream metadata is sent once after the codec id. Each later capture
-            // session (for example after rotation) starts with a separate 12-byte
-            // session packet whose first bit is set.
-            int width = input.readInt();
-            int height = input.readInt();
+            // scrcpy v4.0 sends a 12-byte SESSION packet immediately after
+            // the codec id, including on the first capture session.
+            byte[] initialSession = new byte[12];
+            input.readFully(initialSession);
+            ByteBuffer initialHeader = ByteBuffer.wrap(initialSession).order(ByteOrder.BIG_ENDIAN);
+            long initialFlags = initialHeader.getLong();
+            if ((initialFlags & FLAG_SESSION) == 0) {
+                throw new IOException("Thiếu gói khởi tạo phiên video scrcpy");
+            }
+            int width = initialHeader.getInt();
+            int height = initialHeader.getInt();
             codec = createDecoder(width, height);
             decoder = codec;
 
