@@ -4850,7 +4850,7 @@ public class MainActivity extends Activity {
         box.addView(shareAntigravity); box.addView(shareCodex);
         box.addView(text("Chỉ chia sẻ kết quả terminal gần nhất, tối đa 12.000 ký tự. Không tự động chia sẻ ảnh, tệp khác hoặc GitHub token.", 0xff91a9bd, 11, false));
         new AlertDialog.Builder(this).setTitle("Kết nối AI / GitHub")
-            .setMessage("Gemini: dùng API key từ Google AI Studio. GitHub: đọc cần Contents: read; ghi cần Contents: read and write (fine-grained) hoặc repo (classic). Token chỉ giữ trong bộ nhớ phiên. Quyền chia sẻ kết quả terminal là tùy chọn, mặc định tắt và chỉ có hiệu lực trong phiên app này.")
+            .setMessage("Gemini: dùng API key từ Google AI Studio. GitHub: đọc cần Contents: read; ghi cần Contents: read and write (fine-grained) hoặc repo (classic). Token chỉ giữ trong bộ nhớ phiên. Quyền chia sẻ kết quả terminal được cấp riêng cho từng AI, mặc định tắt và chỉ có hiệu lực trong phiên app này.")
             .setView(box)
             .setPositiveButton("Lưu và kiểm tra GitHub", (d,w) -> {
                 geminiKey = gem.getText().toString().trim();
