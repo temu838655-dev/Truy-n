@@ -1177,10 +1177,16 @@ public class MainActivity extends Activity {
         int token = ++adbResolveTaskToken;
         adbResolveTimeout = () -> {
             if (!adbResolveInFlight || token != adbResolveTaskToken) return;
-            adbResolveInFlight = false;
+            String timedOutKey = adbResolveCurrentKey;
             adbResolveTimeout = null;
+            adbResolveInFlight = false;
             adbResolveCurrentKey = "";
-            line("Hết thời gian phân giải một dịch vụ ADB; bỏ qua dịch vụ này và tiếp tục hàng đợi.", 0xffffca70);
+            // Invalidate the expired resolver immediately, even when the queue is empty.
+            // A late NSD callback must never be mistaken for a current resolution.
+            adbResolveTaskToken++;
+            line("Hết thời gian phân giải dịch vụ ADB "
+                + (timedOutKey.isEmpty() ? "(không rõ tên)" : timedOutKey)
+                + "; bỏ qua dịch vụ này và tiếp tục hàng đợi.", 0xffffca70);
             resolveNextAdbService();
         };
         // The task starts the NSD resolver. The timeout only invalidates the current
