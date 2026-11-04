@@ -85,6 +85,8 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        // Never resume a previous session's AI plan after process recreation.
+        cancelPendingAiDevicePlanFor(null);
         buildUi();
         registerAdbNetworkCallback();
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -5110,5 +5112,6 @@ public class MainActivity extends Activity {
         geminiKey = "";
         githubToken = "";
         aiDevicePermissions.clear();
+        cancelPendingAiDevicePlanFor(null);
     }
 }
