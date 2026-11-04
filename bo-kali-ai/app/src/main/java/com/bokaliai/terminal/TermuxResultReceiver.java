@@ -40,7 +40,8 @@ public class TermuxResultReceiver extends BroadcastReceiver {
 
         // Keep the latest result available for an explicit user-initiated share action.
         SharedPreferences resultPrefs = context.getSharedPreferences("bo_kali_results", Context.MODE_PRIVATE);
-        resultPrefs.edit().putString("last_output", output.toString()).apply();
+        resultPrefs.edit().putString("last_output", output.toString())
+            .putLong("last_output_at", System.currentTimeMillis()).apply();
 
         // Store the actual Termux result so the update history distinguishes a sent command from a completed one.
         SharedPreferences prefs = context.getSharedPreferences("bo_kali_update_history", Context.MODE_PRIVATE);
