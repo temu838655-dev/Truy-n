@@ -115,6 +115,9 @@ public class MainActivity extends Activity {
         Button dualWorkspace = button("MÀN HÌNH KÉP");
         dualWorkspace.setOnClickListener(v -> showDualWorkspace());
         root.addView(dualWorkspace, new LinearLayout.LayoutParams(-1, dp(44)));
+        Button carPlay = button("BO CARPLAY RECEIVER • iPHONE USB / KHÔNG DÂY");
+        carPlay.setOnClickListener(v -> showCarPlayReceiverSetup());
+        root.addView(carPlay, new LinearLayout.LayoutParams(-1, dp(46)));
         Button deviceHub = button("TRUNG TÂM THIẾT BỊ ĐA NỀN TẢNG");
         deviceHub.setOnClickListener(v -> showUniversalDeviceHub());
         root.addView(deviceHub, new LinearLayout.LayoutParams(-1, dp(46)));
@@ -2733,6 +2736,45 @@ public class MainActivity extends Activity {
             default: line("Lệnh chưa được hỗ trợ trong bản rootless MVP. Gõ help hoặc hỏi AI cách thực hiện an toàn.", 0xffffca70);
         }
         commandInput.setText("");
+    }
+
+    // CarPlay receiver onboarding. This UI exposes both connection paths without
+    // pretending that Android Bluetooth/USB alone implements Apple's authenticated protocol.
+    private void showCarPlayReceiverSetup() {
+        final String[] modes = {
+            "ƯU TIÊN KHÔNG DÂY • USB DỰ PHÒNG",
+            "KẾT NỐI KHÔNG DÂY",
+            "KẾT NỐI USB"
+        };
+        new AlertDialog.Builder(this)
+            .setTitle("BO CarPlay Receiver • iPhone")
+            .setMessage("Chọn cách ghép iPhone. Hai phương thức đều được hiển thị trong BO Kali AI.\n\n"
+                + "• Không dây: Bluetooth dùng để phát hiện/ghép thiết bị; Wi-Fi cần cho luồng dữ liệu.\n"
+                + "• USB: cần Android có USB host/OTG và phần cứng nhận CarPlay tương thích.\n\n"
+                + "LƯU Ý: Đây là trung tâm thiết lập kết nối. Chỉ mở Bluetooth hoặc cắm USB chưa biến Android thành đầu nhận CarPlay. Hiển thị CarPlay thật cần receiver protocol và xác thực/phần cứng hợp lệ; app hiện chưa có chứng nhận MFi hay bộ giải mã luồng CarPlay.")
+            .setItems(modes, (dialog, which) -> {
+                if (which == 0 || which == 1) {
+                    line("Đã chọn chế độ CarPlay " + (which == 0
+                        ? "không dây ưu tiên, USB dự phòng." : "không dây.") , GREEN);
+                    line("Bước tiếp theo: ghép iPhone qua Bluetooth, sau đó dùng Wi-Fi theo hướng dẫn của receiver tương thích.", WHITE);
+                    try {
+                        startActivity(new Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS));
+                    } catch (Exception e) {
+                        line("Không mở được cài đặt Bluetooth: " + e.getMessage(), 0xffffca70);
+                    }
+                } else {
+                    line("Đã chọn CarPlay qua USB. Dùng cáp dữ liệu và cổng USB host/OTG; cấp quyền USB khi Android hỏi.", GREEN);
+                    line("Nếu không có receiver/phần cứng CarPlay được xác thực tương thích, BO Kali AI chưa thể giải mã và hiển thị giao diện CarPlay thật.", 0xffffca70);
+                    new AlertDialog.Builder(this)
+                        .setTitle("Thiết lập CarPlay USB")
+                        .setMessage("1. Dùng cáp Lightning/USB-C truyền dữ liệu, không phải cáp chỉ sạc.\n"
+                            + "2. Android phải hỗ trợ USB host/OTG và cấp nguồn ổn định.\n"
+                            + "3. Receiver phải hỗ trợ giao thức CarPlay và xác thực hợp lệ.\n"
+                            + "4. Chấp nhận quyền USB khi hệ thống yêu cầu.\n\n"
+                            + "Kết nối USB thông thường không tự cung cấp chứng nhận CarPlay.")
+                        .setPositiveButton("ĐÃ HIỂU", null).show();
+                }
+            }).setNegativeButton("Đóng", null).show();
     }
 
     private void showNetwork() {

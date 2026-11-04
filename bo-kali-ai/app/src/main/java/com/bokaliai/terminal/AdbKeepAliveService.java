@@ -72,7 +72,7 @@ public class AdbKeepAliveService extends Service {
                 wifiLock.setReferenceCounted(false);
                 try {
                     wifiLock.acquire();
-                } catch (SecurityException | RuntimeException error) {
+                } catch (RuntimeException error) {
                     // Keep the CPU lock even if the Android build refuses a Wi-Fi lock.
                     wifiLock = null;
                 }
