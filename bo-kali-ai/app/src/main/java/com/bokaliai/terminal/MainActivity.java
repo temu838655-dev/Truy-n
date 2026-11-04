@@ -2739,7 +2739,10 @@ public class MainActivity extends Activity {
                         editor.remove("state_" + serial)
                             .remove("seen_" + serial)
                             .remove("alias_" + serial)
-                            .remove("preset_" + serial);
+                            .remove("preset_" + serial)
+                            .remove("identity_hash_" + serial)
+                            .remove("identity_model_" + serial)
+                            .remove("identity_brand_" + serial);
                     }
                     editor.apply();
                     line("Đã xóa " + saved.size() + " thiết bị cùng trạng thái, tên gợi nhớ và lệnh lưu tương ứng. Không ngắt kết nối ADB và không tác động thiết bị.", GREEN);
@@ -3080,7 +3083,8 @@ public class MainActivity extends Activity {
                 java.util.Set<String> saved = new java.util.HashSet<>(prefs.getStringSet("serials", new java.util.HashSet<>()));
                 saved.remove(serial);
                 prefs.edit().putStringSet("serials", saved)
-                    .remove("state_" + serial).remove("seen_" + serial).remove("alias_" + serial).remove("preset_" + serial).apply();
+                    .remove("state_" + serial).remove("seen_" + serial).remove("alias_" + serial).remove("preset_" + serial)
+                    .remove("identity_hash_" + serial).remove("identity_model_" + serial).remove("identity_brand_" + serial).apply();
                 line("Đã xóa " + serial + " khỏi danh sách thiết bị lưu. Kết nối ADB không bị ảnh hưởng.", GREEN);
             }).setNegativeButton("HỦY", null).show();
     }
@@ -3173,7 +3177,6 @@ public class MainActivity extends Activity {
     }
 
     private String pendingIdentityAdbSerial = "";
-    private String activeIdentityAdbSerial = "";
 
     private void handleAdbDevicesOutput(String output) {
         handleAdbHardwareIdentityOutput(output);
@@ -3209,7 +3212,6 @@ public class MainActivity extends Activity {
     private void recordAdbHardwareIdentity(String adbSerial) {
         if (adbSerial == null || adbSerial.trim().isEmpty()) return;
         pendingIdentityAdbSerial = adbSerial;
-        activeIdentityAdbSerial = adbSerial;
         String script = "printf 'BO_ADB_IDENTITY|%s|%s|%s\\n' "
             + "\"$(getprop ro.serialno)\" "
             + "\"$(getprop ro.product.model)\" "
@@ -3247,18 +3249,19 @@ public class MainActivity extends Activity {
                 android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
                 java.util.HashSet<String> serials = new java.util.HashSet<>(
                     prefs.getStringSet("serials", new java.util.HashSet<>()));
+                String adbSerial = pendingIdentityAdbSerial;
+                pendingIdentityAdbSerial = "";
+                if (adbSerial == null || adbSerial.isEmpty()) {
+                    line("Không xác định được phiên ADB yêu cầu; bỏ qua dữ liệu định danh.", 0xffffca70);
+                    continue;
+                }
                 String matched = "";
                 for (String saved : serials) {
-                    if (!saved.equals(activeIdentityAdbSerial)
+                    if (!saved.equals(adbSerial)
                         && fingerprint.toString().equals(prefs.getString("identity_hash_" + saved, ""))) {
                         matched = saved;
                         break;
                     }
-                }
-                String adbSerial = pendingIdentityAdbSerial;
-                if (adbSerial == null || adbSerial.isEmpty()) {
-                    line("Không xác định được phiên ADB yêu cầu; bỏ qua dữ liệu định danh.", 0xffffca70);
-                    continue;
                 }
                 prefs.edit().putString("identity_hash_" + adbSerial, fingerprint.toString())
                     .putString("identity_model_" + adbSerial, model)
