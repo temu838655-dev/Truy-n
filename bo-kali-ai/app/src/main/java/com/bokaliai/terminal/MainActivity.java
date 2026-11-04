@@ -929,7 +929,7 @@ public class MainActivity extends Activity {
         remoteKeys.addView(keyHome, new LinearLayout.LayoutParams(0, dp(40), 1));
         remoteKeys.addView(keyRecent, new LinearLayout.LayoutParams(0, dp(40), 1));
         devicePane.addView(remoteKeys);
-        Button stopMirror = button("DỪNG TRUYỀN MÀN HÌNH");
+        Button stopMirror = button("TẮT PHIÊN ADB + SCRCPY HOÀN TOÀN");
         stopMirror.setOnClickListener(v -> stopAdbMirror(serial));
         devicePane.addView(stopMirror, new LinearLayout.LayoutParams(-1, dp(42)));
         android.content.SharedPreferences devicePrefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
