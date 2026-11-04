@@ -428,7 +428,9 @@ public class MainActivity extends Activity {
             String seenLabel = seen == 0L ? "chưa ghi nhận"
                 : new java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
                     .format(new java.util.Date(seen));
-            labels[i] = serial + "  [" + adbStateLabel(state) + "]  •  " + seenLabel;
+            String alias = prefs.getString("alias_" + serial, "");
+            labels[i] = (alias.isEmpty() ? serial : alias + "  ·  " + serial)
+                + "  [" + adbStateLabel(state) + "]  •  " + seenLabel;
         }
         long lastScan = prefs.getLong("last_scan_time", 0L);
         String scanLabel = lastScan == 0L ? "Chưa có lần quét thành công nào được ghi nhận."
@@ -468,7 +470,8 @@ public class MainActivity extends Activity {
         String seenLabel = seen == 0L ? "Chưa ghi nhận lần xuất hiện."
             : "Lần cuối thấy thiết bị: " + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
                 .format(new java.util.Date(seen)) + ".";
-        AlertDialog actions = new AlertDialog.Builder(this).setTitle("Thiết bị: " + serial)
+        String alias = prefs.getString("alias_" + serial, "");
+        AlertDialog actions = new AlertDialog.Builder(this).setTitle(alias.isEmpty() ? "Thiết bị: " + serial : alias + " • " + serial)
             .setMessage("Trạng thái lần quét gần nhất: " + adbStateLabel(state) + ". " + seenLabel
                 + " Hãy kiểm tra lại trước khi chạy lệnh.")
             .setPositiveButton("THÔNG TIN AN TOÀN", (d, w) -> showAdbReadOnlyTools(serial))
@@ -478,12 +481,29 @@ public class MainActivity extends Activity {
             .setOnClickListener(b -> {
                 actions.dismiss();
                 new AlertDialog.Builder(this).setTitle("Quản lý " + serial)
-                    .setItems(new String[]{"Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
-                        if (which == 0) confirmAdbDisconnect(serial);
+                    .setItems(new String[]{"Đặt / đổi tên gợi nhớ", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
+                        if (which == 0) showAdbAliasDialog(serial);
+                        else if (which == 1) confirmAdbDisconnect(serial);
                         else confirmForgetAdbDevice(serial);
                     }).setNegativeButton("ĐÓNG", null).show();
             }));
         actions.show();
+    }
+
+    private void showAdbAliasDialog(String serial) {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        EditText name = input("Ví dụ: TV phòng khách");
+        name.setText(prefs.getString("alias_" + serial, ""));
+        new AlertDialog.Builder(this).setTitle("Tên gợi nhớ thiết bị")
+            .setMessage("Tên chỉ dùng để hiển thị trong BO Kali AI. Serial ADB gốc vẫn được giữ nguyên.")
+            .setView(name)
+            .setPositiveButton("LƯU", (d, w) -> {
+                String alias = name.getText().toString().trim();
+                if (alias.length() > 40) alias = alias.substring(0, 40);
+                if (alias.isEmpty()) prefs.edit().remove("alias_" + serial).apply();
+                else prefs.edit().putString("alias_" + serial, alias).apply();
+                line(alias.isEmpty() ? "Đã bỏ tên gợi nhớ cho " + serial : "Đã đặt tên " + alias + " cho " + serial, GREEN);
+            }).setNegativeButton("HỦY", null).show();
     }
 
     private void confirmForgetAdbDevice(String serial) {
@@ -494,7 +514,7 @@ public class MainActivity extends Activity {
                 java.util.Set<String> saved = new java.util.HashSet<>(prefs.getStringSet("serials", new java.util.HashSet<>()));
                 saved.remove(serial);
                 prefs.edit().putStringSet("serials", saved)
-                    .remove("state_" + serial).remove("seen_" + serial).apply();
+                    .remove("state_" + serial).remove("seen_" + serial).remove("alias_" + serial).apply();
                 line("Đã xóa " + serial + " khỏi danh sách thiết bị lưu. Kết nối ADB không bị ảnh hưởng.", GREEN);
             }).setNegativeButton("HỦY", null).show();
     }
