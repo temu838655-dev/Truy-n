@@ -256,9 +256,16 @@ public class MainActivity extends Activity {
         getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE).edit()
             .putBoolean("keep_alive", false).remove("active_serial").apply();
         stopAdbKeepAlive();
+        String stopCommand;
         if (serial != null && !serial.isEmpty()) {
-            runTermuxCommand("adb -s " + shellQuote(serial) + " forward --remove tcp:27183 >/dev/null 2>&1 || true; adb disconnect " + shellQuote(serial) + " >/dev/null 2>&1 || true; adb kill-server >/dev/null 2>&1 || true; echo BO_ADB_STOPPED");
+            stopCommand = "adb -s " + shellQuote(serial)
+                + " forward --remove tcp:27183 >/dev/null 2>&1 || true; "
+                + "adb disconnect " + shellQuote(serial) + " >/dev/null 2>&1 || true; ";
+        } else {
+            stopCommand = "adb forward --remove tcp:27183 >/dev/null 2>&1 || true; ";
         }
+        // Always stop the local ADB server, even if the selected serial was lost.
+        runTermuxCommand(stopCommand + "adb kill-server >/dev/null 2>&1 || true; echo BO_ADB_STOPPED");
     }
 
 
