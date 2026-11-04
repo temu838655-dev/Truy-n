@@ -893,7 +893,7 @@ public class MainActivity extends Activity {
                         .setView(tokenInput)
                         .setPositiveButton("LƯU AN TOÀN", (x, y) -> {
                             String token = tokenInput.getText().toString().trim();
-                            if (token.length() < 20 || token.length() > 8192 || token.indexOf('\\n') >= 0) {
+                            if (token.length() < 20 || token.length() > 8192 || token.indexOf('\n') >= 0) {
                                 line("Token không hợp lệ hoặc vượt giới hạn.", 0xffff8080);
                                 return;
                             }
@@ -2670,7 +2670,7 @@ public class MainActivity extends Activity {
             while ((entry = zip.getNextEntry()) != null) {
                 if (!entry.isDirectory()) {
                     String name = entry.getName();
-                    if (name.startsWith("/") || name.contains("../") || name.indexOf('\\\\') >= 0) {
+                    if (name.startsWith("/") || name.contains("../") || name.indexOf('\\') >= 0) {
                         throw new IllegalArgumentException("Tệp Office chứa đường dẫn ZIP không an toàn.");
                     }
                     boolean wanted = "word/document.xml".equals(name) || "xl/sharedStrings.xml".equals(name)
