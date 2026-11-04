@@ -469,6 +469,7 @@ public class MainActivity extends Activity {
     private final java.util.ArrayDeque<NsdServiceInfo> hubResolveQueue = new java.util.ArrayDeque<>();
     private boolean hubDiscoveryActive = false;
     private boolean hubResolvingService = false;
+    private int hubResolveGeneration = 0;
     private Runnable hubScanTimeout;
 
     private void scanUniversalNetworkServices() {
@@ -481,6 +482,7 @@ public class MainActivity extends Activity {
             line("Thiết bị không hỗ trợ Network Service Discovery.", 0xffff8080);
             return;
         }
+        hubResolveGeneration++;
         hubDiscoveredServices.clear();
         hubResolveQueue.clear();
         hubResolvingService = false;
@@ -520,16 +522,19 @@ public class MainActivity extends Activity {
 
     private void resolveNextHubService() {
         if (!hubDiscoveryActive || hubResolvingService || hubResolveQueue.isEmpty() || nsdManager == null) return;
+        final int generation = hubResolveGeneration;
         NsdServiceInfo next = hubResolveQueue.poll();
         if (next == null) return;
         hubResolvingService = true;
         try {
             nsdManager.resolveService(next, new NsdManager.ResolveListener() {
                 @Override public void onResolveFailed(NsdServiceInfo failed, int errorCode) {
+                    if (generation != hubResolveGeneration) return;
                     hubResolvingService = false;
                     resolveNextHubService();
                 }
                 @Override public void onServiceResolved(NsdServiceInfo resolved) {
+                    if (generation != hubResolveGeneration) return;
                     hubResolvingService = false;
                     if (hubDiscoveryActive && resolved != null) {
                         InetAddress address = resolved.getHost();
@@ -547,6 +552,7 @@ public class MainActivity extends Activity {
                 }
             });
         } catch (Exception error) {
+            if (generation != hubResolveGeneration) return;
             hubResolvingService = false;
             mainHandler.post(resolveNextHubService);
         }
@@ -564,6 +570,7 @@ public class MainActivity extends Activity {
         }
         hubDiscoveryListeners.clear();
         hubDiscoveryActive = false;
+        hubResolveGeneration++;
         hubResolveQueue.clear();
         hubResolvingService = false;
     }
