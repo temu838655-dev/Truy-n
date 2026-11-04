@@ -4833,12 +4833,13 @@ public class MainActivity extends Activity {
                     + "Yêu cầu người dùng: " + q + buildAiContextForSharing(provider);
                 JSONObject result;
                 int code;
+                JSONArray geminiContents = new JSONArray();
                 if ("Gemini".equals(provider)) {
                     JSONArray parts = new JSONArray().put(new JSONObject().put("text", prompt));
                     if (!imageData.isEmpty()) parts.put(new JSONObject().put("inline_data",
                         new JSONObject().put("mime_type", imageMime).put("data", imageData)));
-                    JSONObject body = new JSONObject().put("contents", new JSONArray().put(
-                        new JSONObject().put("parts", parts)))
+                    geminiContents.put(new JSONObject().put("role", "user").put("parts", parts));
+                    JSONObject body = new JSONObject().put("contents", geminiContents)
                         .put("tools", AiToolRegistry.geminiProposalTools())
                         .put("tool_config", new JSONObject().put("function_calling_config",
                             new JSONObject().put("mode", "AUTO")));
@@ -4936,7 +4937,16 @@ public class MainActivity extends Activity {
                                 runOnUiThread(() -> line("BO từ chối công cụ Gemini không được hỗ trợ.", 0xffff8080));
                             } else {
                                 JSONObject args = call.optJSONObject("arguments");
+                                JSONArray candidates = result.optJSONArray("candidates");
+                                JSONObject candidate = candidates == null ? null : candidates.optJSONObject(0);
+                                JSONObject modelContent = candidate == null ? null : candidate.optJSONObject("content");
+                                String functionName = call.optString("name", "");
                                 runOnUiThread(() -> acceptAiAdbProposal(args, "gemini"));
+                                if (modelContent != null && !functionName.isEmpty()) {
+                                    requestGeminiToolFollowUp(apiKey, geminiContents, modelContent,
+                                        functionName,
+                                        "BO đã nhận đề xuất và chuyển sang bước kiểm tra/duyệt của người dùng. Chưa có lệnh ADB nào được thực thi. Không được báo rằng thiết bị đã thay đổi.");
+                                }
                             }
                         }
                     } else {
@@ -4955,7 +4965,13 @@ public class MainActivity extends Activity {
                                 runOnUiThread(() -> line("BO từ chối công cụ OpenAI không được hỗ trợ.", 0xffff8080));
                             } else {
                                 JSONObject args = call.optJSONObject("arguments");
+                                String responseId = result.optString("id", "");
+                                String callId = call.optString("call_id", "");
                                 runOnUiThread(() -> acceptAiAdbProposal(args, "openai"));
+                                if (!responseId.isEmpty() && !callId.isEmpty()) {
+                                    requestOpenAiToolFollowUp(apiKey, responseId, callId,
+                                        "BO đã nhận đề xuất và chuyển sang bước kiểm tra/duyệt của người dùng. Chưa có lệnh ADB nào được thực thi. Không được báo rằng thiết bị đã thay đổi.");
+                                }
                             }
                         }
                     } else {
@@ -4981,6 +4997,99 @@ public class MainActivity extends Activity {
      * Complete the Claude Messages tool-use round trip with a truthful, non-execution
      * status. The actual ADB command remains behind BO's independent review dialogs.
      */
+    /**
+     * Return the guarded ADB proposal status to Gemini as a functionResponse.
+     * This does not imply that the user approved or that any command ran.
+     */
+    private void requestGeminiToolFollowUp(String apiKey, JSONArray originalContents,
+                                           JSONObject modelContent, String functionName,
+                                           String toolResultText) {
+        worker.execute(() -> {
+            HttpURLConnection followConn = null;
+            try {
+                JSONObject functionResponse = new JSONObject()
+                    .put("functionResponse", new JSONObject()
+                        .put("name", functionName)
+                        .put("response", new JSONObject()
+                            .put("status", "queued_for_user_review")
+                            .put("message", toolResultText)));
+                JSONArray contents = new JSONArray()
+                    .put(originalContents.optJSONObject(0))
+                    .put(new JSONObject().put("role", "model").put("parts", modelContent.optJSONArray("parts")))
+                    .put(new JSONObject().put("role", "user").put("parts",
+                        new JSONArray().put(functionResponse)));
+                JSONObject body = new JSONObject()
+                    .put("contents", contents)
+                    .put("tools", AiToolRegistry.geminiProposalTools())
+                    .put("tool_config", new JSONObject().put("function_calling_config",
+                        new JSONObject().put("mode", "NONE")));
+                URL url = new URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent");
+                followConn = (HttpURLConnection) url.openConnection();
+                followConn.setRequestMethod("POST");
+                followConn.setRequestProperty("x-goog-api-key", apiKey);
+                followConn.setConnectTimeout(20000);
+                followConn.setReadTimeout(60000);
+                followConn.setDoOutput(true);
+                followConn.setRequestProperty("Content-Type", "application/json");
+                try (OutputStream os = followConn.getOutputStream()) {
+                    os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                }
+                int followCode = followConn.getResponseCode();
+                JSONObject followResult = new JSONObject(readAiHttpResponse(followConn, followCode));
+                String answer = extractAiAnswer("Gemini", followResult, followCode);
+                runOnUiThread(() -> line("Gemini: " + answer, WHITE));
+            } catch (Exception e) {
+                runOnUiThread(() -> line("Gemini chưa nhận được phản hồi công cụ: " + e.getMessage(), 0xffff8080));
+            } finally {
+                if (followConn != null) followConn.disconnect();
+            }
+        });
+    }
+
+    /**
+     * Continue the Responses API turn using the exact function call ID.
+     * The function output reports review status only; it never executes ADB.
+     */
+    private void requestOpenAiToolFollowUp(String apiKey, String responseId, String callId,
+                                           String toolResultText) {
+        worker.execute(() -> {
+            HttpURLConnection followConn = null;
+            try {
+                JSONArray input = new JSONArray().put(new JSONObject()
+                    .put("type", "function_call_output")
+                    .put("call_id", callId)
+                    .put("output", toolResultText));
+                JSONObject body = new JSONObject()
+                    .put("model", "gpt-6.1-sol")
+                    .put("previous_response_id", responseId)
+                    .put("input", input)
+                    .put("tools", AiToolRegistry.openAiProposalTools())
+                    .put("tool_choice", "none")
+                    .put("parallel_tool_calls", false)
+                    .put("max_output_tokens", 2048);
+                URL url = new URL("https://api.openai.com/v1/responses");
+                followConn = (HttpURLConnection) url.openConnection();
+                followConn.setRequestMethod("POST");
+                followConn.setRequestProperty("Authorization", "Bearer " + apiKey);
+                followConn.setConnectTimeout(20000);
+                followConn.setReadTimeout(60000);
+                followConn.setDoOutput(true);
+                followConn.setRequestProperty("Content-Type", "application/json");
+                try (OutputStream os = followConn.getOutputStream()) {
+                    os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                }
+                int followCode = followConn.getResponseCode();
+                JSONObject followResult = new JSONObject(readAiHttpResponse(followConn, followCode));
+                String answer = extractAiAnswer("OpenAI", followResult, followCode);
+                runOnUiThread(() -> line("OpenAI: " + answer, WHITE));
+            } catch (Exception e) {
+                runOnUiThread(() -> line("OpenAI chưa nhận được phản hồi công cụ: " + e.getMessage(), 0xffff8080));
+            } finally {
+                if (followConn != null) followConn.disconnect();
+            }
+        });
+    }
+
     private void requestClaudeToolFollowUp(String apiKey, JSONArray originalUserContent,
                                            JSONArray assistantContent, String toolUseId,
                                            String toolResultText) {
