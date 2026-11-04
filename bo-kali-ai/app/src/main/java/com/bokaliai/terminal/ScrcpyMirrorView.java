@@ -280,13 +280,9 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
 
     public void stop() {
         running.set(false);
+        // The decoder thread owns MediaCodec and releases it in decodeVideo()'s finally block.
+        // Closing the video socket unblocks readFully(), allowing that thread to clean up safely.
         stopSockets();
-        MediaCodec active = decoder;
-        decoder = null;
-        if (active != null) {
-            try { active.stop(); } catch (Exception ignored) { }
-            try { active.release(); } catch (Exception ignored) { }
-        }
         setStatus("Đã dừng truyền màn hình");
     }
 
