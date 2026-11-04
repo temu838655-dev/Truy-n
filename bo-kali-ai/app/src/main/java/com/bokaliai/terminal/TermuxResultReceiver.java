@@ -9,6 +9,7 @@ import android.os.Bundle;
 public class TermuxResultReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context context, Intent intent) {
         Bundle result = intent == null ? null : intent.getBundleExtra("result");
+        final int maxChars = 24000;
         StringBuilder output = new StringBuilder();
         int exitCode = -1;
         boolean screenCaptureSaved = false;
@@ -24,6 +25,17 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         } else {
             String stdout = result.getString("stdout", "");
             String stderr = result.getString("stderr", "");
+            // Screenshot Base64 is decoded below; never copy its multi-megabyte payload
+            // into the human-readable transcript builder.
+            boolean screenshotPayload = stdout.startsWith("BO_SCREEN_BASE64:");
+            if (!screenshotPayload && stdout.length() > maxChars) {
+                stdout = stdout.substring(0, maxChars)
+                    + "\\n[STDOUT đã được giới hạn ở 24.000 ký tự.]";
+            }
+            if (stderr.length() > maxChars) {
+                stderr = stderr.substring(0, maxChars)
+                    + "\\n[STDERR đã được giới hạn ở 24.000 ký tự.]";
+            }
             java.util.regex.Matcher requestMatcher = java.util.regex.Pattern
                 .compile("BO_SCRCPY_REQUEST:([0-9a-fA-F-]{36})").matcher(stdout);
             if (requestMatcher.find()) scrcpyToken = requestMatcher.group(1);
@@ -78,7 +90,6 @@ public class TermuxResultReceiver extends BroadcastReceiver {
 
         // Bound the transcript before persisting it. Termux stdout/stderr can be very large;
         // truncating only after SharedPreferences writes would still allow storage exhaustion.
-        final int maxChars = 24000;
         if (output.length() > maxChars) {
             output.setLength(maxChars);
             output.append("\n[Đã cắt bớt kết quả sau 24.000 ký tự để tránh quá tải.]");
