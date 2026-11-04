@@ -754,8 +754,17 @@ public class MainActivity extends Activity {
             new AlertDialog.Builder(this).setTitle("Xóa danh sách đã lưu?")
                 .setMessage("Chỉ xóa serial khỏi BO Kali AI, không ngắt kết nối hay thay đổi thiết bị.")
                 .setPositiveButton("XÓA", (x, y) -> {
-                    prefs.edit().remove("serials").apply();
-                    line("Đã xóa danh sách serial ADB đã lưu.", GREEN);
+                    java.util.Set<String> saved = new java.util.HashSet<>(
+                        prefs.getStringSet("serials", new java.util.HashSet<>()));
+                    android.content.SharedPreferences.Editor editor = prefs.edit().remove("serials");
+                    for (String serial : saved) {
+                        editor.remove("state_" + serial)
+                            .remove("seen_" + serial)
+                            .remove("alias_" + serial)
+                            .remove("preset_" + serial);
+                    }
+                    editor.apply();
+                    line("Đã xóa " + saved.size() + " thiết bị cùng trạng thái, tên gợi nhớ và lệnh lưu tương ứng. Không ngắt kết nối ADB và không tác động thiết bị.", GREEN);
                 }).setNegativeButton("HỦY", null).show();
         }));
         dialog.show();
