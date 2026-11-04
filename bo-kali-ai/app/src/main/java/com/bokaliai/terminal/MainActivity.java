@@ -55,6 +55,8 @@ public class MainActivity extends Activity {
     private static final AtomicInteger TERMUX_REQUEST = new AtomicInteger(2000);
     private NsdManager nsdManager;
     private NsdManager.DiscoveryListener adbDiscoveryListener;
+    private NsdManager.DiscoveryListener adbPairingDiscoveryListener;
+    private boolean adbPairingScanActive = false;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean adbScanActive = false;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
@@ -104,6 +106,9 @@ public class MainActivity extends Activity {
         shellAdb.setOnClickListener(v -> showAdbShellDialog());
         adbRow.addView(shellAdb, new LinearLayout.LayoutParams(0, dp(42), 1));
         root.addView(adbRow);
+        Button scanPairing = button("QUÉT CỔNG GHÉP ĐÔI");
+        scanPairing.setOnClickListener(v -> scanAdbPairingServices());
+        root.addView(scanPairing, new LinearLayout.LayoutParams(-1, dp(40)));
         Button shareReport = button("CHIA SẺ KẾT QUẢ TERMUX");
         shareReport.setOnClickListener(v -> shareLastTermuxReport());
         root.addView(shareReport, new LinearLayout.LayoutParams(-1, dp(42)));
@@ -143,6 +148,44 @@ public class MainActivity extends Activity {
         setContentView(root);
     }
 
+
+    // Find the pairing-code service advertised while the target pairing dialog is open.
+    private void scanAdbPairingServices() {
+        if (adbPairingScanActive) { line("Đang quét cổng ghép đôi, vui lòng chờ.", 0xffffca70); return; }
+        nsdManager = (NsdManager) getSystemService(Context.NSD_SERVICE);
+        if (nsdManager == null) { line("Thiết bị không hỗ trợ Network Service Discovery.", 0xffff8080); return; }
+        adbPairingScanActive = true;
+        line("Đang tìm dịch vụ ADB pairing trên mạng Wi-Fi...", GREEN);
+        adbPairingDiscoveryListener = new NsdManager.DiscoveryListener() {
+            @Override public void onDiscoveryStarted(String type) { line("Đang quét " + type, 0xff79c9ff); }
+            @Override public void onServiceFound(NsdServiceInfo service) {
+                final String name = service.getServiceName();
+                nsdManager.resolveService(service, new NsdManager.ResolveListener() {
+                    @Override public void onResolveFailed(NsdServiceInfo info, int error) { line("Không phân giải được dịch vụ pairing: " + error, 0xffffca70); }
+                    @Override public void onServiceResolved(NsdServiceInfo info) {
+                        InetAddress host = info.getHost();
+                        String address = host == null ? "" : host.getHostAddress();
+                        String endpoint = address.isEmpty() ? "" : address + ":" + info.getPort();
+                        if (!isValidAdbEndpoint(endpoint)) { line("Dịch vụ pairing có địa chỉ không hợp lệ: " + name, 0xffffca70); return; }
+                        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+                        java.util.Set<String> saved = new java.util.HashSet<>(prefs.getStringSet("pairing_endpoints", new java.util.HashSet<>()));
+                        saved.add(endpoint);
+                        prefs.edit().putStringSet("pairing_endpoints", saved).putString("pairing_service_" + endpoint, name).apply();
+                        line("Đã tìm thấy cổng ghép đôi: " + name + " — " + endpoint, GREEN);
+                        line("Cổng này dùng cho adb pair; cổng KẾT NỐI IP là một cổng khác.", 0xff79c9ff);
+                    }
+                });
+            }
+            @Override public void onServiceLost(NsdServiceInfo service) { line("Dịch vụ pairing đã ngừng quảng bá: " + service.getServiceName(), 0xffffca70); }
+            @Override public void onStartDiscoveryFailed(String type, int error) { adbPairingScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} line("Quét pairing thất bại, mã " + error, 0xffff8080); }
+            @Override public void onStopDiscoveryFailed(String type, int error) { adbPairingScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} }
+            @Override public void onDiscoveryStopped(String type) { adbPairingScanActive = false; line("Đã kết thúc quét cổng pairing.", GREEN); }
+        };
+        try {
+            nsdManager.discoverServices("_adb-tls-pairing._tcp.", NsdManager.PROTOCOL_DNS_SD, adbPairingDiscoveryListener);
+            mainHandler.postDelayed(() -> { if (adbPairingScanActive && adbPairingDiscoveryListener != null) { try { nsdManager.stopServiceDiscovery(adbPairingDiscoveryListener); } catch (Exception ignored) { adbPairingScanActive = false; } } }, 12000);
+        } catch (Exception e) { adbPairingScanActive = false; line("Lỗi quét pairing: " + e.getMessage(), 0xffff8080); }
+    }
 
     // Discovers Wireless Debugging endpoints; discovery alone does not pair or authenticate.
     private void scanAdbServices() {
