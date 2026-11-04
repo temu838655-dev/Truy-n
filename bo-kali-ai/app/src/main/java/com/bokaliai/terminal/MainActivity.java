@@ -265,6 +265,19 @@ public class MainActivity extends Activity {
             runKaliCommand(cmd);
         });
         page.addView(check, new LinearLayout.LayoutParams(-1, dp(48)));
+        Button deepCheck = button("CHẨN ĐOÁN CHI TIẾT CARD WI-FI USB / DRIVER");
+        deepCheck.setOnClickListener(v -> {
+            String cmd = "echo '=== NETWORK INTERFACES ==='; ip -br link 2>&1; "
+                + "echo '=== WIFI PHY / DRIVER ==='; command -v iw >/dev/null 2>&1 && iw phy 2>&1 | head -n 100 || echo 'iw chưa cài'; "
+                + "echo '=== RFKILL ==='; command -v rfkill >/dev/null 2>&1 && rfkill list 2>&1 || echo 'rfkill chưa cài'; "
+                + "echo '=== USB TREE ==='; command -v lsusb >/dev/null 2>&1 && lsusb -t 2>&1 || echo 'usbutils chưa cài'; "
+                + "echo '=== LOADED MODULES ==='; cat /proc/modules 2>/dev/null | grep -Ei 'wifi|wlan|80211|rtl|ath|mt76|brcm|cfg80211|mac80211' | head -n 60; "
+                + "echo '=== NET DEVICE DRIVER LINKS ==='; for n in /sys/class/net/*; do echo --- $n ---; readlink -f $n/device/driver 2>/dev/null || true; cat $n/device/uevent 2>/dev/null | head -n 12; done; "
+                + "echo '=== ANDROID / KERNEL ==='; getprop ro.product.model 2>/dev/null; getprop ro.build.version.release 2>/dev/null; uname -a; "
+                + "echo '=== USER / PERMISSIONS ==='; id; command -v sudo 2>/dev/null || true";
+            runKaliCommand(cmd);
+        });
+        page.addView(deepCheck, new LinearLayout.LayoutParams(-1, dp(48)));
         Button install = button("CÀI WIFITE + CÔNG CỤ CHẨN ĐOÁN");
         install.setOnClickListener(v -> new AlertDialog.Builder(this)
             .setTitle("Cài Wifite chính thức trong Kali")
