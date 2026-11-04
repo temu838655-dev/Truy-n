@@ -2710,11 +2710,12 @@ public class MainActivity extends Activity {
 
     private void showAiDeviceControlMenu() {
         java.util.ArrayList<String> online = getFreshAdbDevices();
-        String[] actions = {"CẤP / ĐIỀU CHỈNH QUYỀN CHO THIẾT BỊ", "THU HỒI TOÀN BỘ QUYỀN AI", "XEM NHẬT KÝ ĐIỀU KHIỂN AI", "HỦY YÊU CẦU AI ĐANG CHỜ"};
+        String[] actions = {"CẤP / ĐIỀU CHỈNH QUYỀN CHO THIẾT BỊ", "THU HỒI TOÀN BỘ QUYỀN AI", "XEM NHẬT KÝ ĐIỀU KHIỂN AI", "HỦY YÊU CẦU AI ĐANG CHỜ", "XEM QUYỀN ĐANG CẤP"};
         new AlertDialog.Builder(this).setTitle("AI • Quyền điều khiển thiết bị")
             .setMessage("Quyền chỉ tồn tại trong phiên BO hiện tại và gắn với đúng serial ADB. AI không có quyền root, không thể vượt qua xác thực Android. Mỗi thao tác nhạy cảm vẫn cần bạn xác nhận.")
             .setItems(actions, (d, which) -> {
                 if (which == 2) { showAiDeviceAuditLog(); return; }
+                if (which == 4) { showAiDeviceGrantStatus(); return; }
                 if (which == 3) {
                     cancelPendingAiDevicePlanFor(null);
                     line("Đã hủy yêu cầu lập kế hoạch AI đang chờ. Kết quả đến muộn sẽ bị bỏ qua.", GREEN);
@@ -2745,6 +2746,37 @@ public class MainActivity extends Activity {
                     .setItems(labels, (x, index) -> showAiDevicePermissionDialog(online.get(index)))
                     .setNegativeButton("HỦY", null).show();
             }).setNegativeButton("ĐÓNG", null).show();
+    }
+
+    private void showAiDeviceGrantStatus() {
+        if (aiDevicePermissions.isEmpty()) {
+            new AlertDialog.Builder(this).setTitle("Quyền AI đang cấp")
+                .setMessage("Hiện không có thiết bị nào được cấp quyền AI trong phiên BO này.")
+                .setPositiveButton("ĐÓNG", null).show();
+            return;
+        }
+        java.util.ArrayList<String> serials = new java.util.ArrayList<>(aiDevicePermissions.keySet());
+        java.util.Collections.sort(serials);
+        StringBuilder report = new StringBuilder();
+        for (String serial : serials) {
+            report.append(isFreshAdbDevice(serial) ? "● ĐANG TRỰC TUYẾN" : "○ NGOẠI TUYẾN / CẦN QUÉT LẠI")
+                .append("\n").append(serial).append("\n");
+            java.util.HashSet<String> granted = aiDevicePermissions.get(serial);
+            if (granted != null) {
+                for (int i = 0; i < AI_DEVICE_SCOPE_IDS.length; i++) {
+                    if (granted.contains(AI_DEVICE_SCOPE_IDS[i])) {
+                        report.append("  • ").append(AI_DEVICE_SCOPE_LABELS[i]).append("\n");
+                    }
+                }
+            }
+            report.append("\n");
+        }
+        report.append("Quyền chỉ tồn tại trong phiên BO hiện tại. Tắt ứng dụng/kết thúc tiến trình sẽ xóa các quyền này.");
+        new AlertDialog.Builder(this).setTitle("Quyền AI đang cấp")
+            .setMessage(report.toString())
+            .setPositiveButton("ĐÓNG", null)
+            .setNeutralButton("ĐIỀU CHỈNH QUYỀN", (d, w) -> showAiDeviceControlMenu())
+            .show();
     }
 
     private void showAiDevicePermissionDialog(String serial) {
