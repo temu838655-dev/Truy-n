@@ -5952,27 +5952,27 @@ public class MainActivity extends Activity {
                     + "?ref=" + java.net.URLEncoder.encode(branch, "UTF-8");
                 JSONObject original = githubApi("GET", apiPath, null);
                 String originalSha = original.optString("sha", "");
-                String encoded = original.optString("content", "").replace("\\n", "").replace("\\r", "");
+                String encoded = original.optString("content", "").replace("\n", "").replace("\r", "");
                 if (originalSha.isEmpty() || encoded.isEmpty())
                     throw new IllegalStateException("Không lấy được SHA/nội dung tệp gốc; từ chối đề xuất cập nhật.");
                 String oldContent = new String(android.util.Base64.decode(encoded, android.util.Base64.DEFAULT), StandardCharsets.UTF_8);
                 if (oldContent.length() > 60000) throw new IllegalStateException("Tệp gốc vượt giới hạn xem xét 60.000 ký tự.");
-                String preview = "Repository: " + repository + "\\nNhánh: " + branch + "\\nTệp: " + path
-                    + "\\nSHA gốc: " + originalSha + "\\nCommit: " + summary
-                    + "\\n\\n===== TOÀN BỘ TỆP HIỆN TẠI =====\\n" + oldContent
-                    + "\\n\\n===== TOÀN BỘ TỆP ĐỀ XUẤT =====\\n" + content
-                    + "\\n\\nBO sẽ so sánh SHA một lần nữa trước khi commit. Nếu tệp đã đổi, thao tác sẽ bị hủy.";
+                String preview = "Repository: " + repository + "\nNhánh đích: " + branch + "\nTệp: " + path
+                    + "\nSHA gốc: " + originalSha + "\nTiêu đề PR: " + summary
+                    + "\n\n===== TOÀN BỘ TỆP HIỆN TẠI =====\n" + oldContent
+                    + "\n\n===== TOÀN BỘ TỆP ĐỀ XUẤT =====\n" + content
+                    + "\n\nSau khi bạn duyệt, BO sẽ kiểm tra SHA lần cuối, tạo nhánh riêng và mở Pull Request. Nhánh đích sẽ không bị commit trực tiếp.";
                 runOnUiThread(() -> new AlertDialog.Builder(this)
                     .setTitle("Antigravity • Duyệt bản vá GitHub")
                     .setMessage(preview)
-                    .setPositiveButton("DUYỆT VÀ COMMIT", (dialog, which) ->
-                        commitAntigravityGithubUpdate(repository, branch, path, content, summary, originalSha))
+                    .setPositiveButton("DUYỆT VÀ TẠO PR", (dialog, which) ->
+                        createAntigravityGithubPullRequest(repository, branch, path, content, summary, originalSha))
                     .setNegativeButton("TỪ CHỐI", (dialog, which) ->
                         reportAntigravityToolOutcome("github_update_rejected",
-                            "Người dùng từ chối bản vá GitHub. Không có tệp hoặc commit nào được thay đổi."))
+                            "Người dùng từ chối bản vá GitHub. Không có nhánh, tệp hoặc Pull Request nào được tạo."))
                     .setOnCancelListener(dialog ->
                         reportAntigravityToolOutcome("github_update_cancelled",
-                            "Người dùng đóng hộp thoại duyệt. Không có tệp hoặc commit nào được thay đổi."))
+                            "Người dùng đóng hộp thoại duyệt. Không có thay đổi GitHub nào được tạo."))
                     .show());
             } catch (Exception e) {
                 reportAntigravityToolOutcome("github_update_review_failed",
@@ -5981,38 +5981,65 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void commitAntigravityGithubUpdate(String repository, String branch, String path,
-                                               String content, String summary, String expectedSha) {
-        line("Đã duyệt bản vá. BO đang xác minh SHA lần cuối trước khi commit...", GREEN);
+    private void createAntigravityGithubPullRequest(String repository, String base, String path,
+                                                     String content, String summary, String expectedSha) {
+        line("Đã duyệt. BO đang xác minh SHA và tạo nhánh Pull Request...", GREEN);
         worker.execute(() -> {
+            String branchName = "";
+            String commitSha = "";
             try {
+                String encodedBase = java.net.URLEncoder.encode(base, "UTF-8");
+                JSONObject baseRef = githubApi("GET", "/repos/" + repository + "/git/ref/heads/" + encodedBase, null);
+                JSONObject baseObject = baseRef.optJSONObject("object");
+                if (baseObject == null || baseObject.optString("sha").isEmpty())
+                    throw new IllegalStateException("Không lấy được SHA của nhánh đích.");
                 String apiPath = "/repos/" + repository + "/contents/" + githubEncodedPath(path);
-                JSONObject latest = githubApi("GET", apiPath + "?ref="
-                    + java.net.URLEncoder.encode(branch, "UTF-8"), null);
+                JSONObject latest = githubApi("GET", apiPath + "?ref=" + encodedBase, null);
                 String latestSha = latest.optString("sha", "");
                 if (!expectedSha.equals(latestSha)) {
                     reportAntigravityToolOutcome("github_update_conflict",
-                        "Tệp đã thay đổi sau khi hiển thị bản duyệt. BO đã hủy commit để tránh ghi đè. Hãy đọc lại tệp và tạo bản vá mới.");
-                    runOnUiThread(() -> line("GitHub thay đổi trong lúc duyệt; đã hủy commit an toàn.", 0xffffca70));
+                        "Tệp đã thay đổi sau khi hiển thị bản duyệt. BO đã hủy, không tạo nhánh/PR. Hãy đọc lại tệp và đề xuất lại.");
+                    runOnUiThread(() -> line("GitHub thay đổi trong lúc duyệt; đã hủy an toàn.", 0xffffca70));
                     return;
                 }
-                JSONObject payload = new JSONObject()
+                String suffix = Long.toString(System.currentTimeMillis(), 36);
+                branchName = "bo-kali-ai/antigravity-" + suffix;
+                JSONObject refPayload = new JSONObject()
+                    .put("ref", "refs/heads/" + branchName)
+                    .put("sha", baseObject.optString("sha"));
+                githubApi("POST", "/repos/" + repository + "/git/refs", refPayload);
+
+                JSONObject filePayload = new JSONObject()
                     .put("message", summary)
                     .put("content", android.util.Base64.encodeToString(content.getBytes(StandardCharsets.UTF_8), android.util.Base64.NO_WRAP))
-                    .put("branch", branch)
+                    .put("branch", branchName)
                     .put("sha", expectedSha);
-                JSONObject response = githubApi("PUT", apiPath, payload);
-                JSONObject commit = response.optJSONObject("commit");
-                String commitSha = commit == null ? "" : commit.optString("sha", "");
-                reportAntigravityToolOutcome("github_update_committed",
-                    "BO đã commit bản vá sau khi người dùng xác nhận. Repository: " + repository
-                        + "; branch: " + branch + "; path: " + path
-                        + (commitSha.isEmpty() ? "" : "; commit: " + commitSha));
-                runOnUiThread(() -> line("Đã commit bản vá GitHub theo xác nhận của bạn."
-                    + (commitSha.isEmpty() ? "" : " Commit: " + commitSha), GREEN));
+                JSONObject fileResult = githubApi("PUT", apiPath, filePayload);
+                JSONObject commit = fileResult.optJSONObject("commit");
+                commitSha = commit == null ? "" : commit.optString("sha", "");
+
+                JSONObject prPayload = new JSONObject()
+                    .put("title", summary)
+                    .put("head", branchName)
+                    .put("base", base)
+                    .put("body", "Pull Request được tạo từ BO Kali AI • Antigravity.\n\nHãy kiểm tra toàn bộ diff, chạy build/test và chỉ merge sau khi xác minh.");
+                JSONObject pr = githubApi("POST", "/repos/" + repository + "/pulls", prPayload);
+                String html = pr.optString("html_url", "");
+                int number = pr.optInt("number", 0);
+                reportAntigravityToolOutcome("github_pull_request_created",
+                    "Đã tạo Pull Request #" + number + " trong " + repository + ". Nhánh: " + branchName
+                        + (commitSha.isEmpty() ? "" : ". Commit: " + commitSha)
+                        + (html.isEmpty() ? "" : ". URL: " + html)
+                        + ". Nhánh đích " + base + " không bị commit trực tiếp.");
+                runOnUiThread(() -> line("Đã tạo Pull Request #" + number + " • " + branchName
+                    + (html.isEmpty() ? "" : "\n" + html), GREEN));
             } catch (Exception e) {
-                reportAntigravityToolOutcome("github_update_failed", "Commit GitHub thất bại: " + e.getMessage());
-                runOnUiThread(() -> line("Commit GitHub thất bại: " + e.getMessage(), 0xffff8080));
+                String partial = branchName.isEmpty() ? "" : " Nhánh có thể đã được tạo: " + branchName
+                    + (commitSha.isEmpty() ? "" : "; commit: " + commitSha)
+                    + ". Hãy kiểm tra GitHub trước khi thử lại.";
+                reportAntigravityToolOutcome("github_pull_request_failed",
+                    "Không hoàn tất được Pull Request: " + e.getMessage() + partial);
+                runOnUiThread(() -> line("Tạo Pull Request thất bại: " + e.getMessage() + partial, 0xffff8080));
             }
         });
     }
