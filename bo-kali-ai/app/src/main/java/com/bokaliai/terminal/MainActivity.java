@@ -52,6 +52,7 @@ public class MainActivity extends Activity {
     private ScrollView scroll;
     private EditText commandInput, questionInput;
     private String geminiKey = "", githubToken = "", lastCommandOutput = "";
+    private String pendingExportText = "";
     private static final AtomicInteger TERMUX_REQUEST = new AtomicInteger(2000);
     private NsdManager nsdManager;
     private NsdManager.DiscoveryListener adbDiscoveryListener;
@@ -121,6 +122,9 @@ public class MainActivity extends Activity {
         Button shareReport = button("CHIA SẺ KẾT QUẢ TERMUX");
         shareReport.setOnClickListener(v -> shareLastTermuxReport());
         root.addView(shareReport, new LinearLayout.LayoutParams(-1, dp(42)));
+        Button exportReport = button("XUẤT KẾT QUẢ ADB / KALI THÀNH TỆP TXT");
+        exportReport.setOnClickListener(v -> exportLastResult());
+        root.addView(exportReport, new LinearLayout.LayoutParams(-1, dp(42)));
         Button firmware = button("FIRMWARE / OTA");
         firmware.setOnClickListener(v -> showFirmwareManager());
         root.addView(firmware, new LinearLayout.LayoutParams(-1, dp(44)));
@@ -765,6 +769,7 @@ public class MainActivity extends Activity {
 
     private static final int REQ_ADB_BACKUP_EXPORT = 4101;
     private static final int REQ_ADB_BACKUP_IMPORT = 4102;
+    private static final int REQ_RESULT_EXPORT = 4103;
 
     private void showAdbBackupMenu() {
         new AlertDialog.Builder(this).setTitle("Sao lưu / khôi phục ADB")
@@ -817,7 +822,17 @@ public class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
         Uri uri = data.getData();
-        if (requestCode == REQ_ADB_BACKUP_EXPORT) {
+        if (requestCode == REQ_RESULT_EXPORT) {
+            try (OutputStream out = getContentResolver().openOutputStream(uri)) {
+                if (out == null) throw new java.io.IOException("Không mở được tệp đích");
+                out.write(pendingExportText.getBytes(StandardCharsets.UTF_8));
+                out.flush();
+                line("Đã xuất kết quả ADB / Kali thành tệp TXT.", GREEN);
+                pendingExportText = "";
+            } catch (Exception e) {
+                line("Không xuất được báo cáo TXT: " + e.getMessage(), 0xffff8080);
+            }
+        } else if (requestCode == REQ_ADB_BACKUP_EXPORT) {
             try (OutputStream out = getContentResolver().openOutputStream(uri)) {
                 if (out == null) throw new java.io.IOException("Không mở được tệp đích");
                 out.write(createAdbBackupJson().toString(2).getBytes(StandardCharsets.UTF_8));
@@ -1418,6 +1433,35 @@ public class MainActivity extends Activity {
             return;
         }
         copyText(lastCommandOutput, "Đã sao chép kết quả ADB / Kali gần nhất vào clipboard.");
+    }
+
+    private void exportLastResult() {
+        String report = getSharedPreferences("bo_kali_results", MODE_PRIVATE)
+            .getString("last_output", "");
+        if (report == null || report.trim().isEmpty()) report = lastCommandOutput;
+        if (report == null || report.trim().isEmpty()) {
+            line("Chưa có kết quả ADB / Kali để xuất. Hãy chạy lệnh hoặc kiểm tra thiết bị trước.", 0xffffca70);
+            return;
+        }
+        final String content = report;
+        new AlertDialog.Builder(this)
+            .setTitle("Xuất báo cáo ADB / Kali")
+            .setMessage("Tạo tệp TXT từ kết quả Termux gần nhất. Báo cáo có thể chứa serial, địa chỉ IP, tên thiết bị hoặc dữ liệu riêng tư. Hãy kiểm tra trước khi gửi cho người khác.")
+            .setPositiveButton("XUẤT TXT", (d, w) -> {
+                pendingExportText = content;
+                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("text/plain");
+                intent.putExtra(Intent.EXTRA_TITLE, "bo-kali-ai-report.txt");
+                try {
+                    startActivityForResult(intent, REQ_RESULT_EXPORT);
+                } catch (Exception e) {
+                    pendingExportText = "";
+                    line("Không mở được trình lưu tệp: " + e.getMessage(), 0xffff8080);
+                }
+            })
+            .setNegativeButton("HỦY", null)
+            .show();
     }
 
     private void shareLastTermuxReport() {
