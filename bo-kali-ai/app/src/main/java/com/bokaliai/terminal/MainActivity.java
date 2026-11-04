@@ -4276,10 +4276,11 @@ public class MainActivity extends Activity {
             return;
         }
         new AlertDialog.Builder(this).setTitle("GitHub • Workspace")
-            .setItems(new String[]{"Liệt kê repository", "Đọc tệp trong repository", "Tạo / cập nhật tệp (có xác nhận)"}, (d, which) -> {
+            .setItems(new String[]{"Liệt kê repository", "Đọc tệp trong repository", "Tạo / cập nhật tệp (có xác nhận)", "Xem nhánh và lịch sử commit"}, (d, which) -> {
                 if (which == 0) githubListRepos();
                 else if (which == 1) showGithubFileDialog(false);
-                else showGithubFileDialog(true);
+                else if (which == 2) showGithubFileDialog(true);
+                else showGithubRepoHistoryDialog();
             }).setNegativeButton("ĐÓNG", null).show();
     }
 
@@ -4353,6 +4354,68 @@ public class MainActivity extends Activity {
         });
     }
 
+    private void showGithubRepoHistoryDialog() {
+        EditText repo = input("owner/repository");
+        new AlertDialog.Builder(this).setTitle("Nhánh & lịch sử GitHub")
+            .setMessage("Nhập repository để xem các nhánh hoặc commit gần đây.")
+            .setView(repo)
+            .setPositiveButton("XEM", (d, w) -> {
+                String value = repo.getText().toString().trim();
+                String[] parts = value.split("/");
+                if (parts.length != 2 || parts[0].isEmpty() || parts[1].isEmpty()
+                    || !parts[0].matches("[A-Za-z0-9_.-]+") || !parts[1].matches("[A-Za-z0-9_.-]+")) {
+                    line("Tên repository phải có dạng owner/repository hợp lệ.", 0xffffca70); return;
+                }
+                new AlertDialog.Builder(this).setTitle("Chọn dữ liệu")
+                    .setItems(new String[]{"Danh sách nhánh", "10 commit gần nhất"}, (dialog, which) -> {
+                        String endpoint = which == 0 ? "/branches?per_page=100" : "/commits?per_page=10";
+                        githubReadArray(value, endpoint, which == 0);
+                    }).setNegativeButton("HỦY", null).show();
+            }).setNegativeButton("HỦY", null).show();
+    }
+
+    private void githubReadArray(String repository, String endpoint, boolean branches) {
+        line("Đang đọc GitHub " + repository + "...", GREEN);
+        worker.execute(() -> {
+            HttpURLConnection c = null;
+            try {
+                c = (HttpURLConnection) new URL("https://api.github.com/repos/" + repository + endpoint).openConnection();
+                c.setRequestProperty("Authorization", "Bearer " + githubToken);
+                c.setRequestProperty("Accept", "application/vnd.github+json");
+                c.setRequestProperty("X-GitHub-Api-Version", "2022-11-28");
+                c.setConnectTimeout(15000); c.setReadTimeout(25000);
+                int code = c.getResponseCode();
+                java.io.InputStream stream = code >= 200 && code < 300 ? c.getInputStream() : c.getErrorStream();
+                StringBuilder raw = new StringBuilder();
+                if (stream != null) try (BufferedReader br = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                    String row; while ((row = br.readLine()) != null) raw.append(row);
+                }
+                if (code < 200 || code >= 300) throw new IllegalStateException("GitHub HTTP " + code + ": " + raw);
+                JSONArray arr = new JSONArray(raw.toString());
+                StringBuilder report = new StringBuilder(branches ? "Các nhánh:\n" : "Commit gần đây:\n");
+                for (int i = 0; i < arr.length(); i++) {
+                    JSONObject item = arr.getJSONObject(i);
+                    if (branches) {
+                        report.append("• ").append(item.optString("name"));
+                        JSONObject commit = item.optJSONObject("commit");
+                        if (commit != null) report.append(" — ").append(commit.optString("sha").substring(0, Math.min(7, commit.optString("sha").length())));
+                    } else {
+                        JSONObject commit = item.optJSONObject("commit");
+                        JSONObject author = commit == null ? null : commit.optJSONObject("author");
+                        report.append("• ").append(item.optString("sha").substring(0, Math.min(7, item.optString("sha").length())));
+                        if (author != null) report.append(" — ").append(author.optString("date"));
+                        JSONObject message = commit == null ? null : commit.optJSONObject("message") == null ? null : commit.optJSONObject("message");
+                        if (message != null) report.append("\n  ").append(message.optString("message").split("\n")[0]);
+                    }
+                    report.append("\n");
+                }
+                String result = "GitHub " + repository + "\n" + report;
+                runOnUiThread(() -> line(result, WHITE));
+            } catch (Exception e) { runOnUiThread(() -> line("Lỗi đọc GitHub: " + e.getMessage(), 0xffff8080)); }
+            finally { if (c != null) c.disconnect(); }
+        });
+    }
+
     private void showGithubFileDialog(boolean write) {
         LinearLayout form = new LinearLayout(this); form.setOrientation(1); form.setPadding(dp(8), dp(4), dp(8), dp(4));
         EditText repoName = input("owner/repository");
@@ -4376,7 +4439,8 @@ public class MainActivity extends Activity {
                 String ref = branch.getText().toString().trim();
                 String path = filePath.getText().toString().trim();
                 String body = content.getText().toString();
-                if (repository.split("/").length != 2 || ref.isEmpty() || path.isEmpty() || (write && body.isEmpty())) {
+                String[] repoParts = repository.split("/");
+                if (repoParts.length != 2 || !repoParts[0].matches("[A-Za-z0-9_.-]+") || !repoParts[1].matches("[A-Za-z0-9_.-]+") || !ref.matches("[A-Za-z0-9_.\\-/]+") || path.isEmpty() || (write && body.isEmpty())) {
                     line("Thiếu owner/repo, nhánh, đường dẫn hoặc nội dung tệp.", 0xffffca70); return;
                 }
                 if (repository.contains("..") || path.startsWith("/") || path.contains("..")) {
