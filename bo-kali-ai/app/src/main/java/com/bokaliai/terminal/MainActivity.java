@@ -474,7 +474,18 @@ public class MainActivity extends Activity {
             .setView(form).setPositiveButton("GHÉP ĐÔI", (d,w) -> {
                 String ep = endpoint.getText().toString().trim(); String pin = code.getText().toString().trim();
                 if (!isValidAdbEndpoint(ep) || !pin.matches("[0-9]{6}")) { line("IP:cổng hoặc mã ghép đôi không hợp lệ. Cổng phải từ 1 đến 65535.", 0xffff8080); return; }
-                runTermuxCommand("pkg install -y android-tools && adb pair " + shellQuote(ep) + " " + shellQuote(pin));
+                long foundAt = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE)
+                    .getLong("pairing_discovered_at_" + ep, 0L);
+                boolean stale = foundAt == 0L || System.currentTimeMillis() - foundAt > 10L * 60L * 1000L;
+                if (stale) {
+                    new AlertDialog.Builder(this).setTitle("Cổng ghép đôi có thể đã cũ")
+                        .setMessage("Cổng " + ep + " chưa được tìm thấy trong 10 phút gần đây hoặc không có thời điểm quét. Hãy kiểm tra lại cổng và mã 6 số trên màn hình Wireless debugging trước khi tiếp tục.")
+                        .setPositiveButton("VẪN GHÉP ĐÔI", (confirm, which) -> runTermuxCommand(
+                            "pkg install -y android-tools && adb pair " + shellQuote(ep) + " " + shellQuote(pin)))
+                        .setNegativeButton("HỦY", null).show();
+                } else {
+                    runTermuxCommand("pkg install -y android-tools && adb pair " + shellQuote(ep) + " " + shellQuote(pin));
+                }
             }).setNegativeButton("HỦY", null).show();
     }
 
