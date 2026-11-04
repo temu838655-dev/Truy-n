@@ -148,11 +148,6 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
                 if (controlSocket == control) { controlSocket = null; controlOutput = null; }
                 return;
             }
-            /* obsolete guard removed */
-            if (false) {
-                stopSockets();
-                return;
-            }
             setStatus("Đã kết nối · Đang truyền màn hình trực tiếp");
             Socket videoStream = video;
             Socket controlStream = control;
