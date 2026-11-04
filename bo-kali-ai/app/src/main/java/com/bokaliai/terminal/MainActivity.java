@@ -5331,11 +5331,22 @@ public class MainActivity extends Activity {
 
     private void showAntigravityMenu() {
         new AlertDialog.Builder(this).setTitle("Google Antigravity Agent")
-            .setMessage("Antigravity CLI chính thức chạy trong Debian proot (Termux). Chọn chat, phân tích mã GitHub, cài CLI hoặc đăng nhập Google. Việc đọc GitHub chỉ gửi nội dung tệp sau khi bạn xác nhận; không gửi GitHub token.")
-            .setItems(new String[]{"CHAT VỚI ANTIGRAVITY", "AI ĐỌC TỆP GITHUB", "CÀI / KIỂM TRA CLI", "ĐĂNG NHẬP GOOGLE"}, (d, which) -> {
-                if (which == 0) showAntigravityChat();
-                else if (which == 1) showGithubAiReviewDialog(false);
-                else if (which == 2) installAntigravityCli();
+            .setMessage("Agent API: chọn Google Antigravity Agent trong danh sách AI để chat, tìm web, đọc URL, chạy code và quản lý tệp trong sandbox từ xa. Dùng Gemini API key đã nhập trong Kết nối AI. CLI Termux vẫn có thể dùng riêng. Sandbox từ xa không tự có quyền ADB/GitHub cục bộ.")
+            .setItems(new String[]{"MỞ CHAT AGENT API", "TẠO PHIÊN AGENT MỚI", "CHAT ANTIGRAVITY CLI (TERMUX)", "AI ĐỌC TỆP GITHUB", "CÀI / KIỂM TRA CLI", "ĐĂNG NHẬP GOOGLE CLI"}, (d, which) -> {
+                if (which == 0) {
+                    if (aiProviderPicker != null) aiProviderPicker.setSelection(3);
+                    if (questionInput != null) questionInput.requestFocus();
+                    line("Đã chọn Google Antigravity Agent. Nhập yêu cầu ở khung chat AI bên dưới.", GREEN);
+                } else if (which == 1) {
+                    new AlertDialog.Builder(this).setTitle("Tạo phiên Antigravity mới?")
+                        .setMessage("Xóa mã tương tác và môi trường sandbox đang lưu trên thiết bị này. Các tệp trong môi trường cũ sẽ không còn được tiếp tục qua BO Kali AI.")
+                        .setPositiveButton("TẠO PHIÊN MỚI", (x, y) -> {
+                            getSharedPreferences("bo_kali_antigravity_session", MODE_PRIVATE).edit().clear().apply();
+                            line("Đã xóa liên kết phiên Antigravity cũ. Yêu cầu tiếp theo sẽ tạo sandbox mới.", GREEN);
+                        }).setNegativeButton("HỦY", null).show();
+                } else if (which == 2) showAntigravityChat();
+                else if (which == 3) showGithubAiReviewDialog(false);
+                else if (which == 4) installAntigravityCli();
                 else launchAntigravityLogin();
             }).setNegativeButton("ĐÓNG", null).show();
     }
@@ -5565,7 +5576,7 @@ public class MainActivity extends Activity {
             + " (tối đa 6 MB). Cả hai chỉ ở RAM phiên; PDF/DOCX/XLSX chưa hỗ trợ.", 0xff91a9bd, 11, false));
         box.addView(text("Terminal và tệp là hai quyền độc lập. Không gửi GitHub token hoặc tệp nếu chưa bật đúng quyền.", 0xff91a9bd, 11, false));
         new AlertDialog.Builder(this).setTitle("Kết nối AI / GitHub")
-            .setMessage("Gemini: dùng API key từ Google AI Studio. GitHub: đọc cần Contents: read; ghi cần Contents: read and write (fine-grained) hoặc repo (classic). Token chỉ giữ trong bộ nhớ phiên. Quyền đọc terminal và tệp đã chọn được cấp độc lập cho từng AI, mặc định tắt; tệp chỉ giữ trong RAM phiên và có thể xóa bằng nút XÓA TỆP.")
+            .setMessage("Gemini và Google Antigravity Agent: dùng Gemini API key từ Google AI Studio; Antigravity gọi Interactions API và chạy trong sandbox Linux từ xa. GitHub: đọc cần Contents: read; ghi cần Contents: read and write (fine-grained) hoặc repo (classic). Token chỉ giữ trong bộ nhớ phiên. Quyền đọc terminal và tệp đã chọn được cấp độc lập cho từng AI, mặc định tắt; tệp chỉ giữ trong RAM phiên và có thể xóa bằng nút XÓA TỆP.")
             .setView(box)
             .setPositiveButton("Lưu và kiểm tra GitHub", (d,w) -> {
                 geminiKey = gem.getText().toString().trim();
