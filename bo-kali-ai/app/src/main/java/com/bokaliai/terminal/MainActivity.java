@@ -2974,8 +2974,20 @@ public class MainActivity extends Activity {
             return lower.equals("wm size") || lower.equals("wm density") || lower.equals("cmd uimode night yes")
                 || lower.equals("cmd uimode night no");
         }
-        // Raw shell remains a separate, explicit high-risk grant with a second confirmation.
-        return "RAW_ADB_SHELL".equals(scope);
+        // RAW_ADB_SHELL is still constrained to a read-only diagnostic allowlist.
+        // A permission grant must never turn AI output into unrestricted device shell access.
+        if ("RAW_ADB_SHELL".equals(scope)) {
+            return lower.matches("^getprop( [a-z0-9._]+)?$")
+                || lower.matches("^dumpsys (battery|activity|meminfo|cpuinfo|window|display|package|wifi|connectivity)$")
+                || lower.matches("^logcat -d -t ([1-9][0-9]{0,2}|1000)$")
+                || lower.matches("^cat /proc/(meminfo|uptime|cpuinfo|version|cmdline)$")
+                || lower.matches("^ip (addr|route)( show wlan0)?$")
+                || lower.matches("^pm list packages( -3|-s)?$")
+                || lower.matches("^df( -h)?$")
+                || lower.equals("uptime") || lower.equals("uname -a")
+                || lower.equals("id") || lower.equals("whoami") || lower.equals("date");
+        }
+        return false;
     }
 
     private void processAiDevicePlanOutput(String output) {
