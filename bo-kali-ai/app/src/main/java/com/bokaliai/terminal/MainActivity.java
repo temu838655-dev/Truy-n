@@ -2875,7 +2875,7 @@ public class MainActivity extends Activity {
         for (String token : blocked) if (lower.contains(token)) return false;
 
         if ("READ_INFO".equals(scope)) {
-            return lower.matches("^(getprop( ro\\\\.(product\\\\.(model|manufacturer|device)|build\\\\.(version\\\\.(release|sdk)|fingerprint)))?|df|df -h|uptime|uname -a|dumpsys (battery|display)|ip addr show wlan0|cat /proc/(meminfo|uptime|cpuinfo))$");
+            return lower.matches("^(getprop( ro\\.(product\\.(model|manufacturer|device)|build\\.(version\\.(release|sdk)|fingerprint)))?|df|df -h|uptime|uname -a|dumpsys (battery|display)|ip addr show wlan0|cat /proc/(meminfo|uptime|cpuinfo))$");
         }
         if ("READ_LOGS".equals(scope)) {
             // No clear/write options; only bounded diagnostic reads.
@@ -2887,8 +2887,8 @@ public class MainActivity extends Activity {
         if ("APP_INSTALL_REMOVE".equals(scope)) {
             // Installing an APK from a host file is not done through device shell.
             // Permit uninstall or re-enable of an existing preinstalled package only.
-            return lower.matches("^pm uninstall [a-z][a-z0-9_]*(\\\\.[a-z0-9_]+)+$")
-                || lower.matches("^cmd package install-existing [a-z][a-z0-9_]*(\\\\.[a-z0-9_]+)+$");
+            return lower.matches("^pm uninstall [a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$")
+                || lower.matches("^cmd package install-existing [a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$");
         }
         if ("SCREEN_CONTROL".equals(scope)) {
             if (lower.matches("^input keyevent (3|4|19|20|21|22|23|24|25|66|82)$")) return true;
@@ -2900,7 +2900,7 @@ public class MainActivity extends Activity {
             if (lower.matches("^settings get system (screen_brightness|screen_off_timeout|font_scale|accelerometer_rotation)$")) return true;
             if (lower.matches("^settings put system screen_brightness ([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$")) return true;
             if (lower.matches("^settings put system screen_off_timeout ([1-9][0-9]{3,6})$")) return true;
-            if (lower.matches("^settings put system font_scale (0\\\\.[8-9]|1(\\\\.[0-5])?)$")) return true;
+            if (lower.matches("^settings put system font_scale (0\\.[8-9]|1(\\.[0-5])?)$")) return true;
             if (lower.matches("^settings put system accelerometer_rotation [01]$")) return true;
             return lower.equals("wm size") || lower.equals("wm density") || lower.equals("cmd uimode night yes")
                 || lower.equals("cmd uimode night no");
