@@ -1,12 +1,8 @@
 name: Build BO Kali AI APK
 
+# Build only when explicitly requested after the full implementation is ready.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "bo-kali-ai/**"
-      - ".github/workflows/build-bo-kali-ai.yml"
 
 permissions:
   contents: write
