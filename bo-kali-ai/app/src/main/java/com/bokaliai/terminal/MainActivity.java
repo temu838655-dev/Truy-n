@@ -134,6 +134,9 @@ public class MainActivity extends Activity {
         Button explain = button("GIẢI THÍCH KẾT QUẢ KALI BẰNG AI");
         explain.setOnClickListener(v -> explainLastOutput());
         root.addView(explain, new LinearLayout.LayoutParams(-1, dp(44)));
+        Button copyOutput = button("SAO CHÉP KẾT QUẢ ADB / KALI GẦN NHẤT");
+        copyOutput.setOnClickListener(v -> copyLastCommandOutput());
+        root.addView(copyOutput, new LinearLayout.LayoutParams(-1, dp(42)));
         setContentView(root);
     }
 
@@ -734,6 +737,14 @@ public class MainActivity extends Activity {
             .setPositiveButton("Mở trang Termux", (d, w) ->
                 startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/termux/termux-app/releases"))))
             .setNegativeButton("Đóng", null).show();
+    }
+
+    private void copyLastCommandOutput() {
+        if (lastCommandOutput == null || lastCommandOutput.trim().isEmpty()) {
+            line("Chưa có kết quả ADB / Kali để sao chép. Hãy chạy lệnh hoặc quét thiết bị trước.", 0xffffca70);
+            return;
+        }
+        copyText(lastCommandOutput, "Đã sao chép kết quả ADB / Kali gần nhất vào clipboard.");
     }
 
     private void copyText(String value, String message) {
