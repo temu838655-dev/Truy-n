@@ -2819,10 +2819,11 @@ public class MainActivity extends Activity {
                 if (task.isEmpty() || task.length() > 3000) { line("Hãy nhập mục tiêu (tối đa 3.000 ký tự).", 0xffffca70); return; }
                 if (!isFreshAdbDevice(serial)) { line("Thiết bị không còn trực tuyến; hãy quét lại.", 0xffffca70); return; }
                 String provider = providerPicker.getSelectedItemPosition() == 1 ? "antigravity" : "codex";
+                String planId = java.util.UUID.randomUUID().toString();
                 getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE).edit()
-                    .putString("serial", serial).putString("provider", provider)
-                    .putLong("requested_at", System.currentTimeMillis()).commit();
-                String prompt = "Bạn là bộ lập kế hoạch ADB của BO Kali AI. Trả lời CHỈ MỘT DÒNG theo dạng BO_AI_PLAN:{JSON}, không markdown; bắt buộc có tiền tố BO_AI_PLAN: ngay trước dấu ngoặc nhọn. Schema: "
+                    .putString("request_id", planId).putString("serial", serial)
+                    .putString("provider", provider).putLong("requested_at", System.currentTimeMillis()).commit();
+                String prompt = "Bạn là bộ lập kế hoạch ADB của BO Kali AI. Trả lời CHỈ MỘT DÒNG theo dạng BO_AI_PLAN:" + planId + ":{JSON}, không markdown; bắt buộc giữ nguyên request ID và tiền tố BO_AI_PLAN:. Schema: "
                     + "{\"scope\":\"READ_INFO|READ_LOGS|APP_LIST|APP_INSTALL_REMOVE|SCREEN_CONTROL|DEVICE_SETTINGS|RAW_ADB_SHELL\","
                     + "\"command\":\"một lệnh Android shell duy nhất\",\"reason\":\"giải thích ngắn bằng tiếng Việt\",\"risk\":\"LOW|MEDIUM|HIGH\"}. "
                     + "Không thêm adb vào command. Không dùng newline, dấu chấm phẩy, &&, ||, pipe, redirect, backtick, biến shell hoặc chuỗi lệnh ghép. "
@@ -2875,18 +2876,26 @@ public class MainActivity extends Activity {
     private void processAiDevicePlanOutput(String output) {
         if (output == null || !output.contains("BO_AI_PLAN:")) return;
         android.content.SharedPreferences pending = getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE);
+        String requestId = pending.getString("request_id", "");
         String serial = pending.getString("serial", "");
         String provider = pending.getString("provider", "");
         long requestedAt = pending.getLong("requested_at", 0L);
-        pending.edit().clear().commit();
-        if (serial.isEmpty() || requestedAt == 0L || System.currentTimeMillis() - requestedAt > 600000L) {
-            line("Bỏ qua kế hoạch AI vì yêu cầu không tồn tại hoặc đã hết hạn.", 0xffffca70); return;
+        if (requestId.isEmpty()) {
+            line("Bỏ qua kết quả AI cũ: không có yêu cầu điều khiển đang chờ.", 0xffffca70); return;
         }
         java.util.regex.Matcher matcher = java.util.regex.Pattern
-            .compile("(?m)^BO_AI_PLAN:(\\{[^\\r\\n]{1,5000}\\})\\s*$").matcher(output);
-        if (!matcher.find()) { line("AI không trả đúng BO_AI_PLAN JSON. Không thực thi lệnh.", 0xffffca70); return; }
+            .compile("(?m)^BO_AI_PLAN:([0-9a-fA-F-]{36}):(\\{[^\\r\\n]{1,5000}\\})\\s*$").matcher(output);
+        if (!matcher.find() || !requestId.equalsIgnoreCase(matcher.group(1))) {
+            // A delayed result for another request must never be applied to the latest selected device.
+            line("Bỏ qua kế hoạch AI không khớp request ID đang chờ. Không thực thi lệnh.", 0xffffca70); return;
+        }
+        if (serial.isEmpty() || requestedAt == 0L || System.currentTimeMillis() - requestedAt > 600000L) {
+            pending.edit().clear().commit();
+            line("Bỏ qua kế hoạch AI vì yêu cầu hiện tại đã hết hạn.", 0xffffca70); return;
+        }
+        pending.edit().clear().commit();
         try {
-            JSONObject plan = new JSONObject(matcher.group(1));
+            JSONObject plan = new JSONObject(matcher.group(2));
             String scope = plan.optString("scope", "");
             String command = plan.optString("command", "").trim();
             String reason = plan.optString("reason", "AI không nêu lý do.");
