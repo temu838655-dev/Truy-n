@@ -481,14 +481,27 @@ public class MainActivity extends Activity {
             .setOnClickListener(b -> {
                 actions.dismiss();
                 new AlertDialog.Builder(this).setTitle("Quản lý " + serial)
-                    .setItems(new String[]{"Đặt / đổi tên gợi nhớ", "Báo cáo chẩn đoán tổng hợp", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
-                        if (which == 0) showAdbAliasDialog(serial);
-                        else if (which == 1) showAdbFullDiagnosticReport(serial);
-                        else if (which == 2) confirmAdbDisconnect(serial);
+                    .setItems(new String[]{"Kiểm tra kết nối thiết bị này", "Đặt / đổi tên gợi nhớ", "Báo cáo chẩn đoán tổng hợp", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
+                        if (which == 0) checkSavedAdbDevice(serial);
+                        else if (which == 1) showAdbAliasDialog(serial);
+                        else if (which == 2) showAdbFullDiagnosticReport(serial);
+                        else if (which == 3) confirmAdbDisconnect(serial);
                         else confirmForgetAdbDevice(serial);
                     }).setNegativeButton("ĐÓNG", null).show();
             }));
         actions.show();
+    }
+
+    private void checkSavedAdbDevice(String serial) {
+        String command = "echo '===== KIEM TRA ADB ====='; "
+            + "adb -s " + shellQuote(serial) + " get-state; "
+            + "adb -s " + shellQuote(serial) + " shell getprop ro.product.model; "
+            + "echo '\\n===== DANH SACH ADB ====='; adb devices -l";
+        new AlertDialog.Builder(this).setTitle("Kiểm tra kết nối")
+            .setMessage("Kiểm tra serial: " + serial
+                + "\\nĐọc trạng thái kết nối, model và làm mới danh sách thiết bị. Không thay đổi dữ liệu trên thiết bị.")
+            .setPositiveButton("KIỂM TRA", (d, w) -> runTermuxCommand(command))
+            .setNegativeButton("HỦY", null).show();
     }
 
     private void showAdbAliasDialog(String serial) {
