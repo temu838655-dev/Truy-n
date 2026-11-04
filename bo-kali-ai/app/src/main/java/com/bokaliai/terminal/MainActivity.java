@@ -474,6 +474,7 @@ public class MainActivity extends Activity {
     private final java.util.ArrayList<NsdManager.DiscoveryListener> hubDiscoveryListeners = new java.util.ArrayList<>();
     private final java.util.LinkedHashMap<String, HubDiscoveredService> hubDiscoveredServices = new java.util.LinkedHashMap<>();
     private final java.util.ArrayDeque<NsdServiceInfo> hubResolveQueue = new java.util.ArrayDeque<>();
+    private final java.util.HashSet<String> hubSeenServiceKeys = new java.util.HashSet<>();
     private boolean hubDiscoveryActive = false;
     private boolean hubResolvingService = false;
     private int hubResolveGeneration = 0;
@@ -508,6 +509,7 @@ public class MainActivity extends Activity {
         hubResolveDrainDeadline = 0L;
         hubDiscoveredServices.clear();
         hubResolveQueue.clear();
+        hubSeenServiceKeys.clear();
         hubResolvingService = false;
         hubDiscoveryListeners.clear();
         hubDiscoveryActive = true;
@@ -521,8 +523,9 @@ public class MainActivity extends Activity {
                     if (service == null || service.getServiceName() == null || !hubDiscoveryActive) return;
                     String actualType = service.getServiceType();
                     if (actualType == null || !actualType.contains(serviceType.substring(0, serviceType.length() - 1))) return;
-                    // Android's legacy NSD resolver permits only one outstanding resolve at a time.
-                    if (hubResolveQueue.size() < 64) {
+                    // Deduplicate repeated mDNS announcements and cap work per scan.
+                    String serviceKey = actualType + "|" + service.getServiceName();
+                    if (hubSeenServiceKeys.size() < 64 && hubSeenServiceKeys.add(serviceKey)) {
                         hubResolveQueue.offer(service);
                         resolveNextHubService();
                     }
@@ -578,7 +581,10 @@ public class MainActivity extends Activity {
         } catch (Exception error) {
             if (generation != hubResolveGeneration) return;
             hubResolvingService = false;
-            mainHandler.post(resolveNextHubService);
+            // Avoid a tight retry loop if the platform rejects resolveService synchronously.
+            mainHandler.postDelayed(() -> {
+                if (generation == hubResolveGeneration) resolveNextHubService();
+            }, 250L);
         }
     }
 
@@ -596,6 +602,7 @@ public class MainActivity extends Activity {
         hubDiscoveryActive = false;
         hubResolveGeneration++;
         hubResolveQueue.clear();
+        hubSeenServiceKeys.clear();
         hubResolvingService = false;
         releaseHubMulticastLock();
     }
