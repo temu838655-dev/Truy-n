@@ -565,22 +565,40 @@ public class MainActivity extends Activity {
         final String timePrefix = pairing ? "pairing_discovered_at_" : "discovered_at_";
         android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
         java.util.Set<String> current = prefs.getStringSet(listKey, new java.util.HashSet<>());
-        java.util.HashSet<String> remaining = new java.util.HashSet<>(current);
         long cutoff = System.currentTimeMillis() - 24L * 60L * 60L * 1000L;
-        android.content.SharedPreferences.Editor editor = prefs.edit();
-        int removed = 0;
+        java.util.ArrayList<String> stale = new java.util.ArrayList<>();
         for (String endpoint : current) {
             long foundAt = prefs.getLong(timePrefix + endpoint, 0L);
-            if (foundAt == 0L || foundAt < cutoff) {
-                remaining.remove(endpoint);
-                editor.remove(servicePrefix + endpoint);
-                editor.remove(timePrefix + endpoint);
-                removed++;
-            }
+            if (foundAt == 0L || foundAt < cutoff) stale.add(endpoint);
         }
-        editor.putStringSet(listKey, remaining).apply();
-        line(removed == 0 ? "Không có endpoint cũ hơn 24 giờ cần dọn." :
-            "Đã dọn " + removed + " endpoint cũ khỏi danh sách lưu. Không ngắt kết nối ADB hiện có.", GREEN);
+        if (stale.isEmpty()) {
+            line("Không có endpoint cũ hơn 24 giờ cần dọn.", GREEN);
+            return;
+        }
+        java.util.Collections.sort(stale);
+        StringBuilder preview = new StringBuilder();
+        int shown = Math.min(stale.size(), 8);
+        for (int i = 0; i < shown; i++) preview.append("• ").append(stale.get(i)).append("\\n");
+        if (stale.size() > shown) preview.append("… và ").append(stale.size() - shown).append(" endpoint khác\\n");
+        new AlertDialog.Builder(this).setTitle("Xác nhận dọn endpoint cũ")
+            .setMessage("Tìm thấy " + stale.size() + " endpoint đã quá 24 giờ hoặc không có thời điểm quét:\\n\\n" +
+                preview + "\\nChỉ xóa địa chỉ lưu trong ứng dụng. Không ngắt kết nối ADB và không tác động thiết bị.")
+            .setPositiveButton("XÓA ENDPOINT CŨ", (dialog, which) -> {
+                java.util.HashSet<String> remaining = new java.util.HashSet<>(
+                    prefs.getStringSet(listKey, new java.util.HashSet<>()));
+                android.content.SharedPreferences.Editor editor = prefs.edit();
+                int removed = 0;
+                for (String endpoint : stale) {
+                    if (remaining.remove(endpoint)) {
+                        editor.remove(servicePrefix + endpoint);
+                        editor.remove(timePrefix + endpoint);
+                        removed++;
+                    }
+                }
+                editor.putStringSet(listKey, remaining).apply();
+                line("Đã dọn " + removed + " endpoint cũ khỏi danh sách lưu. Kết nối ADB hiện có không bị ngắt.", GREEN);
+            })
+            .setNegativeButton("GIỮ LẠI", null).show();
     }
 
     private void showManualAdbConnectDialog() {
