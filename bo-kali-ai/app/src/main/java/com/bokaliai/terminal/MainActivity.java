@@ -474,6 +474,20 @@ public class MainActivity extends Activity {
     private long hubResolveDrainDeadline = 0L;
     private Runnable hubScanTimeout;
 
+    private void acquireHubMulticastLock() {
+        try {
+            if (hubMulticastLock != null && hubMulticastLock.isHeld()) return;
+            WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wifi == null) return;
+            hubMulticastLock = wifi.createMulticastLock("BoKaliAI-mDNS");
+            hubMulticastLock.setReferenceCounted(false);
+            hubMulticastLock.acquire();
+        } catch (Exception error) {
+            line("Không lấy được quyền nhận multicast; kết quả mDNS có thể bị hạn chế: " + error.getMessage(), 0xffffca70);
+            releaseHubMulticastLock();
+        }
+    }
+
     private void scanUniversalNetworkServices() {
         if (hubDiscoveryActive) {
             line("Đang quét dịch vụ mạng cục bộ. Vui lòng đợi.", 0xffffca70);
@@ -491,17 +505,7 @@ public class MainActivity extends Activity {
         hubResolvingService = false;
         hubDiscoveryListeners.clear();
         hubDiscoveryActive = true;
-        try {
-            WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-            if (wifi != null) {
-                hubMulticastLock = wifi.createMulticastLock("BoKaliAI-mDNS");
-                hubMulticastLock.setReferenceCounted(false);
-                hubMulticastLock.acquire();
-            }
-        } catch (Exception error) {
-            releaseHubMulticastLock();
-            line("Không lấy được quyền nhận multicast; kết quả mDNS có thể bị hạn chế: " + error.getMessage(), 0xffffca70);
-        }
+        acquireHubMulticastLock();
         line("Đang tìm dịch vụ SSH, HTTP/HTTPS và Home Assistant trong mạng Wi-Fi cục bộ...", GREEN);
         String[] serviceTypes = {"_ssh._tcp.", "_http._tcp.", "_https._tcp.", "_home-assistant._tcp."};
         for (String serviceType : serviceTypes) {
@@ -593,6 +597,7 @@ public class MainActivity extends Activity {
     private void releaseHubMulticastLock() {
         WifiManager.MulticastLock lock = hubMulticastLock;
         hubMulticastLock = null;
+        if (hubDiscoveryActive || adbScanActive || adbPairingScanActive) return;
         if (lock != null) {
             try { if (lock.isHeld()) lock.release(); } catch (RuntimeException ignored) { }
         }
@@ -1134,6 +1139,7 @@ public class MainActivity extends Activity {
         nsdManager = (NsdManager) getSystemService(Context.NSD_SERVICE);
         if (nsdManager == null) { line("Thiết bị không hỗ trợ Network Service Discovery.", 0xffff8080); return; }
         adbPairingScanActive = true;
+        acquireHubMulticastLock();
         line("Đang tìm dịch vụ ADB pairing trên mạng Wi-Fi...", GREEN);
         adbPairingDiscoveryListener = new NsdManager.DiscoveryListener() {
             @Override public void onDiscoveryStarted(String type) { line("Đang quét " + type, 0xff79c9ff); }
@@ -1156,9 +1162,9 @@ public class MainActivity extends Activity {
                 });
             }
             @Override public void onServiceLost(NsdServiceInfo service) { line("Dịch vụ pairing đã ngừng quảng bá: " + service.getServiceName(), 0xffffca70); }
-            @Override public void onStartDiscoveryFailed(String type, int error) { adbPairingScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} line("Quét pairing thất bại, mã " + error, 0xffff8080); }
-            @Override public void onStopDiscoveryFailed(String type, int error) { adbPairingScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} }
-            @Override public void onDiscoveryStopped(String type) { adbPairingScanActive = false; line("Đã kết thúc quét cổng pairing.", GREEN); }
+            @Override public void onStartDiscoveryFailed(String type, int error) { adbPairingScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} releaseHubMulticastLock(); line("Quét pairing thất bại, mã " + error, 0xffff8080); }
+            @Override public void onStopDiscoveryFailed(String type, int error) { adbPairingScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} releaseHubMulticastLock(); }
+            @Override public void onDiscoveryStopped(String type) { adbPairingScanActive = false; releaseHubMulticastLock(); line("Đã kết thúc quét cổng pairing.", GREEN); }
         };
         try {
             nsdManager.discoverServices("_adb-tls-pairing._tcp.", NsdManager.PROTOCOL_DNS_SD, adbPairingDiscoveryListener);
@@ -1184,6 +1190,7 @@ public class MainActivity extends Activity {
         nsdManager = (NsdManager) getSystemService(Context.NSD_SERVICE);
         if (nsdManager == null) { line("Thiết bị không hỗ trợ Network Service Discovery.", 0xffff8080); return; }
         adbScanActive = true;
+        acquireHubMulticastLock();
         line("Đang tìm Wireless debugging trên cùng mạng Wi-Fi...", GREEN);
         line("Tìm thấy endpoint chưa có nghĩa là đã ghép đôi.", 0xffffca70);
         adbDiscoveryListener = new NsdManager.DiscoveryListener() {
@@ -1207,9 +1214,9 @@ public class MainActivity extends Activity {
                 });
             }
             @Override public void onServiceLost(NsdServiceInfo service) { line("Mất dịch vụ: " + service.getServiceName(), 0xffffca70); }
-            @Override public void onStartDiscoveryFailed(String type, int error) { adbScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} line("Quét ADB thất bại, mã " + error, 0xffff8080); }
-            @Override public void onStopDiscoveryFailed(String type, int error) { adbScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} }
-            @Override public void onDiscoveryStopped(String type) { adbScanActive = false; line("Đã kết thúc quét ADB.", GREEN); }
+            @Override public void onStartDiscoveryFailed(String type, int error) { adbScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} releaseHubMulticastLock(); line("Quét ADB thất bại, mã " + error, 0xffff8080); }
+            @Override public void onStopDiscoveryFailed(String type, int error) { adbScanActive = false; try { nsdManager.stopServiceDiscovery(this); } catch (Exception ignored) {} releaseHubMulticastLock(); }
+            @Override public void onDiscoveryStopped(String type) { adbScanActive = false; releaseHubMulticastLock(); line("Đã kết thúc quét ADB.", GREEN); }
         };
         try {
             nsdManager.discoverServices("_adb-tls-connect._tcp.", NsdManager.PROTOCOL_DNS_SD, adbDiscoveryListener);
