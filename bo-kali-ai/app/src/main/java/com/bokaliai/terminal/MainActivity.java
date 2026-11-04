@@ -5959,11 +5959,8 @@ public class MainActivity extends Activity {
                 if (oldContent.length() > 60000) throw new IllegalStateException("Tệp gốc vượt giới hạn xem xét 60.000 ký tự.");
                 String preview = "Repository: " + repository + "\\nNhánh: " + branch + "\\nTệp: " + path
                     + "\\nSHA gốc: " + originalSha + "\\nCommit: " + summary
-                    + "\\n\\n--- NỘI DUNG HIỆN TẠI (đầu tối đa 3.500 ký tự) ---\\n"
-                    + oldContent.substring(0, Math.min(3500, oldContent.length()))
-                    + "\\n\\n--- NỘI DUNG ĐỀ XUẤT (đầu tối đa 3.500 ký tự) ---\\n"
-                    + content.substring(0, Math.min(3500, content.length()))
-                    + (content.length() > 3500 ? "\\n[Phần còn lại đã được giữ trong bộ nhớ để commit sau khi duyệt.]" : "")
+                    + "\\n\\n===== TOÀN BỘ TỆP HIỆN TẠI =====\\n" + oldContent
+                    + "\\n\\n===== TOÀN BỘ TỆP ĐỀ XUẤT =====\\n" + content
                     + "\\n\\nBO sẽ so sánh SHA một lần nữa trước khi commit. Nếu tệp đã đổi, thao tác sẽ bị hủy.";
                 runOnUiThread(() -> new AlertDialog.Builder(this)
                     .setTitle("Antigravity • Duyệt bản vá GitHub")
