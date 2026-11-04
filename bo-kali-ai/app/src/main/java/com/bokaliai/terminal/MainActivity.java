@@ -1614,9 +1614,9 @@ public class MainActivity extends Activity {
                     + "Chỉ hướng dẫn quản trị thiết bị/mạng do người dùng sở hữu hoặc được ủy quyền. Câu hỏi: " + q;
                 JSONObject part = new JSONObject().put("text", prompt);
                 JSONObject body = new JSONObject().put("contents", new JSONArray().put(new JSONObject().put("parts", new JSONArray().put(part))));
-                URL url = new URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + geminiKey);
+                URL url = new URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent");
                 HttpURLConnection conn = (HttpURLConnection)url.openConnection();
-                conn.setRequestMethod("POST"); conn.setConnectTimeout(15000); conn.setReadTimeout(30000);
+                conn.setRequestMethod("POST"); conn.setRequestProperty("x-goog-api-key", geminiKey); conn.setConnectTimeout(15000); conn.setReadTimeout(30000);
                 conn.setDoOutput(true); conn.setRequestProperty("Content-Type","application/json");
                 try(OutputStream os = conn.getOutputStream()) { os.write(body.toString().getBytes(StandardCharsets.UTF_8)); }
                 int code = conn.getResponseCode();
