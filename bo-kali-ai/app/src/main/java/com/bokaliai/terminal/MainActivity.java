@@ -4202,6 +4202,7 @@ public class MainActivity extends Activity {
             "CÀI KALI ROOTLESS",
             "KIỂM TRA QUYỀN ROOT ANDROID",
             "KIỂM TRA PHẦN CỨNG / KERNEL / BOOTLOADER",
+            "KIỂM TRA WI-FI / BLUETOOTH / USB / ADB",
             "HƯỚNG DẪN KALI ROOT / ROOTLESS"
         };
         new AlertDialog.Builder(this)
@@ -4215,6 +4216,7 @@ public class MainActivity extends Activity {
                     openTermux();
                 } else if (which == 3) confirmAndroidRootCheck();
                 else if (which == 4) checkDeviceHardwareProfile();
+                else if (which == 5) checkConnectivityHardware();
                 else showKaliInstructions();
             })
             .setNegativeButton("ĐÓNG", null)
@@ -4239,6 +4241,37 @@ public class MainActivity extends Activity {
             "echo '=== STORAGE ==='; df -h $HOME 2>/dev/null | tail -n 2; " +
             "echo '=== END: no system changes made ==='";
         line("Đang thu thập thông tin phần cứng, kernel và trạng thái bootloader (chỉ đọc, không cần root)...", GREEN);
+        runTermuxCommand(command);
+    }
+
+    // Read-only connectivity and peripheral inventory; visibility depends on Android permissions and vendor kernel.
+    private void checkConnectivityHardware() {
+        String command =
+            "echo '=== BO KALI AI CONNECTIVITY / PERIPHERALS (READ ONLY) ==='; " +
+            "echo '=== NETWORK INTERFACES ==='; " +
+            "if command -v ip >/dev/null 2>&1; then ip -brief link 2>/dev/null || ip link 2>/dev/null; ip route 2>/dev/null; " +
+            "else ls -1 /sys/class/net 2>/dev/null; fi; " +
+            "echo '=== WIFI HINTS ==='; " +
+            "for n in /sys/class/net/*; do [ -e \"$n\" ] || continue; " +
+            "b=$(basename \"$n\"); case \"$b\" in wlan*|wifi*) echo \"WIFI_INTERFACE=$b\";; esac; done; " +
+            "echo '=== BLUETOOTH SYSFS ==='; " +
+            "if [ -d /sys/class/bluetooth ]; then ls -la /sys/class/bluetooth 2>/dev/null; " +
+            "else echo 'Bluetooth sysfs not visible to this shell'; fi; " +
+            "echo '=== BLUETOOTH SERVICE (READ ONLY) ==='; " +
+            "if command -v dumpsys >/dev/null 2>&1; then dumpsys bluetooth_manager 2>&1 | head -n 35; " +
+            "else echo 'dumpsys unavailable'; fi; " +
+            "echo '=== USB DEVICES / OTG HINTS ==='; " +
+            "if [ -d /sys/bus/usb/devices ]; then ls -la /sys/bus/usb/devices 2>/dev/null | head -n 40; " +
+            "else echo 'USB sysfs not visible'; fi; " +
+            "if [ -d /sys/class/udc ]; then ls -la /sys/class/udc 2>/dev/null; fi; " +
+            "echo '=== ANDROID ADB SETTING (READ ONLY) ==='; " +
+            "if command -v settings >/dev/null 2>&1; then settings get global adb_enabled 2>&1; " +
+            "else echo 'settings command unavailable'; fi; " +
+            "echo '=== LOCAL ADB CLIENT ==='; " +
+            "if command -v adb >/dev/null 2>&1; then adb version 2>&1 | head -n 2; adb devices -l 2>&1; " +
+            "else echo 'ADB client not installed in this Termux environment'; fi; " +
+            "echo '=== END: no radio, USB, or developer setting was changed ==='";
+        line("Đang kiểm tra giao diện mạng, Bluetooth, USB và ADB ở chế độ chỉ đọc...", GREEN);
         runTermuxCommand(command);
     }
 
