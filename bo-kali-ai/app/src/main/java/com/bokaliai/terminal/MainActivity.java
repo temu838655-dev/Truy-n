@@ -510,12 +510,13 @@ public class MainActivity extends Activity {
             .setOnClickListener(b -> {
                 actions.dismiss();
                 new AlertDialog.Builder(this).setTitle("Quản lý " + serial)
-                    .setItems(new String[]{"Kiểm tra kết nối thiết bị này", "Sao chép serial ADB", "Đặt / đổi tên gợi nhớ", "Báo cáo chẩn đoán tổng hợp", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
+                    .setItems(new String[]{"Kiểm tra kết nối thiết bị này", "Sao chép serial ADB", "Đặt / đổi tên gợi nhớ", "Lưu / chạy lệnh thường dùng", "Báo cáo chẩn đoán tổng hợp", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
                         if (which == 0) checkSavedAdbDevice(serial);
                         else if (which == 1) copyText(serial, "Đã sao chép serial ADB.");
                         else if (which == 2) showAdbAliasDialog(serial);
-                        else if (which == 3) showAdbFullDiagnosticReport(serial);
-                        else if (which == 4) confirmAdbDisconnect(serial);
+                        else if (which == 3) showAdbCommandPreset(serial);
+                        else if (which == 4) showAdbFullDiagnosticReport(serial);
+                        else if (which == 5) confirmAdbDisconnect(serial);
                         else confirmForgetAdbDevice(serial);
                     }).setNegativeButton("ĐÓNG", null).show();
             }));
@@ -531,6 +532,45 @@ public class MainActivity extends Activity {
             .setMessage("Kiểm tra serial: " + serial
                 + "\\nĐọc trạng thái kết nối, model và làm mới danh sách thiết bị. Không thay đổi dữ liệu trên thiết bị.")
             .setPositiveButton("KIỂM TRA", (d, w) -> runTermuxCommand(command))
+            .setNegativeButton("HỦY", null).show();
+    }
+
+    private void showAdbCommandPreset(String serial) {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        String saved = prefs.getString("preset_" + serial, "");
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(1);
+        form.setPadding(dp(16), dp(8), dp(16), 0);
+        EditText command = input("Ví dụ: getprop ro.product.model");
+        command.setSingleLine(false);
+        command.setMinLines(2);
+        command.setText(saved);
+        form.addView(command);
+        new AlertDialog.Builder(this).setTitle("Lệnh thường dùng • " + serial)
+            .setMessage("Lưu một lệnh riêng cho thiết bị này. Lệnh chỉ chạy khi bạn nhấn CHẠY và xác nhận ở bước tiếp theo. Không lưu mật khẩu hoặc mã bí mật.")
+            .setView(form)
+            .setPositiveButton("LƯU LỆNH", (d, w) -> {
+                String value = command.getText().toString().trim();
+                if (value.length() > 2000) {
+                    line("Lệnh quá dài (tối đa 2.000 ký tự).", 0xffff8080);
+                    return;
+                }
+                if (value.isEmpty()) prefs.edit().remove("preset_" + serial).apply();
+                else prefs.edit().putString("preset_" + serial, value).apply();
+                line(value.isEmpty() ? "Đã xóa lệnh thường dùng của " + serial : "Đã lưu lệnh thường dùng cho " + serial, GREEN);
+            })
+            .setNeutralButton(saved.isEmpty() ? "ĐÓNG" : "CHẠY LỆNH ĐÃ LƯU", (d, w) -> {
+                if (!saved.isEmpty()) confirmRunAdbPreset(serial, saved);
+            })
+            .setNegativeButton("HỦY", null).show();
+    }
+
+    private void confirmRunAdbPreset(String serial, String command) {
+        new AlertDialog.Builder(this).setTitle("Xác nhận lệnh đã lưu")
+            .setMessage("Thiết bị: " + serial + "\\nLệnh: " + command
+                + "\\n\\nLệnh có thể thay đổi dữ liệu hoặc cài đặt trên thiết bị. Hãy đọc kỹ trước khi chạy.")
+            .setPositiveButton("CHẠY", (d, w) ->
+                runTermuxCommand("adb -s " + shellQuote(serial) + " shell " + shellQuote(command)))
             .setNegativeButton("HỦY", null).show();
     }
 
@@ -558,7 +598,7 @@ public class MainActivity extends Activity {
                 java.util.Set<String> saved = new java.util.HashSet<>(prefs.getStringSet("serials", new java.util.HashSet<>()));
                 saved.remove(serial);
                 prefs.edit().putStringSet("serials", saved)
-                    .remove("state_" + serial).remove("seen_" + serial).remove("alias_" + serial).apply();
+                    .remove("state_" + serial).remove("seen_" + serial).remove("alias_" + serial).remove("preset_" + serial).apply();
                 line("Đã xóa " + serial + " khỏi danh sách thiết bị lưu. Kết nối ADB không bị ảnh hưởng.", GREEN);
             }).setNegativeButton("HỦY", null).show();
     }
