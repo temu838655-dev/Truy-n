@@ -1815,13 +1815,15 @@ public class MainActivity extends Activity {
         super.onResume();
         android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_results", MODE_PRIVATE);
         String pending = prefs.getString("pending_output", null);
+        boolean pendingScreenCapture = prefs.getBoolean("pending_screen_capture", false);
         if (pending != null && !pending.isEmpty()) {
-            prefs.edit().remove("pending_output").apply();
+            prefs.edit().remove("pending_output").remove("pending_screen_capture").apply();
             lastCommandOutput = pending;
             handleAdbDevicesOutput(pending);
             line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
             for (String part : pending.split("\\n")) line(part, WHITE);
             line("Nhấn GIẢI THÍCH KẾT QUẢ KALI BẰNG AI để phân tích.", 0xff79c9ff);
+            if (pendingScreenCapture) showDualWorkspace();
         }
     }
 
