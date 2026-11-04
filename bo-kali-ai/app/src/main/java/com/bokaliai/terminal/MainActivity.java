@@ -470,14 +470,20 @@ public class MainActivity extends Activity {
             "Pin và nhiệt độ",
             "Dung lượng lưu trữ",
             "Địa chỉ mạng",
-            "Danh sách ứng dụng bên thứ ba"
+            "Danh sách ứng dụng bên thứ ba",
+            "Màn hình và độ phân giải",
+            "Thời gian hoạt động",
+            "Thông tin CPU"
         };
         String[] commands = {
-            "echo 'MODEL'; getprop ro.product.model; echo 'BRAND'; getprop ro.product.brand; echo 'ANDROID'; getprop ro.build.version.release; echo 'SDK'; getprop ro.build.version.sdk; echo 'BUILD'; getprop ro.build.display.id",
+            "echo 'MODEL'; getprop ro.product.model; echo 'BRAND'; getprop ro.product.brand; echo 'ANDROID'; getprop ro.build.version.release; echo 'SDK'; getprop ro.build.version.sdk; echo 'BUILD'; getprop ro.build.display.id; echo 'PATCH'; getprop ro.build.version.security_patch",
             "dumpsys battery",
             "df -h",
             "ip addr",
-            "pm list packages -3"
+            "pm list packages -3",
+            "echo 'DISPLAY'; wm size; wm density; echo 'REFRESH RATE'; dumpsys display | grep -i 'refreshRate\\|fps' | head -20",
+            "echo 'UPTIME'; uptime; cat /proc/uptime",
+            "echo 'CPU'; getprop ro.product.cpu.abi; echo 'CORES'; grep -c '^processor' /proc/cpuinfo; echo 'SOC'; getprop ro.soc.model; echo 'HARDWARE'; getprop ro.hardware"
         };
         new AlertDialog.Builder(this).setTitle("Chẩn đoán chỉ đọc • " + serial)
             .setItems(tools, (d, which) -> {
