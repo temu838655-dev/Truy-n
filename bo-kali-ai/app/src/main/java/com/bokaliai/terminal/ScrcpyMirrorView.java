@@ -154,7 +154,7 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
                     }
                     videoWidth = width;
                     videoHeight = height;
-                    requestLayout();
+                    post(this::updateVideoSurfaceLayout);
                     Surface surface = surfaceView.getHolder().getSurface();
                     if (!surface.isValid()) throw new IOException("Bề mặt hiển thị đã đóng");
                     MediaFormat format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height);
@@ -209,6 +209,37 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             if (index < 0) return;
             codec.releaseOutputBuffer(index, true);
         }
+    }
+
+    /**
+     * Keep the SurfaceView at the video's aspect ratio. Touch coordinates are then
+     * relative to the actual displayed image instead of any letterbox area.
+     */
+    private void updateVideoSurfaceLayout() {
+        int frameWidth = getWidth();
+        int frameHeight = getHeight();
+        int width = videoWidth;
+        int height = videoHeight;
+        if (frameWidth <= 0 || frameHeight <= 0 || width <= 0 || height <= 0) return;
+
+        float scale = Math.min((float) frameWidth / width, (float) frameHeight / height);
+        int fittedWidth = Math.max(1, Math.round(width * scale));
+        int fittedHeight = Math.max(1, Math.round(height * scale));
+        android.view.ViewGroup.LayoutParams current = surfaceView.getLayoutParams();
+        if (!(current instanceof FrameLayout.LayoutParams)) return;
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) current;
+        if (params.width != fittedWidth || params.height != fittedHeight
+            || params.gravity != (Gravity.CENTER)) {
+            params.width = fittedWidth;
+            params.height = fittedHeight;
+            params.gravity = Gravity.CENTER;
+            surfaceView.setLayoutParams(params);
+        }
+    }
+
+    @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        updateVideoSurfaceLayout();
     }
 
     private boolean forwardTouch(MotionEvent event) {
