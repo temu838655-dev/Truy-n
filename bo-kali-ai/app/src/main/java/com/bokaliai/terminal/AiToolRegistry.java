@@ -162,6 +162,33 @@ public final class AiToolRegistry {
             .put("description", "Đề xuất cập nhật một tệp GitHub. BO tải và hiển thị toàn bộ tệp hiện tại/mới; sau khi người dùng xác nhận, BO kiểm tra SHA, tạo nhánh riêng và mở Pull Request. Không commit trực tiếp vào nhánh đích.")
             .put("parameters", githubUpdateSchema);
 
+        JSONObject multiFileItem = new JSONObject()
+            .put("type", "object")
+            .put("properties", new JSONObject()
+                .put("path", new JSONObject().put("type", "string")
+                    .put("description", "Đường dẫn tương đối duy nhất trong repository; không dùng .."))
+                .put("content", new JSONObject().put("type", "string")
+                    .put("description", "Toàn bộ nội dung mới của tệp; tối đa 30.000 ký tự.")))
+            .put("required", new JSONArray().put("path").put("content"))
+            .put("additionalProperties", false);
+        JSONObject multiFileProperties = new JSONObject()
+            .put("repository", new JSONObject().put("type", "string"))
+            .put("branch", new JSONObject().put("type", "string")
+                .put("description", "Nhánh gốc để tạo PR; mặc định main."))
+            .put("summary", new JSONObject().put("type", "string")
+                .put("description", "Tiêu đề Pull Request và commit message, tối đa 120 ký tự."))
+            .put("files", new JSONObject().put("type", "array")
+                .put("minItems", 2).put("maxItems", 6).put("items", multiFileItem)
+                .put("description", "Từ 2 đến 6 tệp; tổng nội dung mới tối đa 80.000 ký tự."));
+        JSONObject multiFileSchema = new JSONObject().put("type", "object")
+            .put("properties", multiFileProperties)
+            .put("required", new JSONArray().put("repository").put("branch").put("summary").put("files"))
+            .put("additionalProperties", false);
+        JSONObject multiFileFunction = new JSONObject().put("type", "function")
+            .put("name", "github_propose_multi_file_update")
+            .put("description", "Đề xuất thay đổi đồng bộ từ 2 đến 6 tệp trong một lần. BO tải toàn bộ tệp gốc, hiển thị toàn bộ nội dung cũ/mới và chỉ tạo một nhánh riêng cùng Pull Request sau khi người dùng duyệt toàn bộ kế hoạch. Không ghi trực tiếp nhánh đích.")
+            .put("parameters", multiFileSchema);
+
         return new JSONArray()
             .put(new JSONObject().put("type", "code_execution"))
             .put(new JSONObject().put("type", "google_search"))
@@ -169,7 +196,8 @@ public final class AiToolRegistry {
             .put(adbFunction)
             .put(githubReadFunction)
             .put(githubSearchFunction)
-            .put(githubProposeUpdateFunction);
+            .put(githubProposeUpdateFunction)
+            .put(multiFileFunction);
     }
 
     /** Extract unfulfilled Antigravity Interactions API function_call steps. */
