@@ -4211,7 +4211,7 @@ public class MainActivity extends Activity {
         form.addView(task, new LinearLayout.LayoutParams(-1, dp(112)));
         String title = allowEdits ? "Xác nhận giao quyền sửa code cho Codex" : "Chat với OpenAI Codex";
         String message = allowEdits
-            ? "Codex được phép sửa tệp và chạy lệnh trong workspace đã chọn (workspace-write). Không cấp quyền ghi toàn hệ thống; mạng và thao tác ngoài workspace vẫn bị giới hạn."
+            ? "Codex được phép sửa tệp trong workspace đã chọn (workspace-write). Lệnh cần quyền thực thi sẽ yêu cầu phê duyệt khi Codex đề xuất; không cấp quyền ghi toàn hệ thống."
             : "Codex chỉ đọc workspace (read-only), không sửa tệp. Hãy đăng nhập Codex trước khi gửi.";
         new AlertDialog.Builder(this).setTitle(title).setMessage(message).setView(form)
             .setPositiveButton(allowEdits ? "XÁC NHẬN SỬA" : "GỬI", (d, w) -> {
@@ -4222,6 +4222,7 @@ public class MainActivity extends Activity {
                     return;
                 }
                 String sandbox = allowEdits ? "workspace-write" : "read-only";
+                String approvalPolicy = allowEdits ? "on-request" : "never";
                 String prompt = "Trả lời bằng tiếng Việt. Làm việc trong đúng workspace được chỉ định. "
                     + "Không truy cập bí mật, không xuất token/khóa, không xóa dữ liệu hoặc chạy lệnh phá hủy. "
                     + "Nếu thiếu thông tin, hãy hỏi lại. Báo cáo rõ tệp đã đọc/sửa và kiểm tra đã chạy. "
@@ -4231,7 +4232,7 @@ public class MainActivity extends Activity {
                     + "if ! git -C " + shellQuote(dir) + " rev-parse --show-toplevel >/dev/null 2>&1; then "
                     + "echo 'Workspace không phải Git repository hoặc đường dẫn không tồn tại. Hãy clone/mở dự án Git trước.'; exit 2; fi; "
                     + "codex exec --cd " + shellQuote(dir)
-                    + " --sandbox " + sandbox + " --ask-for-approval never "
+                    + " --sandbox " + sandbox + " --ask-for-approval " + approvalPolicy + "
                     + shellQuote(prompt);
                 line("Bạn → Codex (" + sandbox + "): " + request, 0xff79c9ff);
                 runTermuxCommand(CODEX_PROOT + shellQuote(script));
