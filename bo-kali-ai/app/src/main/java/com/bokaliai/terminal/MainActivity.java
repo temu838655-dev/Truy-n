@@ -473,10 +473,30 @@ public class MainActivity extends Activity {
                 + " Hãy kiểm tra lại trước khi chạy lệnh.")
             .setPositiveButton("THÔNG TIN AN TOÀN", (d, w) -> showAdbReadOnlyTools(serial))
             .setNeutralButton("ADB SHELL", (d, w) -> showAdbShellDialogFor(serial))
-            .setNegativeButton("NGẮT ADB", null).create();
+            .setNegativeButton("QUẢN LÝ", null).create();
         actions.setOnShowListener(v -> actions.getButton(AlertDialog.BUTTON_NEGATIVE)
-            .setOnClickListener(b -> { actions.dismiss(); confirmAdbDisconnect(serial); }));
+            .setOnClickListener(b -> {
+                actions.dismiss();
+                new AlertDialog.Builder(this).setTitle("Quản lý " + serial)
+                    .setItems(new String[]{"Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
+                        if (which == 0) confirmAdbDisconnect(serial);
+                        else confirmForgetAdbDevice(serial);
+                    }).setNegativeButton("ĐÓNG", null).show();
+            }));
         actions.show();
+    }
+
+    private void confirmForgetAdbDevice(String serial) {
+        new AlertDialog.Builder(this).setTitle("Xóa thiết bị đã lưu?")
+            .setMessage("Chỉ xóa serial " + serial + " cùng trạng thái và thời điểm ghi nhớ khỏi BO Kali AI. Không ngắt kết nối ADB, không xóa dữ liệu trên thiết bị.")
+            .setPositiveButton("XÓA KHỎI DANH SÁCH", (d, w) -> {
+                android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+                java.util.Set<String> saved = new java.util.HashSet<>(prefs.getStringSet("serials", new java.util.HashSet<>()));
+                saved.remove(serial);
+                prefs.edit().putStringSet("serials", saved)
+                    .remove("state_" + serial).remove("seen_" + serial).apply();
+                line("Đã xóa " + serial + " khỏi danh sách thiết bị lưu. Kết nối ADB không bị ảnh hưởng.", GREEN);
+            }).setNegativeButton("HỦY", null).show();
     }
 
     private void showAdbReadOnlyTools(String serial) {
