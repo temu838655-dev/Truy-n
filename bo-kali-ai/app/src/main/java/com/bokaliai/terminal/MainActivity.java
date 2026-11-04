@@ -6119,12 +6119,15 @@ public class MainActivity extends Activity {
         prefs.edit().putBoolean("result_dialog_shown", true).commit();
         String review = output.length() > 22000 ? output.substring(0, 22000)
             + "\n[Đã cắt phần hiển thị còn lại.]" : output;
+        boolean codexSucceeded = java.util.regex.Pattern.compile("Mã thoát:\\s*0(?:\\D|$)").matcher(output).find();
         String expectedCallId = prefs.getString("antigravity_call_id", "");
         android.content.SharedPreferences ag = getSharedPreferences("bo_kali_antigravity_pending_tool", MODE_PRIVATE);
-        boolean canReturnToAntigravity = !expectedCallId.isEmpty()
+        boolean canReturnToAntigravity = codexSucceeded && !expectedCallId.isEmpty()
             && expectedCallId.equals(ag.getString("call_id", ""))
             && ag.getString("function_name", "").startsWith("github_propose_");
+        if (!codexSucceeded) review = "Codex chưa hoàn tất thành công; không gửi kết quả review cho Antigravity.\\n\\n" + review;
         AlertDialog.Builder dialog = new AlertDialog.Builder(this)
+            .setCancelable(false)
             .setTitle("Codex • Kết quả kiểm tra bản vá")
             .setMessage(review)
             .setNegativeButton(canReturnToAntigravity ? "KHÔNG GỬI CHO ANTIGRAVITY" : "ĐÓNG", (d, w) -> {
