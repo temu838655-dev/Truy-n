@@ -4318,7 +4318,7 @@ public class MainActivity extends Activity {
             : "pkg update && pkg upgrade";
         new AlertDialog.Builder(this)
             .setTitle(kali ? "Cập nhật gói Kali Rootless?" : "Cập nhật gói Termux?")
-            .setMessage("Thao tác này có thể tải nhiều dữ liệu, nâng cấp nhiều gói và cần dung lượng trống. Trình quản lý gói có thể hỏi xác nhận thêm. BO Kali AI không tự chạy nếu bạn chưa đồng ý.\\n\\nMôi trường: " +
+            .setMessage("Thao tác này có thể tải nhiều dữ liệu, nâng cấp nhiều gói và cần dung lượng trống. Trình quản lý gói có thể hỏi xác nhận thêm. BO Kali AI không tự chạy nếu bạn chưa đồng ý.\n\nMôi trường: " +
                 (kali ? "Kali NetHunter Rootless" : "Termux"))
             .setPositiveButton("XÁC NHẬN CẬP NHẬT", (d, w) -> {
                 line("Đã xác nhận cập nhật " + (kali ? "Kali Rootless" : "Termux") + ".", GREEN);
@@ -4337,8 +4337,8 @@ public class MainActivity extends Activity {
             : "pkg update && pkg install -y " + packages;
         new AlertDialog.Builder(this)
             .setTitle(kali ? "Cài tiện ích trong Kali Rootless?" : "Cài tiện ích trong Termux?")
-            .setMessage("Các gói sẽ được cài:\\n" + packages +
-                "\\n\\nLệnh sẽ chạy trong " + (kali ? "Kali NetHunter Rootless" : "Termux") +
+            .setMessage("Các gói sẽ được cài:\n" + packages +
+                "\n\nLệnh sẽ chạy trong " + (kali ? "Kali NetHunter Rootless" : "Termux") +
                 ". Cần Internet và dung lượng lưu trữ; thời gian tải tùy mạng. BO Kali AI không tự chạy nếu bạn chưa chọn CÀI ĐẶT.")
             .setPositiveButton("XÁC NHẬN CÀI", (d, w) -> {
                 line("Đã xác nhận cài gói: " + packages, GREEN);
