@@ -3071,15 +3071,28 @@ public class MainActivity extends Activity {
                 for (int i = 0; i < selection.length; i++) {
                     if (selection[i]) updated.add(AI_DEVICE_SCOPE_IDS[i]);
                 }
-                // Any permission edit invalidates an outstanding plan for this device.
-                // This prevents a plan created under an older grant set from being replayed
-                // after the owner narrows or changes permissions.
-                cancelPendingAiDevicePlanFor(serial);
-                if (updated.isEmpty()) aiDevicePermissions.remove(serial);
-                else aiDevicePermissions.put(serial, updated);
-                line("Đã cập nhật quyền AI cho " + serial + ": "
-                    + (updated.isEmpty() ? "không còn quyền nào" : updated.size() + " nhóm quyền")
-                    + ". Đây mới là bước cấp quyền; AI chỉ thực thi qua bộ điều phối có kiểm tra quyền và xác nhận từng hành động.", GREEN);
+                java.util.HashSet<String> elevated = new java.util.HashSet<>();
+                elevated.add("APP_INSTALL_REMOVE");
+                elevated.add("DEVICE_SETTINGS");
+                elevated.add("RAW_ADB_SHELL");
+                java.util.HashSet<String> newlyElevated = new java.util.HashSet<>(updated);
+                newlyElevated.retainAll(elevated);
+                newlyElevated.removeAll(granted);
+                if (!newlyElevated.isEmpty()) {
+                    StringBuilder warning = new StringBuilder("Bạn sắp cấp quyền nhạy cảm cho AI trên đúng thiết bị này:\n\n");
+                    for (String scope : newlyElevated) {
+                        for (int i = 0; i < AI_DEVICE_SCOPE_IDS.length; i++) {
+                            if (scope.equals(AI_DEVICE_SCOPE_IDS[i])) warning.append("• ").append(AI_DEVICE_SCOPE_LABELS[i]).append("\n");
+                        }
+                    }
+                    warning.append("\nAI vẫn phải hiển thị thao tác và hỏi xác nhận trước khi thực thi. Cấp quyền không đồng nghĩa cấp Android root.");
+                    new AlertDialog.Builder(this).setTitle("Xác nhận quyền AI nhạy cảm")
+                        .setMessage(warning.toString())
+                        .setPositiveButton("TÔI ĐỒNG Ý CẤP", (x, y) -> saveAiDevicePermissions(serial, updated))
+                        .setNegativeButton("QUAY LẠI", null).show();
+                } else {
+                    saveAiDevicePermissions(serial, updated);
+                }
             })
             .setNeutralButton("THU HỒI THIẾT BỊ NÀY", (dialog, which) -> {
                 aiDevicePermissions.remove(serial);
@@ -3087,6 +3100,19 @@ public class MainActivity extends Activity {
                 line("Đã thu hồi mọi quyền AI đối với " + serial + " và hủy yêu cầu đang chờ của thiết bị này.", GREEN);
             })
             .setNegativeButton("HỦY", null).show();
+    }
+
+    private void saveAiDevicePermissions(String serial, java.util.HashSet<String> updated) {
+        if (!isFreshAdbDevice(serial)) {
+            line("Không lưu quyền: thiết bị không còn trực tuyến. Hãy quét ADB lại.", 0xffffca70);
+            return;
+        }
+        cancelPendingAiDevicePlanFor(serial);
+        if (updated.isEmpty()) aiDevicePermissions.remove(serial);
+        else aiDevicePermissions.put(serial, updated);
+        line("Đã cập nhật quyền AI cho " + serial + ": "
+            + (updated.isEmpty() ? "không còn quyền nào" : updated.size() + " nhóm quyền")
+            + ". Mọi hành động nhạy cảm vẫn cần xác nhận riêng.", GREEN);
     }
 
     private boolean hasAiDevicePermission(String serial, String scope) {
