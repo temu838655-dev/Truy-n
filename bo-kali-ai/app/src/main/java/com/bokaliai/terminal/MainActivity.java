@@ -4842,7 +4842,7 @@ public class MainActivity extends Activity {
                         .put("source", new JSONObject().put("type", "base64")
                             .put("media_type", imageMime).put("data", imageData)));
                     JSONObject body = new JSONObject()
-                        .put("model", "claude-sonnet-5-5")
+                        .put("model", "claude-sonnet-5")
                         .put("max_tokens", 2048)
                         .put("messages", new JSONArray().put(new JSONObject()
                             .put("role", "user").put("content", claudeContent)));
