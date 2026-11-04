@@ -976,6 +976,14 @@ public class MainActivity extends Activity {
         });
 
         setContentView(page);
+        // If Android recreated the Activity while the ADB session stayed alive,
+        // opening the same device workspace re-establishes the scrcpy transport.
+        android.content.SharedPreferences activeSession =
+            getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
+        if (activeSession.getBoolean("keep_alive", false)
+            && serial.equals(activeSession.getString("active_serial", ""))) {
+            resumeAdbMirrorAfterUnlock();
+        }
     }
 
     // Find the pairing-code service advertised while the target pairing dialog is open.
