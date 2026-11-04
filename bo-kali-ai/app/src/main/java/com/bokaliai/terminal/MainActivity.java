@@ -2536,8 +2536,9 @@ public class MainActivity extends Activity {
         worker.execute(() -> {
             try {
                 String mime = getContentResolver().getType(uri);
-                if (mime == null || !mime.startsWith("image/"))
-                    throw new IllegalArgumentException("Tệp được chọn không phải ảnh.");
+                if (mime == null || !(mime.equals("image/jpeg") || mime.equals("image/png")
+                    || mime.equals("image/webp") || mime.equals("image/gif")))
+                    throw new IllegalArgumentException("Chỉ hỗ trợ ảnh JPEG, PNG, WebP hoặc GIF để tương thích API của các AI.");
                 byte[] data;
                 try (java.io.InputStream in = getContentResolver().openInputStream(uri);
                      java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
@@ -4690,7 +4691,6 @@ public class MainActivity extends Activity {
             line("Chưa cấu hình API key cho " + provider + ". Mở Kết nối AI / GitHub.", 0xffffca70);
             return;
         }
-        questionInput.setText("");
         line("Bạn → " + provider + ": " + q, 0xff79c9ff);
         final boolean includeImage = "Gemini".equals(provider) ? shareImageGemini
             : "Claude".equals(provider) ? shareImageClaude
@@ -4702,6 +4702,8 @@ public class MainActivity extends Activity {
             line("Bạn đã bật quyền ảnh cho " + provider + " nhưng chưa chọn ảnh.", 0xffffca70);
             return;
         }
+        questionInput.setText("");
+        if (!imageName.isEmpty()) line("Ảnh được chia sẻ cho " + provider + " theo quyền bạn đã bật: " + imageName, 0xff91a9bd);
         line(provider + " đang phân tích...", GREEN);
         worker.execute(() -> {
             HttpURLConnection conn = null;
@@ -5575,6 +5577,11 @@ public class MainActivity extends Activity {
         worker.shutdownNow();
         geminiKey = "";
         githubToken = "";
+        selectedAiFileName = "";
+        selectedAiFileText = "";
+        selectedAiImageName = "";
+        selectedAiImageMime = "";
+        selectedAiImageBase64 = "";
         aiDevicePermissions.clear();
         cancelPendingAiDevicePlanFor(null);
     }
