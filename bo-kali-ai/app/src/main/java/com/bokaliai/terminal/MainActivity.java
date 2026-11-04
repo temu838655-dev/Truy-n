@@ -3237,16 +3237,43 @@ public class MainActivity extends Activity {
         "chmod +x install-nethunter-termux && ./install-nethunter-termux";
 
     private void kaliShellMenu() {
+        final String[] actions = {
+            "KIỂM TRA TERMUX / KALI",
+            "VÀO KALI TRỰC TIẾP",
+            "CÀI KALI ROOTLESS",
+            "HƯỚNG DẪN THIẾT LẬP"
+        };
         new AlertDialog.Builder(this)
             .setTitle("Kali Shell • NetHunter Rootless")
-            .setMessage("BO Kali AI dùng Termux làm bộ chạy shell Linux. Sau khi cài Kali và bật quyền chạy lệnh bên ngoài trong Termux, có thể mở Kali trực tiếp từ đây. Cài lần đầu cần Internet, dung lượng trống lớn và thao tác xác nhận. Không cần root.")
-            .setPositiveButton("Vào Kali trực tiếp", (d, w) -> runKaliDirectly())
-            .setNeutralButton("Cài Kali Rootless", (d, w) -> {
-                copyText(KALI_INSTALL_COMMAND, "Đã sao chép lệnh cài Kali. Dán vào Termux để bắt đầu.");
-                openTermux();
+            .setMessage("BO Kali AI dùng Termux làm bộ chạy shell Linux. Kiểm tra môi trường trước khi chạy lệnh; cài lần đầu cần Internet và dung lượng trống lớn. Không cần root.")
+            .setItems(actions, (dialog, which) -> {
+                if (which == 0) checkKaliEnvironment();
+                else if (which == 1) runKaliDirectly();
+                else if (which == 2) {
+                    copyText(KALI_INSTALL_COMMAND, "Đã sao chép lệnh cài Kali. Dán vào Termux để bắt đầu.");
+                    openTermux();
+                } else showKaliInstructions();
             })
-            .setNegativeButton("Hướng dẫn", (d, w) -> showKaliInstructions())
+            .setNegativeButton("ĐÓNG", null)
             .show();
+    }
+
+    // Read-only environment check; it never installs packages or changes the system.
+    private void checkKaliEnvironment() {
+        String command =
+            "echo '=== TERMUX ==='; " +
+            "echo \"PREFIX=$PREFIX\"; " +
+            "if [ -x \"$PREFIX/bin/bash\" ]; then echo 'TERMUX_SHELL=OK'; else echo 'TERMUX_SHELL=MISSING'; fi; " +
+            "echo '=== NETHUNTER LAUNCHER ==='; " +
+            "if command -v nh >/dev/null 2>&1; then command -v nh; echo 'NETHUNTER_LAUNCHER=FOUND'; " +
+            "echo '=== KALI ROOTFS ==='; nh bash -lc 'echo KALI_SHELL=OK; id; uname -m; " +
+            "if [ -r /etc/os-release ]; then . /etc/os-release; echo KALI_OS=\\$PRETTY_NAME; " +
+            "else echo KALI_OS_FILE=MISSING; fi'; " +
+            "else echo 'NETHUNTER_LAUNCHER=MISSING'; echo 'Kali chưa được cài hoặc lệnh nh chưa có trong PATH.'; fi; " +
+            "echo '=== TERMUX STORAGE ==='; df -h \"$HOME\" 2>&1 | tail -n 2; " +
+            "echo '=== TERMUX ARCH ==='; uname -m";
+        line("Đang kiểm tra Termux và Kali NetHunter Rootless (chỉ đọc)...", GREEN);
+        runTermuxCommand(command);
     }
 
 
