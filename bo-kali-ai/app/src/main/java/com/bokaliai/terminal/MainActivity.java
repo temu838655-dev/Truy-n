@@ -749,7 +749,12 @@ public class MainActivity extends Activity {
                             }
                             String platform = ssh ? DeviceHubProfile.SSH
                                 : ha ? DeviceHubProfile.HOME_ASSISTANT : DeviceHubProfile.WEB;
-                            DeviceHubProfile.save(this, n, platform, service.host, service.port, u);
+                            String savedHost = service.host;
+                            if (!ssh) {
+                                String scheme = service.type.startsWith("_https") ? "https://" : "http://";
+                                savedHost = scheme + formatEndpointHost(service.host) + ":" + service.port;
+                            }
+                            DeviceHubProfile.save(this, n, platform, savedHost, service.port, u);
                             line("Đã lưu dịch vụ mDNS " + n + ". Cần xác thực trước khi sử dụng.", GREEN);
                         }).setNegativeButton("HỦY", null).show();
                 } else if (which == 1) {
@@ -830,16 +835,18 @@ public class MainActivity extends Activity {
                 try { p = Integer.parseInt(port.getText().toString().trim()); }
                 catch (Exception error) { p = -1; }
                 String proto = platformValues[selected];
-                boolean web = DeviceHubProfile.WEB.equals(proto);
+                boolean webEndpoint = DeviceHubProfile.WEB.equals(proto)
+                    || DeviceHubProfile.HOME_ASSISTANT.equals(proto);
                 boolean validHost = h.matches("[A-Za-z0-9._:%\\[\\]-]{1,253}");
-                if (web && (h.startsWith("http://") || h.startsWith("https://"))) {
+                if (webEndpoint && (h.startsWith("http://") || h.startsWith("https://"))) {
                     try {
                         Uri webUri = Uri.parse(h);
                         String scheme = webUri.getScheme();
                         validHost = ("http".equals(scheme) || "https".equals(scheme))
                             && webUri.getHost() != null && !webUri.getHost().isEmpty()
                             && webUri.getUserInfo() == null
-                            && webUri.getPort() <= 65535;
+                            && webUri.getPort() <= 65535
+                            && webUri.getFragment() == null;
                     } catch (Exception invalidUrl) {
                         validHost = false;
                     }
