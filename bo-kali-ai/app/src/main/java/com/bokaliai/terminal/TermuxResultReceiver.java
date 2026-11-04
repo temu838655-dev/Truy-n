@@ -13,6 +13,7 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         int exitCode = -1;
         boolean screenCaptureSaved = false;
         boolean scrcpyReady = false;
+        String scrcpyToken = "";
 
         if (result == null) {
             output.append("Termux không trả về gói kết quả. Có thể lệnh chưa chạy, Termux quá cũ hoặc quyền RUN_COMMAND chưa được cấp.\n");
@@ -23,7 +24,11 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         } else {
             String stdout = result.getString("stdout", "");
             String stderr = result.getString("stderr", "");
-            scrcpyReady = stdout.contains("BO_SCRCPY_READY:");
+            java.util.regex.Matcher readyMatcher = java.util.regex.Pattern
+                .compile("BO_SCRCPY_READY:([0-9a-fA-F-]{36}):[0-9]+")
+                .matcher(stdout);
+            scrcpyReady = readyMatcher.find();
+            if (scrcpyReady) scrcpyToken = readyMatcher.group(1);
             exitCode = result.getInt("exitCode", -1);
             int err = result.getInt("err", -1);
             String errmsg = result.getString("errmsg", "");
@@ -103,13 +108,15 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         show.putExtra("termux_output", output.toString());
         show.putExtra("bo_screen_capture", screenCaptureSaved);
         show.putExtra("bo_scrcpy_ready", scrcpyReady);
+        show.putExtra("bo_scrcpy_token", scrcpyToken);
         show.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         // Persist before attempting to launch the Activity. If the process was not alive,
         // Android creates it through onCreate/onResume rather than onNewIntent; the result
         // must therefore already be available in either lifecycle path.
         resultPrefs.edit().putString("pending_output", output.toString())
             .putBoolean("pending_screen_capture", screenCaptureSaved)
-            .putBoolean("pending_scrcpy_ready", scrcpyReady).apply();
+            .putBoolean("pending_scrcpy_ready", scrcpyReady)
+            .putString("pending_scrcpy_token", scrcpyToken).apply();
         try {
             context.startActivity(show);
         } catch (Exception ignored) {

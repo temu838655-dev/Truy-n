@@ -231,8 +231,10 @@ public class MainActivity extends Activity {
                 adbMirrorResumePending = false;
                 activeMirrorSerial = serial;
                 startAdbKeepAlive(serial);
+                String scrcpyRequestToken = java.util.UUID.randomUUID().toString();
                 getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE).edit()
-                    .putString("active_serial", serial).putBoolean("keep_alive", true).apply();
+                    .putString("active_serial", serial).putString("active_request_token", scrcpyRequestToken)
+                    .putBoolean("keep_alive", true).apply();
                 if (activeMirrorView != null) activeMirrorView.setStatus("Đang chuẩn bị máy chủ truyền màn hình...");
                 String serverHash = "84924bd564a1eb6089c872c7521f968058977f91f5ff02514a8c74aff3210f3a";
                 String serverUrl = "https://github.com/Genymobile/scrcpy/releases/download/v4.0/scrcpy-server-v4.0";
@@ -253,7 +255,7 @@ public class MainActivity extends Activity {
                     + "adb -s " + serialArg + " forward tcp:" + mirrorPort + " localabstract:" + socketName + "; "
                     + "adb -s " + serialArg + " shell " + shellQuote(remoteStart) + "; "
                     + "if adb -s " + serialArg + " shell " + shellQuote("for i in 1 2 3 4 5; do grep -F '" + socketName + "' /proc/net/unix >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1") + "; then "
-                    + "echo BO_SCRCPY_READY:" + mirrorPort + "; "
+                    + "echo BO_SCRCPY_READY:" + scrcpyRequestToken + ":" + mirrorPort + "; "
                     + "else echo 'BO_SCRCPY_ERROR: Máy chủ scrcpy không mở socket'; exit 1; fi";
                 runTermuxCommand(command);
             })
@@ -2513,8 +2515,10 @@ public class MainActivity extends Activity {
         String pending = prefs.getString("pending_output", null);
         boolean pendingScreenCapture = prefs.getBoolean("pending_screen_capture", false);
         boolean pendingScrcpyReady = prefs.getBoolean("pending_scrcpy_ready", false);
+        String pendingScrcpyToken = prefs.getString("pending_scrcpy_token", "");
         if ((pending != null && !pending.isEmpty()) || pendingScreenCapture || pendingScrcpyReady) {
-            prefs.edit().remove("pending_output").remove("pending_screen_capture").remove("pending_scrcpy_ready").apply();
+            prefs.edit().remove("pending_output").remove("pending_screen_capture")
+                .remove("pending_scrcpy_ready").remove("pending_scrcpy_token").apply();
             if (pending != null && !pending.isEmpty()) {
                 lastCommandOutput = pending;
                 handleAdbDevicesOutput(pending);
@@ -2524,9 +2528,22 @@ public class MainActivity extends Activity {
             }
             if (pendingScreenCapture) showDualWorkspace();
             if (pendingScrcpyReady) {
+                android.content.SharedPreferences session =
+                    getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
+                boolean currentRequest = !pendingScrcpyToken.isEmpty()
+                    && pendingScrcpyToken.equals(session.getString("active_request_token", ""));
                 adbMirrorResumePending = false;
-                adbMirrorResumeRetries = 0;
-                if (activeMirrorView != null) activeMirrorView.start(getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE).getInt("active_port", scrcpyPortFor(activeMirrorSerial)));
+                if (currentRequest) {
+                    adbMirrorResumeRetries = 0;
+                    String readySerial = session.getString("active_serial", "");
+                    if (activeMirrorView != null && readySerial != null
+                        && readySerial.equals(dualWorkspaceSerial)
+                        && readySerial.equals(activeMirrorSerial)) {
+                        activeMirrorView.start(session.getInt("active_port", scrcpyPortFor(readySerial)));
+                    }
+                } else {
+                    line("Bỏ qua kết quả scrcpy cũ vì phiên thiết bị đã thay đổi.", 0xffffca70);
+                }
             } else if (pending != null) {
                 adbMirrorResumePending = false;
                 scheduleScrcpyResumeRetry(pending);
@@ -2553,6 +2570,8 @@ public class MainActivity extends Activity {
 
         adbMirrorResumePending = true;
         activeMirrorView.prepareForReconnect();
+        final String scrcpyRequestToken = java.util.UUID.randomUUID().toString();
+        session.edit().putString("active_request_token", scrcpyRequestToken).apply();
         final int mirrorPort = scrcpyPortFor(serial);
         final String mirrorId = scrcpyIdFor(serial);
         session.edit().putInt("active_port", mirrorPort).putString("active_scrcpy_id", mirrorId).apply();
@@ -2568,7 +2587,7 @@ public class MainActivity extends Activity {
             + "if ! adb -s " + serialArg + " shell " + shellQuote(socketCheck) + "; then "
             + "adb -s " + serialArg + " shell " + shellQuote(remoteStart) + "; fi; "
             + "if adb -s " + serialArg + " shell " + shellQuote(waitForSocket) + "; then "
-            + "echo BO_SCRCPY_READY:" + mirrorPort + "; else echo 'BO_SCRCPY_ERROR: Không khôi phục được socket scrcpy'; exit 1; fi";
+            + "echo BO_SCRCPY_READY:" + scrcpyRequestToken + ":" + mirrorPort + "; else echo 'BO_SCRCPY_ERROR: Không khôi phục được socket scrcpy'; exit 1; fi";
         runTermuxCommand(command);
         line("Đang khôi phục luồng scrcpy sau khi mở khóa; phiên ADB vẫn được giữ nguyên.", 0xff79c9ff);
     }
@@ -2581,22 +2600,28 @@ public class MainActivity extends Activity {
             // Clear it here so a later onResume does not replay the transcript twice.
             getSharedPreferences("bo_kali_results", MODE_PRIVATE).edit()
                 .remove("pending_output").remove("pending_screen_capture")
-                .remove("pending_scrcpy_ready").apply();
+                .remove("pending_scrcpy_ready").remove("pending_scrcpy_token").apply();
             lastCommandOutput = intent.getStringExtra("termux_output");
             if (lastCommandOutput == null) lastCommandOutput = "Termux trả về kết quả trống.";
             if (intent.getBooleanExtra("bo_screen_capture", false)) showDualWorkspace();
             if (adbMirrorResumePending) adbMirrorResumePending = false;
             if (intent.getBooleanExtra("bo_scrcpy_ready", false)) {
-                adbMirrorResumeRetries = 0;
                 android.content.SharedPreferences session =
                     getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
-                String readySerial = session.getString("active_serial", "");
-                if (activeMirrorView != null && readySerial != null
-                    && readySerial.equals(dualWorkspaceSerial)
-                    && readySerial.equals(activeMirrorSerial)) {
-                    activeMirrorView.start(session.getInt("active_port", scrcpyPortFor(readySerial)));
+                String resultToken = intent.getStringExtra("bo_scrcpy_token");
+                boolean currentRequest = resultToken != null && !resultToken.isEmpty()
+                    && resultToken.equals(session.getString("active_request_token", ""));
+                adbMirrorResumePending = false;
+                if (currentRequest) {
+                    adbMirrorResumeRetries = 0;
+                    String readySerial = session.getString("active_serial", "");
+                    if (activeMirrorView != null && readySerial != null
+                        && readySerial.equals(dualWorkspaceSerial)
+                        && readySerial.equals(activeMirrorSerial)) {
+                        activeMirrorView.start(session.getInt("active_port", scrcpyPortFor(readySerial)));
+                    }
                 } else {
-                    line("Máy chủ scrcpy đã sẵn sàng cho phiên ADB đã lưu. Mở đúng thiết bị trong MÀN HÌNH KÉP để hiển thị.", GREEN);
+                    line("Bỏ qua kết quả scrcpy cũ vì phiên thiết bị đã thay đổi.", 0xffffca70);
                 }
             } else {
                 scheduleScrcpyResumeRetry(lastCommandOutput);
