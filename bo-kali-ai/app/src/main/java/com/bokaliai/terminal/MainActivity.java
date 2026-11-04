@@ -4190,6 +4190,37 @@ public class MainActivity extends Activity {
             }).setNegativeButton("HỦY", null).show();
     }
 
+    // Read-only ADB security inventory. No pairing, root escalation, writes or package changes.
+    private void runAdbDeviceSecurityAudit() {
+        final String remoteAudit =
+            "echo '--- DEVICE IDENTITY ---'; " +
+            "for p in ro.product.manufacturer ro.product.brand ro.product.model ro.product.device " +
+            "ro.build.version.release ro.build.version.sdk ro.product.cpu.abi; do " +
+            "v=$(getprop \"$p\"); [ -n \"$v\" ] && printf '%s=%s\\n' \"$p\" \"$v\"; done; " +
+            "echo '--- BOOT / SECURITY ---'; " +
+            "for p in ro.boot.verifiedbootstate ro.boot.flash.locked ro.boot.vbmeta.device_state; do " +
+            "v=$(getprop \"$p\"); [ -n \"$v\" ] && printf '%s=%s\\n' \"$p\" \"$v\"; done; " +
+            "if command -v getenforce >/dev/null 2>&1; then printf 'SELINUX='; getenforce; fi; " +
+            "echo '--- ADB / USER ---'; printf 'ADB_ENABLED='; settings get global adb_enabled 2>/dev/null; id; " +
+            "echo '--- KERNEL ---'; uname -a; " +
+            "echo '--- INSTALLED PACKAGE COUNT ---'; pm list packages 2>/dev/null | wc -l; " +
+            "echo '--- END DEVICE AUDIT ---'";
+        final String command =
+            "echo '=== BO KALI AI: ADB DEVICE SECURITY AUDIT (READ ONLY) ==='; " +
+            "if ! command -v adb >/dev/null 2>&1; then " +
+            "echo 'ADB_NOT_INSTALLED: cài android-tools trong Termux rồi chạy lại.'; exit 127; fi; " +
+            "echo '=== ADB DEVICE STATES ==='; adb devices -l; " +
+            "echo '=== READ-ONLY AUDIT FOR AUTHORIZED ONLINE DEVICES ==='; " +
+            "adb devices | awk 'NR > 1 && $2 == \"device\" {print $1}' | " +
+            "while IFS= read -r serial; do " +
+            "[ -n \"$serial\" ] || continue; " +
+            "echo \"=== DEVICE SERIAL: $serial ===\"; " +
+            "adb -s \"$serial\" shell " + shellQuote(remoteAudit) + "; " +
+            "done; echo '=== AUDIT COMPLETE: no device settings or data changed ==='";
+        line("Đang kiểm tra trạng thái ADB và đọc thông tin bảo mật của thiết bị trực tuyến. Không chạy lệnh ghi/root.", GREEN);
+        runTermuxCommand(command);
+    }
+
     private static final String KALI_INSTALL_COMMAND =
         "pkg update -y && pkg install -y wget && " +
         "wget -O install-nethunter-termux https://offs.ec/2MceZWr && " +
@@ -4206,6 +4237,7 @@ public class MainActivity extends Activity {
             "PHÂN TÍCH TƯƠNG THÍCH KALI",
             "QUẢN LÝ CÔNG CỤ TERMUX / KALI",
             "CHẨN ĐOÁN MẠNG / DNS / KẾT NỐI",
+            "PHÂN TÍCH BẢO MẬT THIẾT BỊ ADB (CHỈ ĐỌC)",
             "HƯỚNG DẪN KALI ROOT / ROOTLESS"
         };
         new AlertDialog.Builder(this)
@@ -4223,6 +4255,7 @@ public class MainActivity extends Activity {
                 else if (which == 6) checkKaliCompatibility();
                 else if (which == 7) showKaliToolManager();
                 else if (which == 8) runNetworkDiagnostics();
+                else if (which == 9) runAdbDeviceSecurityAudit();
                 else showKaliInstructions();
             })
             .setNegativeButton("ĐÓNG", null)
