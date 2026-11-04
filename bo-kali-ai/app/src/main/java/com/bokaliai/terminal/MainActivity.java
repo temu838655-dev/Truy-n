@@ -3235,9 +3235,14 @@ public class MainActivity extends Activity {
             String hardwareSerial = fields[2].trim();
             String model = fields[3].trim();
             String brand = fields[4].trim();
+            String normalizedHardwareSerial = hardwareSerial.replaceAll("[^A-Za-z0-9]", "").toLowerCase(java.util.Locale.ROOT);
             if (hardwareSerial.isEmpty() || hardwareSerial.equalsIgnoreCase("unknown")
-                || hardwareSerial.equals("0")) {
-                line("Thiết bị không cung cấp serial phần cứng đáng tin cậy. Không tạo dấu vân tay để tránh nhận nhầm.", 0xffffca70);
+                || hardwareSerial.equalsIgnoreCase("null") || hardwareSerial.equalsIgnoreCase("none")
+                || hardwareSerial.equals("0") || normalizedHardwareSerial.matches("0+")
+                || normalizedHardwareSerial.matches("f{8,}")
+                || normalizedHardwareSerial.equals("0123456789abcdef")
+                || normalizedHardwareSerial.equals("1234567890abcdef")) {
+                line("Thiết bị không cung cấp serial phần cứng đáng tin cậy hoặc trả về giá trị mặc định. Không tạo dấu vân tay để tránh nhận nhầm.", 0xffffca70);
                 continue;
             }
             try {
