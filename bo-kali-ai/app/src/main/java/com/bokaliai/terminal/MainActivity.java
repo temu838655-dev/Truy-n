@@ -2858,7 +2858,8 @@ public class MainActivity extends Activity {
         if ("READ_INFO".equals(scope))
             return lower.matches("^(getprop|df|uptime|uname|dumpsys battery|dumpsys display|ip addr|cat /proc/(meminfo|uptime|cpuinfo))(\\s.*)?$");
         if ("READ_LOGS".equals(scope))
-            return lower.matches("^(logcat|dumpsys)(\\s.*)?$");
+            // Read-only log commands only: reject logcat -c/-f and state-changing dumpsys subcommands.
+            return lower.matches("^(logcat|logcat -d|logcat -t [0-9]{1,4}|logcat -s [a-z0-9_.*:-]+|dumpsys (battery|activity|meminfo|cpuinfo|window|display|package))$");
         if ("APP_LIST".equals(scope))
             return lower.matches("^pm list packages(\\s.*)?$");
         if ("APP_INSTALL_REMOVE".equals(scope))
