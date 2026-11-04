@@ -1628,6 +1628,41 @@ public class MainActivity extends Activity {
                 .setMessage("Dữ liệu trong tệp sẽ được gộp vào danh sách hiện tại; không tự kết nối hoặc chạy lệnh. Chỉ nhập tệp sao lưu BO Kali AI đáng tin cậy.")
                 .setPositiveButton("NHẬP / GỘP", (d, w) -> importAdbBackup(uri))
                 .setNegativeButton("HỦY", null).show();
+        } else if (requestCode == PICK_CARPLAY_IDENTITY || requestCode == PICK_CARPLAY_CERTIFICATE) {
+            final boolean identity = requestCode == PICK_CARPLAY_IDENTITY;
+            final Uri selected = uri;
+            worker.execute(() -> {
+                try (java.io.InputStream in = getContentResolver().openInputStream(selected);
+                     java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+                    if (in == null) throw new IllegalStateException("Không mở được tệp.");
+                    byte[] buffer = new byte[8192];
+                    int n;
+                    while ((n = in.read(buffer)) != -1) {
+                        if (out.size() + n > 256 * 1024) throw new IllegalArgumentException("Tệp vượt giới hạn 256 KB.");
+                        out.write(buffer, 0, n);
+                    }
+                    byte[] bytes = out.toByteArray();
+                    if (identity) {
+                        String ascii = new String(bytes, StandardCharsets.US_ASCII);
+                        if (ascii.contains("-----BEGIN") || bytes.length < 64)
+                            throw new IllegalArgumentException("identity.pk8 phải là khóa PKCS#8 DER, không phải PEM.");
+                        CarPlayCredentialStore.save(this, "identity_pk8", bytes);
+                    } else {
+                        java.util.Collection<? extends java.security.cert.Certificate> parsed =
+                            java.security.cert.CertificateFactory.getInstance("X.509")
+                                .generateCertificates(new java.io.ByteArrayInputStream(bytes));
+                        if (parsed.isEmpty()) throw new IllegalArgumentException("Không đọc được chứng chỉ X.509/PKCS#7.");
+                        CarPlayCredentialStore.save(this, "certificate_p7b", bytes);
+                    }
+                    runOnUiThread(() -> {
+                        line("Đã lưu " + (identity ? "identity.pk8" : "certificate.p7b") + " bằng Android Keystore.", GREEN);
+                        manageCarPlayAuthorization();
+                    });
+                } catch (Exception e) {
+                    runOnUiThread(() -> line("Lỗi nhập bộ xác thực: " + e.getMessage(), 0xffff8080));
+                }
+            });
+        }
         }
     }
 
@@ -2667,45 +2702,6 @@ public class MainActivity extends Activity {
         pick.addCategory(Intent.CATEGORY_OPENABLE);
         pick.setType("*/*");
         startActivityForResult(pick, identity ? PICK_CARPLAY_IDENTITY : PICK_CARPLAY_CERTIFICATE);
-    }
-
-    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if ((requestCode != PICK_CARPLAY_IDENTITY && requestCode != PICK_CARPLAY_CERTIFICATE)
-                || resultCode != RESULT_OK || data == null || data.getData() == null) return;
-        final boolean identity = requestCode == PICK_CARPLAY_IDENTITY;
-        final Uri selected = data.getData();
-        worker.execute(() -> {
-            try (java.io.InputStream in = getContentResolver().openInputStream(selected);
-                 java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
-                if (in == null) throw new IllegalStateException("Không mở được tệp.");
-                byte[] buffer = new byte[8192];
-                int n;
-                while ((n = in.read(buffer)) != -1) {
-                    if (out.size() + n > 256 * 1024) throw new IllegalArgumentException("Tệp vượt giới hạn 256 KB.");
-                    out.write(buffer, 0, n);
-                }
-                byte[] bytes = out.toByteArray();
-                if (identity) {
-                    String ascii = new String(bytes, StandardCharsets.US_ASCII);
-                    if (ascii.contains("-----BEGIN") || bytes.length < 64)
-                        throw new IllegalArgumentException("identity.pk8 phải là khóa PKCS#8 DER, không phải PEM.");
-                    CarPlayCredentialStore.save(this, "identity_pk8", bytes);
-                } else {
-                    java.util.Collection<? extends java.security.cert.Certificate> parsed =
-                        java.security.cert.CertificateFactory.getInstance("X.509")
-                            .generateCertificates(new java.io.ByteArrayInputStream(bytes));
-                    if (parsed.isEmpty()) throw new IllegalArgumentException("Không đọc được chứng chỉ X.509/PKCS#7.");
-                    CarPlayCredentialStore.save(this, "certificate_p7b", bytes);
-                }
-                runOnUiThread(() -> {
-                    line("Đã lưu " + (identity ? "identity.pk8" : "certificate.p7b") + " bằng Android Keystore.", GREEN);
-                    manageCarPlayAuthorization();
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> line("Lỗi nhập bộ xác thực: " + e.getMessage(), 0xffff8080));
-            }
-        });
     }
 
     private void showCarPlayReceiverSetup() {
