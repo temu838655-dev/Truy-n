@@ -91,24 +91,42 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
     }
 
     private void connectStreams(int port) {
+        Socket video = null;
+        Socket control = null;
         try {
-            Socket video = new Socket();
+            video = new Socket();
             video.connect(new InetSocketAddress("127.0.0.1", port), 8000);
             video.setTcpNoDelay(true);
+            if (!running.get()) {
+                closeQuietly(video);
+                return;
+            }
             videoSocket = video;
 
-            Socket control = new Socket();
+            control = new Socket();
             control.connect(new InetSocketAddress("127.0.0.1", port), 8000);
             control.setTcpNoDelay(true);
+            if (!running.get()) {
+                closeQuietly(video);
+                closeQuietly(control);
+                stopSockets();
+                return;
+            }
             controlSocket = control;
             controlOutput = control.getOutputStream();
 
-            if (!running.get()) return;
+            if (!running.get()) {
+                stopSockets();
+                return;
+            }
             setStatus("Đã kết nối · Đang truyền màn hình trực tiếp");
-            decoderExecutor.execute(() -> decodeVideo(video));
+            Socket videoStream = video;
+            decoderExecutor.execute(() -> decodeVideo(videoStream));
         } catch (Exception error) {
-            setStatus("Không mở được luồng scrcpy: " + safeMessage(error));
+            closeQuietly(video);
+            closeQuietly(control);
             stopSockets();
+            if (running.get()) setStatus("Không mở được luồng scrcpy: " + safeMessage(error));
         }
     }
 
