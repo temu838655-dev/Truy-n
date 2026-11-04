@@ -127,10 +127,23 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         // Persist before attempting to launch the Activity. If the process was not alive,
         // Android creates it through onCreate/onResume rather than onNewIntent; the result
         // must therefore already be available in either lifecycle path.
-        resultPrefs.edit().putString("pending_output", output.toString())
-            .putBoolean("pending_screen_capture", screenCaptureSaved)
-            .putBoolean("pending_scrcpy_ready", scrcpyReady)
-            .putString("pending_scrcpy_token", scrcpyToken).apply();
+        // Accumulate callbacks that arrive close together so one pending result cannot
+        // overwrite another before the Activity is allowed to resume.
+        String previousPending = resultPrefs.getString("pending_output", "");
+        String combinedPending = previousPending.isEmpty() ? output.toString()
+            : previousPending + "\\n\\n--- KẾT QUẢ TERMUX TIẾP THEO ---\\n" + output;
+        final int maxPendingChars = 48000;
+        if (combinedPending.length() > maxPendingChars) {
+            combinedPending = "[Một số kết quả Termux cũ đã được lược bớt để giới hạn bộ nhớ.]\\n"
+                + combinedPending.substring(combinedPending.length() - maxPendingChars);
+        }
+        boolean previousScreenCapture = resultPrefs.getBoolean("pending_screen_capture", false);
+        boolean previousScrcpyReady = resultPrefs.getBoolean("pending_scrcpy_ready", false);
+        String previousScrcpyToken = resultPrefs.getString("pending_scrcpy_token", "");
+        resultPrefs.edit().putString("pending_output", combinedPending)
+            .putBoolean("pending_screen_capture", previousScreenCapture || screenCaptureSaved)
+            .putBoolean("pending_scrcpy_ready", previousScrcpyReady || scrcpyReady)
+            .putString("pending_scrcpy_token", scrcpyReady ? scrcpyToken : previousScrcpyToken).apply();
         try {
             context.startActivity(show);
         } catch (Exception ignored) {
