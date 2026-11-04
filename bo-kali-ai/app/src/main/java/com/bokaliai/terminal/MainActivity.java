@@ -106,6 +106,9 @@ public class MainActivity extends Activity {
         shellAdb.setOnClickListener(v -> showAdbShellDialog());
         adbRow.addView(shellAdb, new LinearLayout.LayoutParams(0, dp(42), 1));
         root.addView(adbRow);
+        Button batchAdb = button("KIỂM TRA NHIỀU THIẾT BỊ");
+        batchAdb.setOnClickListener(v -> showAdbBatchCheck());
+        root.addView(batchAdb);
         Button adbBackup = button("SAO LƯU / KHÔI PHỤC ADB");
         adbBackup.setOnClickListener(v -> showAdbBackupMenu());
         root.addView(adbBackup);
@@ -699,6 +702,59 @@ public class MainActivity extends Activity {
     }
 
     
+    
+    private void showAdbBatchCheck() {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        java.util.ArrayList<String> saved = new java.util.ArrayList<>(
+            prefs.getStringSet("serials", new java.util.HashSet<>()));
+        java.util.Collections.sort(saved);
+        if (saved.isEmpty()) {
+            new AlertDialog.Builder(this).setTitle("Kiểm tra nhiều thiết bị")
+                .setMessage("Chưa có thiết bị đã lưu. Hãy ghép đôi/kết nối ADB rồi quét danh sách trước.")
+                .setPositiveButton("ĐÓNG", null).show();
+            return;
+        }
+        String[] labels = new String[saved.size()];
+        boolean[] checked = new boolean[saved.size()];
+        for (int i = 0; i < saved.size(); i++) {
+            String serial = saved.get(i);
+            String alias = prefs.getString("alias_" + serial, "");
+            String state = adbStateLabel(prefs.getString("state_" + serial, "unknown"));
+            labels[i] = (alias.isEmpty() ? serial : alias + " · " + serial) + " [" + state + "]";
+        }
+        new AlertDialog.Builder(this).setTitle("Chọn thiết bị cần kiểm tra")
+            .setMultiChoiceItems(labels, checked, (dialog, which, isChecked) -> checked[which] = isChecked)
+            .setPositiveButton("TIẾP TỤC", (dialog, which) -> {
+                java.util.ArrayList<String> selected = new java.util.ArrayList<>();
+                for (int i = 0; i < saved.size(); i++) if (checked[i]) selected.add(saved.get(i));
+                if (selected.isEmpty()) {
+                    line("Chưa chọn thiết bị nào.", 0xffffca70);
+                    return;
+                }
+                if (selected.size() > 8) {
+                    line("Chỉ kiểm tra tối đa 8 thiết bị mỗi lượt để tránh quá tải Termux.", 0xffffca70);
+                    return;
+                }
+                StringBuilder command = new StringBuilder("pkg install -y android-tools >/dev/null 2>&1; ");
+                StringBuilder summary = new StringBuilder();
+                for (String serial : selected) {
+                    String alias = prefs.getString("alias_" + serial, "");
+                    summary.append("\n• ").append(alias.isEmpty() ? serial : alias + " (" + serial + ")");
+                    String quoted = shellQuote(serial);
+                    command.append("echo '\\n===== ").append(serial.replace("'", "")).append(" ====='; ")
+                        .append("adb -s ").append(quoted).append(" get-state; ")
+                        .append("adb -s ").append(quoted).append(" shell getprop ro.product.model; ");
+                }
+                command.append("echo '\\n===== ADB DEVICES ====='; adb devices -l");
+                new AlertDialog.Builder(this).setTitle("Xác nhận kiểm tra hàng loạt")
+                    .setMessage("Sẽ chỉ đọc trạng thái kết nối và model của " + selected.size()
+                        + " thiết bị:" + summary
+                        + "\n\nKhông cài ứng dụng, không thay đổi cài đặt và không xóa dữ liệu trên thiết bị.")
+                    .setPositiveButton("CHẠY KIỂM TRA", (d, w) -> runTermuxCommand(command.toString()))
+                    .setNegativeButton("HỦY", null).show();
+            }).setNegativeButton("HỦY", null).show();
+    }
+
     private static final int REQ_ADB_BACKUP_EXPORT = 4101;
     private static final int REQ_ADB_BACKUP_IMPORT = 4102;
 
