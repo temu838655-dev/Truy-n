@@ -56,7 +56,8 @@ public class MainActivity extends Activity {
     private LinearLayout root, log;
     private ScrollView scroll;
     private EditText commandInput, questionInput;
-    private String geminiKey = "", githubToken = "", lastCommandOutput = "";
+    private String geminiKey = "", claudeKey = "", openAiKey = "", githubToken = "", lastCommandOutput = "";
+    private Spinner aiProviderPicker;
     // Session-only consent: terminal output is never shared with an AI provider unless enabled.
     private boolean shareRecentTerminalOutputWithAi = false;
     private String pendingExportText = "";
@@ -198,6 +199,10 @@ public class MainActivity extends Activity {
         root.addView(commandRow);
         TextView aiLabel = text("Ô 2 · HỎI AI BẰNG TIẾNG VIỆT", 0xff79c9ff, 12, true); root.addView(aiLabel);
         LinearLayout aiRow = new LinearLayout(this); aiRow.setOrientation(0);
+        aiProviderPicker = new Spinner(this);
+        aiProviderPicker.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item,
+            new String[]{"Gemini", "Claude", "OpenAI"}));
+        root.addView(aiProviderPicker, new LinearLayout.LayoutParams(-1, dp(44)));
         questionInput = input("Ví dụ: Lệnh nào kiểm tra địa chỉ IP?");
         aiRow.addView(questionInput, new LinearLayout.LayoutParams(0,dp(50),1));
         Button ask = button("HỎI AI"); ask.setOnClickListener(v -> askAi());
@@ -4506,48 +4511,122 @@ public class MainActivity extends Activity {
     private void askAi() {
         String q = questionInput.getText().toString().trim();
         if (q.isEmpty()) return;
-        line("Bạn hỏi AI: " + q, 0xff79c9ff);
-        if (geminiKey.isEmpty()) {
-            line("Chưa cấu hình Gemini API key. Mở 'Kết nối AI / GitHub'. Không có khóa thì AI online chưa thể gọi.", 0xffffca70);
+        int selected = aiProviderPicker == null ? 0 : aiProviderPicker.getSelectedItemPosition();
+        final String provider = selected == 1 ? "Claude" : (selected == 2 ? "OpenAI" : "Gemini");
+        final String apiKey = selected == 1 ? claudeKey : (selected == 2 ? openAiKey : geminiKey);
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+            line("Chưa cấu hình API key cho " + provider + ". Mở Kết nối AI / GitHub.", 0xffffca70);
             return;
         }
         questionInput.setText("");
-        line("AI đang phân tích...", GREEN);
+        line("Bạn → " + provider + ": " + q, 0xff79c9ff);
+        line(provider + " đang phân tích...", GREEN);
         worker.execute(() -> {
+            HttpURLConnection conn = null;
             try {
                 String prompt = "Bạn là trợ lý BO Kali AI. Trả lời bằng tiếng Việt dễ hiểu. "
                     + "Giải thích lệnh, từng tham số, quyền cần có và rủi ro. Không tự nhận đã chạy lệnh. "
-                    + "Chỉ hướng dẫn quản trị thiết bị/mạng do người dùng sở hữu hoặc được ủy quyền. Câu hỏi: " + q
-                    + buildAiContextForSharing();
-                JSONObject part = new JSONObject().put("text", prompt);
-                JSONObject body = new JSONObject().put("contents", new JSONArray().put(new JSONObject().put("parts", new JSONArray().put(part))));
-                URL url = new URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent");
-                HttpURLConnection conn = (HttpURLConnection)url.openConnection();
-                conn.setRequestMethod("POST"); conn.setRequestProperty("x-goog-api-key", geminiKey); conn.setConnectTimeout(15000); conn.setReadTimeout(30000);
-                conn.setDoOutput(true); conn.setRequestProperty("Content-Type","application/json");
-                try(OutputStream os = conn.getOutputStream()) { os.write(body.toString().getBytes(StandardCharsets.UTF_8)); }
-                int code = conn.getResponseCode();
-                BufferedReader br = new BufferedReader(new InputStreamReader(code >= 200 && code < 300 ? conn.getInputStream() : conn.getErrorStream(), StandardCharsets.UTF_8));
-                StringBuilder sb = new StringBuilder(); String s; while((s=br.readLine())!=null) sb.append(s);
-                conn.disconnect();
-                JSONObject result = new JSONObject(sb.toString());
-                String answer;
-                if(code >= 200 && code < 300) {
-                    JSONArray candidates = result.optJSONArray("candidates");
-                    if (candidates != null && candidates.length() > 0) {
-                        JSONObject content = candidates.getJSONObject(0).optJSONObject("content");
-                        JSONArray parts = content == null ? null : content.optJSONArray("parts");
-                        answer = (parts != null && parts.length() > 0)
-                            ? parts.getJSONObject(0).optString("text", "AI không trả nội dung văn bản.")
-                            : "Gemini không trả nội dung văn bản. Có thể yêu cầu bị chặn hoặc cần thử lại.";
-                    } else {
-                        answer = "Gemini không trả câu trả lời. Phản hồi: " + result.toString();
-                    }
-                } else answer = "Gemini API báo lỗi HTTP " + code + ": " + result.toString();
+                    + "Chỉ hướng dẫn quản trị thiết bị/mạng do người dùng sở hữu hoặc được ủy quyền. "
+                    + "Yêu cầu: " + q + buildAiContextForSharing();
+                JSONObject result;
+                int code;
+                if ("Gemini".equals(provider)) {
+                    JSONObject body = new JSONObject().put("contents", new JSONArray().put(
+                        new JSONObject().put("parts", new JSONArray().put(new JSONObject().put("text", prompt)))));
+                    URL url = new URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent");
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("x-goog-api-key", apiKey);
+                    conn.setConnectTimeout(20000); conn.setReadTimeout(60000);
+                    conn.setDoOutput(true); conn.setRequestProperty("Content-Type", "application/json");
+                    try (OutputStream os = conn.getOutputStream()) { os.write(body.toString().getBytes(StandardCharsets.UTF_8)); }
+                    code = conn.getResponseCode();
+                    result = new JSONObject(readAiHttpResponse(conn, code));
+                } else if ("Claude".equals(provider)) {
+                    JSONObject body = new JSONObject()
+                        .put("model", "claude-sonnet-4-20250514")
+                        .put("max_tokens", 2048)
+                        .put("messages", new JSONArray().put(new JSONObject()
+                            .put("role", "user").put("content", prompt)));
+                    URL url = new URL("https://api.anthropic.com/v1/messages");
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("x-api-key", apiKey);
+                    conn.setRequestProperty("anthropic-version", "2023-06-01");
+                    conn.setConnectTimeout(20000); conn.setReadTimeout(60000);
+                    conn.setDoOutput(true); conn.setRequestProperty("Content-Type", "application/json");
+                    try (OutputStream os = conn.getOutputStream()) { os.write(body.toString().getBytes(StandardCharsets.UTF_8)); }
+                    code = conn.getResponseCode();
+                    result = new JSONObject(readAiHttpResponse(conn, code));
+                } else {
+                    JSONObject body = new JSONObject()
+                        .put("model", "gpt-4.1-mini")
+                        .put("messages", new JSONArray().put(new JSONObject()
+                            .put("role", "user").put("content", prompt)));
+                    URL url = new URL("https://api.openai.com/v1/chat/completions");
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Authorization", "Bearer " + apiKey);
+                    conn.setConnectTimeout(20000); conn.setReadTimeout(60000);
+                    conn.setDoOutput(true); conn.setRequestProperty("Content-Type", "application/json");
+                    try (OutputStream os = conn.getOutputStream()) { os.write(body.toString().getBytes(StandardCharsets.UTF_8)); }
+                    code = conn.getResponseCode();
+                    result = new JSONObject(readAiHttpResponse(conn, code));
+                }
+                String answer = extractAiAnswer(provider, result, code);
                 final String out = answer;
-                runOnUiThread(() -> line("AI: " + out, WHITE));
-            } catch(Exception e) { runOnUiThread(() -> line("Lỗi kết nối AI: " + e.getMessage(), 0xffff8080)); }
+                runOnUiThread(() -> line(provider + ": " + out, WHITE));
+            } catch (Exception e) {
+                final String error = "Lỗi kết nối " + provider + ": " + e.getMessage();
+                runOnUiThread(() -> line(error, 0xffff8080));
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
         });
+    }
+
+    private String readAiHttpResponse(HttpURLConnection conn, int code) throws Exception {
+        java.io.InputStream stream = code >= 200 && code < 300 ? conn.getInputStream() : conn.getErrorStream();
+        StringBuilder out = new StringBuilder();
+        if (stream != null) try (BufferedReader br = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            String row; while ((row = br.readLine()) != null) out.append(row);
+        }
+        return out.toString();
+    }
+
+    private String extractAiAnswer(String provider, JSONObject result, int code) {
+        if (code < 200 || code >= 300) {
+            String detail = result.optString("error", result.toString());
+            return provider + " API HTTP " + code + ": " + detail.substring(0, Math.min(900, detail.length()));
+        }
+        if ("Gemini".equals(provider)) {
+            JSONArray candidates = result.optJSONArray("candidates");
+            if (candidates != null && candidates.length() > 0) {
+                JSONObject content = candidates.optJSONObject(0) == null ? null : candidates.optJSONObject(0).optJSONObject("content");
+                JSONArray parts = content == null ? null : content.optJSONArray("parts");
+                StringBuilder answer = new StringBuilder();
+                if (parts != null) for (int i = 0; i < parts.length(); i++) {
+                    JSONObject part = parts.optJSONObject(i);
+                    if (part != null) answer.append(part.optString("text", ""));
+                }
+                if (answer.length() > 0) return answer.toString();
+            }
+        } else if ("Claude".equals(provider)) {
+            JSONArray content = result.optJSONArray("content");
+            StringBuilder answer = new StringBuilder();
+            if (content != null) for (int i = 0; i < content.length(); i++) {
+                JSONObject part = content.optJSONObject(i);
+                if (part != null && "text".equals(part.optString("type"))) answer.append(part.optString("text", ""));
+            }
+            if (answer.length() > 0) return answer.toString();
+        } else {
+            JSONArray choices = result.optJSONArray("choices");
+            if (choices != null && choices.length() > 0) {
+                JSONObject message = choices.optJSONObject(0) == null ? null : choices.optJSONObject(0).optJSONObject("message");
+                if (message != null) return message.optString("content", "OpenAI không trả nội dung văn bản.");
+            }
+        }
+        return provider + " không trả nội dung văn bản: " + result.toString();
     }
 
     // Google Antigravity is integrated through Google's official Linux CLI.
@@ -4738,12 +4817,16 @@ public class MainActivity extends Activity {
 
     private void connectionSettings() {
         LinearLayout box = new LinearLayout(this); box.setPadding(24,8,24,8); box.setOrientation(1);
-        EditText gem = input("Gemini API key (chỉ lưu trong bộ nhớ phiên này)");
+        EditText gem = input("Gemini API key (Google AI Studio)");
         gem.setText(geminiKey); box.addView(gem);
+        EditText claude = input("Claude API key (Anthropic Console)");
+        claude.setText(claudeKey); box.addView(claude);
+        EditText openAi = input("OpenAI API key (platform.openai.com)");
+        openAi.setText(openAiKey); box.addView(openAi);
         EditText gh = input("GitHub Personal Access Token (chỉ lưu trong bộ nhớ phiên này)");
         gh.setText(githubToken); box.addView(gh);
         android.widget.CheckBox shareOutput = new android.widget.CheckBox(this);
-        shareOutput.setText("Cho phép Gemini / Antigravity / Codex nhận kết quả terminal gần nhất (tối đa 12.000 ký tự)");
+        shareOutput.setText("Cho phép Gemini / Claude / OpenAI / Antigravity / Codex nhận kết quả terminal gần nhất (tối đa 12.000 ký tự)");
         shareOutput.setTextColor(WHITE);
         shareOutput.setButtonTintList(android.content.res.ColorStateList.valueOf(GREEN));
         shareOutput.setChecked(shareRecentTerminalOutputWithAi);
@@ -4753,9 +4836,11 @@ public class MainActivity extends Activity {
             .setView(box)
             .setPositiveButton("Lưu và kiểm tra GitHub", (d,w) -> {
                 geminiKey = gem.getText().toString().trim();
+                claudeKey = claude.getText().toString().trim();
+                openAiKey = openAi.getText().toString().trim();
                 githubToken = gh.getText().toString().trim();
                 shareRecentTerminalOutputWithAi = shareOutput.isChecked();
-                if(githubToken.isEmpty()) { line("Đã cập nhật Gemini key trong bộ nhớ phiên (nếu có). Chưa nhập GitHub token.", GREEN); return; }
+                if(githubToken.isEmpty()) { line("Đã cập nhật khóa Gemini / Claude / OpenAI trong bộ nhớ phiên (nếu có). Chưa nhập GitHub token.", GREEN); return; }
                 checkGithub();
             }).setNegativeButton("Hủy", null).show();
     }
