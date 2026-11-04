@@ -867,26 +867,45 @@ public class MainActivity extends Activity {
             while (keys.hasNext()) {
                 String key = keys.next();
                 if ("serials".equals(key) || "discovered_endpoints".equals(key) || "pairing_endpoints".equals(key)) continue;
-                boolean allowed = "last_scan_time".equals(key) || key.startsWith("state_") || key.startsWith("seen_")
-                    || key.startsWith("alias_") || key.startsWith("preset_") || key.startsWith("service_")
-                    || key.startsWith("discovered_at_") || key.startsWith("pairing_service_")
-                    || key.startsWith("pairing_discovered_at_");
-                if (!allowed || key.length() > 600) continue;
+                if (key.length() > 600) continue;
                 Object value = data.get(key);
-                if (key.startsWith("state_")) {
-                    if (!(value instanceof String)) continue;
+                if ("last_scan_time".equals(key)) {
+                    // Never restore a scan timestamp: it would make old connection data look current.
+                    continue;
+                } else if (key.startsWith("state_")) {
+                    String serial = key.substring("state_".length());
+                    if (!serial.matches("[A-Za-z0-9._:-]{1,200}") || !(value instanceof String)) continue;
                     String state = (String) value;
                     if (!("device".equals(state) || "offline".equals(state)
                         || "unauthorized".equals(state) || "not_listed".equals(state))) continue;
                     editor.putString(key, state);
-                } else if (value instanceof String) {
+                } else if (key.startsWith("seen_")) {
+                    String serial = key.substring("seen_".length());
+                    if (!serial.matches("[A-Za-z0-9._:-]{1,200}") || !(value instanceof Number)) continue;
+                    long timestamp = ((Number) value).longValue();
+                    if (timestamp < 0L) continue;
+                    editor.putLong(key, timestamp);
+                } else if (key.startsWith("alias_") || key.startsWith("preset_")) {
+                    String serial = key.substring(key.indexOf('_') + 1);
+                    if (!serial.matches("[A-Za-z0-9._:-]{1,200}") || !(value instanceof String)) continue;
                     String stringValue = (String) value;
-                    int limit = key.startsWith("preset_") ? 2000
-                        : (key.startsWith("alias_") ? 80 : 160);
+                    int limit = key.startsWith("preset_") ? 2000 : 80;
                     editor.putString(key, stringValue.substring(0, Math.min(stringValue.length(), limit)));
-                } else if (value instanceof Number) editor.putLong(key, ((Number) value).longValue());
-                else if (value instanceof Boolean) editor.putBoolean(key, (Boolean) value);
-                else continue;
+                } else if (key.startsWith("service_") || key.startsWith("pairing_service_")) {
+                    String prefix = key.startsWith("pairing_service_") ? "pairing_service_" : "service_";
+                    String endpoint = key.substring(prefix.length());
+                    if (!isValidAdbEndpoint(endpoint) || !(value instanceof String)) continue;
+                    String serviceName = (String) value;
+                    editor.putString(key, serviceName.substring(0, Math.min(serviceName.length(), 160)));
+                } else if (key.startsWith("discovered_at_") || key.startsWith("pairing_discovered_at_")) {
+                    String prefix = key.startsWith("pairing_discovered_at_")
+                        ? "pairing_discovered_at_" : "discovered_at_";
+                    String endpoint = key.substring(prefix.length());
+                    if (!isValidAdbEndpoint(endpoint) || !(value instanceof Number)) continue;
+                    long timestamp = ((Number) value).longValue();
+                    if (timestamp < 0L) continue;
+                    editor.putLong(key, timestamp);
+                } else continue;
                 restored++;
             }
             // Trạng thái trực tuyến trong bản sao lưu có thể đã cũ; yêu cầu quét lại trước khi dùng.
