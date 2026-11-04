@@ -214,6 +214,14 @@ public class MainActivity extends Activity {
 
     private ScrcpyMirrorView activeMirrorView;
     private String activeMirrorSerial = "";
+    private Runnable scrcpyResumeRetryRunnable;
+
+    private void cancelScrcpyResumeRetry() {
+        if (scrcpyResumeRetryRunnable != null) {
+            mainHandler.removeCallbacks(scrcpyResumeRetryRunnable);
+            scrcpyResumeRetryRunnable = null;
+        }
+    }
 
     // Stable per-device scrcpy identity prevents targets from sharing one socket/port.
     // ADB forward ports are host-wide, so allocate and persist collision-free ports.
@@ -261,6 +269,7 @@ public class MainActivity extends Activity {
             .setTitle("Bắt đầu điều khiển trực tiếp")
             .setMessage("BO Kali AI sẽ tải máy chủ scrcpy chính thức từ GitHub, khởi chạy tạm thời trên thiết bị đã kết nối và truyền hình ảnh cùng thao tác chạm qua ADB. Chỉ tiếp tục khi bạn sở hữu thiết bị hoặc có sự đồng ý của chủ thiết bị.")
             .setPositiveButton("BẮT ĐẦU", (d, w) -> {
+                cancelScrcpyResumeRetry();
                 adbMirrorResumeRetries = 0;
                 adbMirrorResumePending = false;
                 activeMirrorSerial = serial;
@@ -317,6 +326,8 @@ public class MainActivity extends Activity {
         boolean stoppingActiveSession = serial != null && serial.equals(activeSerial);
 
         if (stoppingActiveSession) {
+            cancelScrcpyResumeRetry();
+            adbMirrorResumePending = false;
             if (activeMirrorView != null && serial.equals(activeMirrorSerial)) {
                 activeMirrorView.stop();
             }
@@ -2905,16 +2916,29 @@ public class MainActivity extends Activity {
             line("Không thể tự khôi phục scrcpy sau 2 lần thử. ADB vẫn được giữ; hãy kiểm tra Wi-Fi/thiết bị rồi thử truyền lại.", 0xffffca70);
             return;
         }
+        android.content.SharedPreferences session =
+            getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
+        final String expectedSerial = session.getString("active_serial", "");
+        final String expectedRequestToken = session.getString("active_request_token", "");
+        if (expectedSerial == null || expectedSerial.isEmpty()
+            || expectedRequestToken == null || expectedRequestToken.isEmpty()) return;
+        cancelScrcpyResumeRetry();
         adbMirrorResumeRetries++;
         final int attempt = adbMirrorResumeRetries;
         line("Khôi phục scrcpy chưa thành công. Sẽ tự thử lại lần " + attempt + "/2 sau 5 giây.", 0xffffca70);
-        mainHandler.postDelayed(() -> {
-            android.content.SharedPreferences session =
+        scrcpyResumeRetryRunnable = () -> {
+            scrcpyResumeRetryRunnable = null;
+            android.content.SharedPreferences current =
                 getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
-            if (!session.getBoolean("keep_alive", false) || activeMirrorView == null
-                || activeMirrorView.isRunning() || adbMirrorResumePending) return;
+            if (!current.getBoolean("keep_alive", false)
+                || !expectedSerial.equals(current.getString("active_serial", ""))
+                || !expectedRequestToken.equals(current.getString("active_request_token", ""))
+                || !expectedSerial.equals(dualWorkspaceSerial)
+                || activeMirrorView == null || activeMirrorView.isRunning()
+                || adbMirrorResumePending) return;
             resumeAdbMirrorAfterUnlock();
-        }, 5000L);
+        };
+        mainHandler.postDelayed(scrcpyResumeRetryRunnable, 5000L);
     }
 
     @Override protected void onResume() {
