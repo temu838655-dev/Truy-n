@@ -474,16 +474,17 @@ public class MainActivity extends Activity {
         AlertDialog actions = new AlertDialog.Builder(this).setTitle(alias.isEmpty() ? "Thiết bị: " + serial : alias + " • " + serial)
             .setMessage("Trạng thái lần quét gần nhất: " + adbStateLabel(state) + ". " + seenLabel
                 + " Hãy kiểm tra lại trước khi chạy lệnh.")
-            .setPositiveButton("THÔNG TIN AN TOÀN", (d, w) -> showAdbReadOnlyTools(serial))
+            .setPositiveButton("CHẨN ĐOÁN", (d, w) -> showAdbReadOnlyTools(serial))
             .setNeutralButton("ADB SHELL", (d, w) -> showAdbShellDialogFor(serial))
             .setNegativeButton("QUẢN LÝ", null).create();
         actions.setOnShowListener(v -> actions.getButton(AlertDialog.BUTTON_NEGATIVE)
             .setOnClickListener(b -> {
                 actions.dismiss();
                 new AlertDialog.Builder(this).setTitle("Quản lý " + serial)
-                    .setItems(new String[]{"Đặt / đổi tên gợi nhớ", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
+                    .setItems(new String[]{"Đặt / đổi tên gợi nhớ", "Báo cáo chẩn đoán tổng hợp", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
                         if (which == 0) showAdbAliasDialog(serial);
-                        else if (which == 1) confirmAdbDisconnect(serial);
+                        else if (which == 1) showAdbFullDiagnosticReport(serial);
+                        else if (which == 2) confirmAdbDisconnect(serial);
                         else confirmForgetAdbDevice(serial);
                     }).setNegativeButton("ĐÓNG", null).show();
             }));
@@ -517,6 +518,29 @@ public class MainActivity extends Activity {
                     .remove("state_" + serial).remove("seen_" + serial).remove("alias_" + serial).apply();
                 line("Đã xóa " + serial + " khỏi danh sách thiết bị lưu. Kết nối ADB không bị ảnh hưởng.", GREEN);
             }).setNegativeButton("HỦY", null).show();
+    }
+
+    private void showAdbFullDiagnosticReport(String serial) {
+        String command = "echo '===== BO KALI AI - BAO CAO CHAN DOAN ====='; "
+            + "echo '\\n[THIET BI / ANDROID]'; "
+            + "echo MODEL; getprop ro.product.model; echo BRAND; getprop ro.product.brand; "
+            + "echo ANDROID; getprop ro.build.version.release; echo SDK; getprop ro.build.version.sdk; "
+            + "echo BUILD; getprop ro.build.display.id; echo SECURITY_PATCH; getprop ro.build.version.security_patch; "
+            + "echo '\\n[PIN / NHIET DO]'; dumpsys battery; "
+            + "echo '\\n[BO NHO]'; df -h; "
+            + "echo '\\n[CPU / SOC]'; getprop ro.product.cpu.abi; getprop ro.soc.model; "
+            + "grep -c '^processor' /proc/cpuinfo; "
+            + "echo '\\n[MAN HINH]'; wm size; wm density; "
+            + "echo '\\n[THOI GIAN HOAT DONG]'; uptime; "
+            + "echo '\\n[NETWORK]'; ip addr";
+        String alias = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE)
+            .getString("alias_" + serial, "");
+        new AlertDialog.Builder(this).setTitle("Báo cáo tổng hợp")
+            .setMessage("Thiết bị: " + (alias.isEmpty() ? serial : alias + " • " + serial)
+                + "\\nBáo cáo chỉ đọc thông tin hệ thống; không thay đổi cài đặt hoặc dữ liệu.")
+            .setPositiveButton("TẠO BÁO CÁO", (d, w) ->
+                runTermuxCommand("adb -s " + shellQuote(serial) + " shell " + shellQuote(command)))
+            .setNegativeButton("HỦY", null).show();
     }
 
     private void showAdbReadOnlyTools(String serial) {
