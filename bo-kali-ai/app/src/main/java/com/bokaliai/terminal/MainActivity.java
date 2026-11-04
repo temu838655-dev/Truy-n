@@ -3253,7 +3253,7 @@ public class MainActivity extends Activity {
                 android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
                 java.util.HashSet<String> serials = new java.util.HashSet<>(
                     prefs.getStringSet("serials", new java.util.HashSet<>()));
-                if (adbSerial.isEmpty() || !adbSerial.matches("[A-Za-z0-9._:-]+")) {
+                if (adbSerial.isEmpty() || !adbSerial.matches("[A-Za-z0-9._:%\\[\\]-]+")) {
                     line("Không xác định được phiên ADB yêu cầu; bỏ qua dữ liệu định danh.", 0xffffca70);
                     continue;
                 }
