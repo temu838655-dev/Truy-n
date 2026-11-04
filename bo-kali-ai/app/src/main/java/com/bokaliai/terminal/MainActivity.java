@@ -3389,12 +3389,8 @@ public class MainActivity extends Activity {
         if ((pending != null && !pending.isEmpty()) || pendingScreenCapture || pendingScrcpyReady) {
             // Consume the pending callback atomically before rendering it. This keeps
             // onResume consistent with onNewIntent and avoids replay after recreation.
-            boolean consumed = prefs.edit().remove("pending_output").remove("pending_screen_capture")
+            prefs.edit().remove("pending_output").remove("pending_screen_capture")
                 .remove("pending_scrcpy_ready").remove("pending_scrcpy_token").commit();
-            if (!consumed) {
-                line("Chưa thể xác nhận việc nhận kết quả Termux; dữ liệu chờ vẫn được giữ để thử lại.", 0xffffca70);
-                return;
-            }
             if (pending != null && !pending.isEmpty()) {
                 lastCommandOutput = pending;
                 handleAdbDevicesOutput(pending);
