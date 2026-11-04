@@ -2857,15 +2857,15 @@ public class MainActivity extends Activity {
         if ("READ_INFO".equals(scope))
             return lower.matches("^(getprop|df|uptime|uname|dumpsys battery|dumpsys display|ip addr|cat /proc/(meminfo|uptime|cpuinfo))(\\s.*)?$");
         if ("READ_LOGS".equals(scope))
-            return lower.matches("^(logcat|dumpsys)(\\\\s.*)?$");
+            return lower.matches("^(logcat|dumpsys)(\\s.*)?$");
         if ("APP_LIST".equals(scope))
-            return lower.matches("^pm list packages(\\\\s.*)?$");
+            return lower.matches("^pm list packages(\\s.*)?$");
         if ("APP_INSTALL_REMOVE".equals(scope))
-            return lower.matches("^pm (install|uninstall)(\\\\s.*)?$");
+            return lower.matches("^pm (install|uninstall)(\\s.*)?$");
         if ("SCREEN_CONTROL".equals(scope))
-            return lower.matches("^input (keyevent|tap|swipe|text)(\\\\s.*)?$");
+            return lower.matches("^input (keyevent|tap|swipe|text)(\\s.*)?$");
         if ("DEVICE_SETTINGS".equals(scope))
-            return lower.matches("^(settings (get|put|delete)|wm (size|density)|cmd uimode)(\\\\s.*)?$");
+            return lower.matches("^(settings (get|put|delete)|wm (size|density)|cmd uimode)(\\s.*)?$");
         // RAW_ADB_SHELL is intentionally broad but requires its own explicit grant and HIGH-risk confirmation.
         return "RAW_ADB_SHELL".equals(scope);
     }
