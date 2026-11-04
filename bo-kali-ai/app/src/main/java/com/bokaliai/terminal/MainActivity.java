@@ -1058,12 +1058,19 @@ public class MainActivity extends Activity {
 
     // Read a bounded recent logcat snapshot; never clears logs or changes device state.
     private void showAdbLogcatDialog(String serial) {
+        LinearLayout fields = new LinearLayout(this);
+        fields.setOrientation(1);
+        fields.setPadding(24, 8, 24, 8);
         EditText countInput = input("Số dòng log (50–1000, mặc định 300)");
         countInput.setText("300");
+        EditText priorityInput = input("Mức lọc: V, D, I, W, E hoặc F (mặc định V)");
+        priorityInput.setText("V");
+        fields.addView(countInput);
+        fields.addView(priorityInput);
         new AlertDialog.Builder(this)
             .setTitle("Đọc Logcat • " + serial)
-            .setMessage("Logcat là nhật ký hệ thống/ứng dụng. Nội dung có thể chứa tên ứng dụng, địa chỉ, mã phiên hoặc dữ liệu riêng tư. Chỉ đọc tối đa 1.000 dòng gần nhất; không xóa log và không thay đổi thiết bị.")
-            .setView(countInput)
+            .setMessage("Logcat có thể chứa tên ứng dụng, địa chỉ, mã phiên hoặc dữ liệu riêng tư. Giới hạn 1.000 dòng; thao tác chỉ đọc, không xóa log hay thay đổi thiết bị.\n\nMức lọc: V=tất cả, D=debug, I=info, W=cảnh báo, E=lỗi, F=lỗi nghiêm trọng.")
+            .setView(fields)
             .setPositiveButton("TIẾP TỤC", (d, w) -> {
                 String raw = countInput.getText().toString().trim();
                 int count;
@@ -1076,14 +1083,22 @@ public class MainActivity extends Activity {
                     line("Chỉ chấp nhận từ 50 đến 1.000 dòng để giới hạn dữ liệu.", 0xffffca70);
                     return;
                 }
+                String priority = priorityInput.getText().toString().trim().toUpperCase(java.util.Locale.ROOT);
+                if (priority.isEmpty()) priority = "V";
+                if (!priority.matches("[VDIWEF]")) {
+                    line("Mức lọc phải là V, D, I, W, E hoặc F.", 0xffffca70);
+                    return;
+                }
+                String filter = "*:" + priority;
                 String command = "adb -s " + shellQuote(serial)
-                    + " logcat -d -v threadtime -t " + count;
+                    + " logcat -d -v threadtime -t " + count + " " + shellQuote(filter);
                 new AlertDialog.Builder(this)
                     .setTitle("Xác nhận đọc Logcat")
-                    .setMessage("Thiết bị: " + serial + "\nSố dòng tối đa: " + count
-                        + "\n\nLệnh chỉ đọc log, không dùng logcat -c. Kết quả gần nhất sẽ được lưu trong BO Kali AI; hãy kiểm tra trước khi chia sẻ.")
+                    .setMessage("Thiết bị: " + serial + "\\nSố dòng tối đa: " + count
+                        + "\\nMức lọc: " + priority
+                        + "\\n\\nLệnh chỉ đọc log, không dùng logcat -c. Kết quả gần nhất sẽ được lưu trong BO Kali AI; hãy kiểm tra trước khi chia sẻ.")
                     .setPositiveButton("ĐỌC LOG", (x, y) -> {
-                        line("Đang đọc tối đa " + count + " dòng Logcat từ " + serial + "...", GREEN);
+                        line("Đang đọc tối đa " + count + " dòng Logcat (mức " + priority + ") từ " + serial + "...", GREEN);
                         runTermuxCommand(command);
                     })
                     .setNegativeButton("HỦY", null)
