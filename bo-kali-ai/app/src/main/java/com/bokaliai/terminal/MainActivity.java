@@ -4197,23 +4197,46 @@ public class MainActivity extends Activity {
 
     private void kaliShellMenu() {
         final String[] actions = {
-            "KIỂM TRA TERMUX / KALI",
-            "VÀO KALI TRỰC TIẾP",
+            "KIỂM TRA TERMUX / KALI ROOTLESS",
+            "VÀO KALI ROOTLESS",
             "CÀI KALI ROOTLESS",
-            "HƯỚNG DẪN THIẾT LẬP"
+            "KIỂM TRA QUYỀN ROOT ANDROID",
+            "HƯỚNG DẪN KALI ROOT / ROOTLESS"
         };
         new AlertDialog.Builder(this)
-            .setTitle("Kali Shell • NetHunter Rootless")
-            .setMessage("BO Kali AI dùng Termux làm bộ chạy shell Linux. Kiểm tra môi trường trước khi chạy lệnh; cài lần đầu cần Internet và dung lượng trống lớn. Không cần root.")
+            .setTitle("Kali Shell • Rootless + Full Root")
+            .setMessage("Rootless chạy trong Termux/proot, không cần root Android. Full Root chỉ khả dụng khi thiết bị đã được root hợp lệ và có kernel tương thích; BO Kali AI không tự root, mở khóa bootloader hoặc flash kernel.")
             .setItems(actions, (dialog, which) -> {
                 if (which == 0) checkKaliEnvironment();
                 else if (which == 1) runKaliDirectly();
                 else if (which == 2) {
-                    copyText(KALI_INSTALL_COMMAND, "Đã sao chép lệnh cài Kali. Dán vào Termux để bắt đầu.");
+                    copyText(KALI_INSTALL_COMMAND, "Đã sao chép lệnh cài NetHunter Rootless. Dán vào Termux để bắt đầu.");
                     openTermux();
-                } else showKaliInstructions();
+                } else if (which == 3) confirmAndroidRootCheck();
+                else showKaliInstructions();
             })
             .setNegativeButton("ĐÓNG", null)
+            .show();
+    }
+
+    // This check is user-initiated and may display the installed root manager's grant dialog.
+    // It only asks su for the effective UID; it does not change device state.
+    private void confirmAndroidRootCheck() {
+        new AlertDialog.Builder(this)
+            .setTitle("Kiểm tra quyền root Android")
+            .setMessage("BO Kali AI sẽ yêu cầu Termux chạy lệnh chỉ đọc: su -c id -u. Trình quản lý root (nếu có) có thể hiện hộp thoại cấp quyền. Chọn TỪ CHỐI nếu bạn không muốn cấp quyền. Không có lệnh cài đặt, ghi hệ thống hay thay đổi phân vùng.")
+            .setPositiveButton("TIẾP TỤC KIỂM TRA", (d, w) -> {
+                String check = "echo '=== ANDROID ROOT CHECK ==='; " +
+                    "if ! command -v su >/dev/null 2>&1; then echo 'ANDROID_SU=NOT_FOUND'; " +
+                    "else echo 'ANDROID_SU=FOUND'; ROOT_UID=\$(su -c id -u 2>&1); ROOT_STATUS=\$?; " +
+                    "echo \"SU_OUTPUT=\$ROOT_UID\"; echo \"SU_EXIT=\$ROOT_STATUS\"; " +
+                    "if [ \"\$ROOT_STATUS\" -eq 0 ] && [ \"\$ROOT_UID\" = '0' ]; then echo 'ANDROID_ROOT=GRANTED'; " +
+                    "else echo 'ANDROID_ROOT=NOT_GRANTED_OR_DENIED'; fi; fi; " +
+                    "echo 'NOTE=UID_0_INSIDE_PROOT_IS_NOT_ANDROID_ROOT'";
+                line("Đang kiểm tra quyền root Android theo yêu cầu của bạn; chỉ chạy lệnh id -u.", GREEN);
+                runTermuxCommand(check);
+            })
+            .setNegativeButton("HỦY", null)
             .show();
     }
 
