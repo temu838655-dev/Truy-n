@@ -76,6 +76,14 @@ public class TermuxResultReceiver extends BroadcastReceiver {
             }
         }
 
+        // Bound the transcript before persisting it. Termux stdout/stderr can be very large;
+        // truncating only after SharedPreferences writes would still allow storage exhaustion.
+        final int maxChars = 24000;
+        if (output.length() > maxChars) {
+            output.setLength(maxChars);
+            output.append("\n[Đã cắt bớt kết quả sau 24.000 ký tự để tránh quá tải.]");
+        }
+
         // Keep the latest result available for an explicit user-initiated share action.
         SharedPreferences resultPrefs = context.getSharedPreferences("bo_kali_results", Context.MODE_PRIVATE);
         resultPrefs.edit().putString("last_output", output.toString())
@@ -97,13 +105,6 @@ public class TermuxResultReceiver extends BroadcastReceiver {
             kept.append(rows[i]);
         }
         prefs.edit().putString("entries", kept.toString()).apply();
-
-        // Avoid passing an unbounded transcript back into the activity or a later AI request.
-        final int maxChars = 24000;
-        if (output.length() > maxChars) {
-            output.setLength(maxChars);
-            output.append("\n[Đã cắt bớt kết quả sau 24.000 ký tự để tránh quá tải.]");
-        }
 
         Intent show = new Intent(context, MainActivity.class);
         show.setAction("com.bokaliai.terminal.TERMUX_RESULT");
