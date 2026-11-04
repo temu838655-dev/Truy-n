@@ -66,6 +66,9 @@ public class MainActivity extends Activity {
     private String selectedAiFileName = "", selectedAiFileText = "";
     private boolean shareFileGemini = false, shareFileClaude = false, shareFileOpenAi = false;
     private boolean shareFileAntigravity = false, shareFileCodex = false;
+    // Image content is held only in memory and gated separately for each API provider.
+    private String selectedAiImageName = "", selectedAiImageMime = "", selectedAiImageBase64 = "";
+    private boolean shareImageGemini = false, shareImageClaude = false, shareImageOpenAi = false;
     private String pendingExportText = "";
     private static final AtomicInteger TERMUX_REQUEST = new AtomicInteger(2000);
     private NsdManager nsdManager;
@@ -217,9 +220,15 @@ public class MainActivity extends Activity {
         Button importAiFile = button("CHỌN TỆP VĂN BẢN / MÃ NGUỒN CHO AI");
         importAiFile.setOnClickListener(v -> pickAiTextFile());
         root.addView(importAiFile, new LinearLayout.LayoutParams(-1, dp(42)));
+        Button importAiImage = button("CHỌN ẢNH ĐỂ AI PHÂN TÍCH");
+        importAiImage.setOnClickListener(v -> pickAiImage());
+        root.addView(importAiImage, new LinearLayout.LayoutParams(-1, dp(42)));
         Button clearAiFile = button("XÓA TỆP AI ĐANG CHỌN KHỎI BỘ NHỚ PHIÊN");
         clearAiFile.setOnClickListener(v -> clearSelectedAiFile());
         root.addView(clearAiFile, new LinearLayout.LayoutParams(-1, dp(40)));
+        Button clearAiImage = button("XÓA ẢNH AI ĐANG CHỌN KHỎI BỘ NHỚ PHIÊN");
+        clearAiImage.setOnClickListener(v -> clearSelectedAiImage());
+        root.addView(clearAiImage, new LinearLayout.LayoutParams(-1, dp(40)));
         Button antigravity = button("GOOGLE ANTIGRAVITY • CHAT / AGENT");
         antigravity.setOnClickListener(v -> showAntigravityMenu());
         root.addView(antigravity, new LinearLayout.LayoutParams(-1, dp(44)));
@@ -2507,6 +2516,63 @@ public class MainActivity extends Activity {
     private static final int REQ_ADB_BACKUP_IMPORT = 4102;
     private static final int REQ_RESULT_EXPORT = 4103;
     private static final int REQ_AI_TEXT_FILE = 4104;
+    private static final int REQ_AI_IMAGE = 4105;
+
+    private void pickAiImage() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("image/*");
+        startActivityForResult(intent, REQ_AI_IMAGE);
+    }
+
+    private void clearSelectedAiImage() {
+        selectedAiImageName = "";
+        selectedAiImageMime = "";
+        selectedAiImageBase64 = "";
+        line("Đã xóa ảnh AI khỏi bộ nhớ phiên.", GREEN);
+    }
+
+    private void readAiImage(Uri uri) {
+        worker.execute(() -> {
+            try {
+                String mime = getContentResolver().getType(uri);
+                if (mime == null || !mime.startsWith("image/"))
+                    throw new IllegalArgumentException("Tệp được chọn không phải ảnh.");
+                byte[] data;
+                try (java.io.InputStream in = getContentResolver().openInputStream(uri);
+                     java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+                    if (in == null) throw new java.io.IOException("Không mở được ảnh.");
+                    byte[] buffer = new byte[8192]; int n;
+                    while ((n = in.read(buffer)) != -1) {
+                        if (out.size() + n > 6 * 1024 * 1024)
+                            throw new IllegalArgumentException("Ảnh vượt giới hạn 6 MB.");
+                        out.write(buffer, 0, n);
+                    }
+                    data = out.toByteArray();
+                }
+                String name = "selected-image";
+                android.database.Cursor cursor = getContentResolver().query(uri,
+                    new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null);
+                if (cursor != null) try {
+                    if (cursor.moveToFirst()) {
+                        int col = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                        if (col >= 0) name = cursor.getString(col);
+                    }
+                } finally { cursor.close(); }
+                final String imageName = name;
+                final String imageMime = mime;
+                final String encoded = android.util.Base64.encodeToString(data, android.util.Base64.NO_WRAP);
+                runOnUiThread(() -> {
+                    selectedAiImageName = imageName;
+                    selectedAiImageMime = imageMime;
+                    selectedAiImageBase64 = encoded;
+                    line("Đã nạp ảnh vào RAM phiên: " + imageName + ". Chưa gửi cho AI nào; cần cấp quyền riêng.", GREEN);
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> line("Không đọc được ảnh AI: " + e.getMessage(), 0xffff8080));
+            }
+        });
+    }
 
     private void clearSelectedAiFile() {
         selectedAiFileName = "";
@@ -2639,6 +2705,8 @@ public class MainActivity extends Activity {
             }
         } else if (requestCode == REQ_AI_TEXT_FILE) {
             readAiTextFile(uri);
+        } else if (requestCode == REQ_AI_IMAGE) {
+            readAiImage(uri);
         } else if (requestCode == REQ_ADB_BACKUP_EXPORT) {
             try (OutputStream out = getContentResolver().openOutputStream(uri)) {
                 if (out == null) throw new java.io.IOException("Không mở được tệp đích");
@@ -4963,8 +5031,14 @@ public class MainActivity extends Activity {
         android.widget.CheckBox fileCodex = createAiFileShareCheckbox("OpenAI Codex", shareFileCodex);
         box.addView(fileGemini); box.addView(fileClaude); box.addView(fileOpenAi);
         box.addView(fileAntigravity); box.addView(fileCodex);
-        box.addView(text("Tệp đang chọn: " + (selectedAiFileName.isEmpty() ? "chưa có" : selectedAiFileName)
-            + ". Chỉ hỗ trợ văn bản/mã nguồn UTF-8 tối đa 256 KB; PDF/DOCX/XLSX/ảnh chưa hỗ trợ.", 0xff91a9bd, 11, false));
+        box.addView(text("TỆP ẢNH (chỉ các API chat Gemini / Claude / OpenAI)", 0xff79c9ff, 12, true));
+        android.widget.CheckBox imageGemini = createAiFileShareCheckbox("Gemini • ảnh", shareImageGemini);
+        android.widget.CheckBox imageClaude = createAiFileShareCheckbox("Claude • ảnh", shareImageClaude);
+        android.widget.CheckBox imageOpenAi = createAiFileShareCheckbox("OpenAI • ảnh", shareImageOpenAi);
+        box.addView(imageGemini); box.addView(imageClaude); box.addView(imageOpenAi);
+        box.addView(text("Tệp văn bản: " + (selectedAiFileName.isEmpty() ? "chưa có" : selectedAiFileName)
+            + " (tối đa 256 KB). Ảnh: " + (selectedAiImageName.isEmpty() ? "chưa có" : selectedAiImageName)
+            + " (tối đa 6 MB). Cả hai chỉ ở RAM phiên; PDF/DOCX/XLSX chưa hỗ trợ.", 0xff91a9bd, 11, false));
         box.addView(text("Terminal và tệp là hai quyền độc lập. Không gửi GitHub token hoặc tệp nếu chưa bật đúng quyền.", 0xff91a9bd, 11, false));
         new AlertDialog.Builder(this).setTitle("Kết nối AI / GitHub")
             .setMessage("Gemini: dùng API key từ Google AI Studio. GitHub: đọc cần Contents: read; ghi cần Contents: read and write (fine-grained) hoặc repo (classic). Token chỉ giữ trong bộ nhớ phiên. Quyền đọc terminal và tệp đã chọn được cấp độc lập cho từng AI, mặc định tắt; tệp chỉ giữ trong RAM phiên và có thể xóa bằng nút XÓA TỆP.")
@@ -4984,6 +5058,9 @@ public class MainActivity extends Activity {
                 shareFileOpenAi = fileOpenAi.isChecked();
                 shareFileAntigravity = fileAntigravity.isChecked();
                 shareFileCodex = fileCodex.isChecked();
+                shareImageGemini = imageGemini.isChecked();
+                shareImageClaude = imageClaude.isChecked();
+                shareImageOpenAi = imageOpenAi.isChecked();
                 if(githubToken.isEmpty()) { line("Đã cập nhật khóa Gemini / Claude / OpenAI trong bộ nhớ phiên (nếu có). Chưa nhập GitHub token.", GREEN); return; }
                 checkGithub();
             }).setNegativeButton("Hủy", null).show();
