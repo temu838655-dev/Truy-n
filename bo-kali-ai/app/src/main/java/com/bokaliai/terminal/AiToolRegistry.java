@@ -244,7 +244,7 @@ public final class AiToolRegistry {
                 catch (org.json.JSONException ignored) { }
             }
             if (id.isEmpty() || name.isEmpty() || args == null || completed.contains(id)) continue;
-            calls.put(new JSONObject().put("call_id", id).put("name", name).put("arguments", args));
+            try { JSONObject item = new JSONObject(); item.put("call_id", id); item.put("name", name); item.put("arguments", args); calls.put(item); } catch (Exception ignored) { }
         }
         return calls;
     }
@@ -350,8 +350,7 @@ public final class AiToolRegistry {
             String name = block.optString("name", "").trim();
             JSONObject input = block.optJSONObject("input");
             if (id.isEmpty() || name.isEmpty() || input == null) continue;
-            calls.put(new JSONObject().put("tool_use_id", id)
-                .put("name", name).put("arguments", input));
+            try { JSONObject item = new JSONObject(); item.put("tool_use_id", id); item.put("name", name); item.put("arguments", input); calls.put(item); } catch (Exception ignored) { }
         }
         return calls;
     }
@@ -377,7 +376,7 @@ public final class AiToolRegistry {
                 JSONObject args = functionCall.optJSONObject("args");
                 if (args == null) args = functionCall.optJSONObject("arguments");
                 if (name.isEmpty() || args == null) continue;
-                calls.put(new JSONObject().put("name", name).put("arguments", args));
+                try { JSONObject item = new JSONObject(); item.put("name", name); item.put("arguments", args); calls.put(item); } catch (Exception ignored) { }
             }
         }
         return calls;
