@@ -406,9 +406,36 @@ public class MainActivity extends Activity {
         if (!gateway.isEmpty()) line("Đã đọc gateway Wi-Fi: " + gateway + ". Chưa xác thực vào modem.", GREEN);
     }
 
+    private boolean isValidRouterHost(String rawHost) {
+        if (rawHost == null) return false;
+        String host = rawHost.trim();
+        if (host.startsWith("[") && host.endsWith("]")) {
+            host = host.substring(1, host.length() - 1);
+        }
+        if (host.isEmpty() || host.length() > 253 || host.contains("/") || host.contains("@")) return false;
+        if (host.indexOf(':') >= 0) {
+            try {
+                return InetAddress.getByName(host) instanceof java.net.Inet6Address;
+            } catch (Exception invalidIpv6) {
+                return false;
+            }
+        }
+        return host.matches("(?i)[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?");
+    }
+
+    private String routerWebUrl(String scheme, String host) {
+        return scheme + "://" + formatEndpointHost(host);
+    }
+
     private void openRouterAdmin(String address) {
         try {
-            Intent browser = new Intent(Intent.ACTION_VIEW, Uri.parse(address));
+            Uri uri = Uri.parse(address);
+            if ((!"http".equals(uri.getScheme()) && !"https".equals(uri.getScheme()))
+                || uri.getHost() == null || uri.getUserInfo() != null) {
+                line("Địa chỉ quản trị modem không hợp lệ.", 0xffff8080);
+                return;
+            }
+            Intent browser = new Intent(Intent.ACTION_VIEW, uri);
             startActivity(browser);
             line("Đã mở địa chỉ quản trị modem. Hãy đăng nhập bằng tài khoản quản trị do bạn sở hữu.", GREEN);
         } catch (Exception error) {
@@ -432,19 +459,19 @@ public class MainActivity extends Activity {
             .setView(address)
             .setPositiveButton("MỞ HTTP", (d, w) -> {
                 String host = address.getText().toString().trim();
-                if (!host.matches("[A-Za-z0-9._:-]{1,253}")) {
-                    line("Địa chỉ modem không hợp lệ.", 0xffff8080);
+                if (!isValidRouterHost(host)) {
+                    line("Địa chỉ modem không hợp lệ. Có thể nhập IPv4, IPv6 hoặc hostname.", 0xffff8080);
                     return;
                 }
-                openRouterAdmin("http://" + host);
+                openRouterAdmin(routerWebUrl("http", host));
             })
             .setNeutralButton("MỞ HTTPS", (d, w) -> {
                 String host = address.getText().toString().trim();
-                if (!host.matches("[A-Za-z0-9._:-]{1,253}")) {
-                    line("Địa chỉ modem không hợp lệ.", 0xffff8080);
+                if (!isValidRouterHost(host)) {
+                    line("Địa chỉ modem không hợp lệ. Có thể nhập IPv4, IPv6 hoặc hostname.", 0xffff8080);
                     return;
                 }
-                openRouterAdmin("https://" + host);
+                openRouterAdmin(routerWebUrl("https", host));
             })
             .setNegativeButton("HỦY", null).show();
     }
