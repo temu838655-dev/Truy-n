@@ -1356,9 +1356,9 @@ public class MainActivity extends Activity {
         String outputForAi = lastCommandOutput;
         if (outputForAi.length() > 12000) {
             outputForAi = outputForAi.substring(0, 12000)
-                + "\\n[Đã rút gọn kết quả còn 12.000 ký tự để AI phân tích ổn định.]";
+                + "\n[Đã rút gọn kết quả còn 12.000 ký tự để AI phân tích ổn định.]";
         }
-        questionInput.setText("Hãy giải thích kết quả/lỗi Kali dưới đây bằng tiếng Việt, chỉ ra nguyên nhân, mức độ rủi ro và cách xử lý an toàn. Không giả định lệnh đã làm gì ngoài nội dung kết quả:\\n\\n" + outputForAi);
+        questionInput.setText("Hãy giải thích kết quả/lỗi Kali dưới đây bằng tiếng Việt, chỉ ra nguyên nhân, mức độ rủi ro và cách xử lý an toàn. Không giả định lệnh đã làm gì ngoài nội dung kết quả:\n\n" + outputForAi);
         askAi();
     }
 
