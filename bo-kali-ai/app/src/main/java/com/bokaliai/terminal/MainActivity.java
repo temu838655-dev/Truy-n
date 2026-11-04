@@ -80,6 +80,8 @@ public class MainActivity extends Activity {
     private boolean adbNetworkCallbackRegistered = false;
     private boolean activityResumed = false;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    // AI permissions are deliberately session-only and scoped to one verified ADB serial.
+    private final java.util.HashMap<String, java.util.HashSet<String>> aiDevicePermissions = new java.util.HashMap<>();
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -142,6 +144,9 @@ public class MainActivity extends Activity {
         Button deviceHub = button("TRUNG TÂM THIẾT BỊ ĐA NỀN TẢNG");
         deviceHub.setOnClickListener(v -> showUniversalDeviceHub());
         root.addView(deviceHub, new LinearLayout.LayoutParams(-1, dp(46)));
+        Button aiDeviceControl = button("AI • CẤP QUYỀN ĐIỀU KHIỂN THIẾT BỊ ADB");
+        aiDeviceControl.setOnClickListener(v -> showAiDeviceControlMenu());
+        root.addView(aiDeviceControl, new LinearLayout.LayoutParams(-1, dp(46)));
         Button routerWifi = button("KẾT NỐI MODEM / ROUTER WI-FI");
         routerWifi.setOnClickListener(v -> showWifiRouterManager());
         root.addView(routerWifi, new LinearLayout.LayoutParams(-1, dp(46)));
@@ -2682,6 +2687,91 @@ public class MainActivity extends Activity {
         } catch (Exception e) { line("Không khôi phục được sao lưu: " + e.getMessage(), 0xffff8080); }
     }
 
+    // AI access grants are session-only, per-device, and never imply Android/root privileges.
+    private static final String[] AI_DEVICE_SCOPE_IDS = {
+        "READ_INFO", "READ_LOGS", "APP_LIST", "APP_INSTALL_REMOVE",
+        "SCREEN_CONTROL", "DEVICE_SETTINGS", "RAW_ADB_SHELL"
+    };
+    private static final String[] AI_DEVICE_SCOPE_LABELS = {
+        "Đọc thông tin thiết bị (model, Android, bộ nhớ)",
+        "Đọc log và báo cáo chẩn đoán",
+        "Xem danh sách ứng dụng đã cài",
+        "Cài / gỡ ứng dụng (luôn hỏi xác nhận từng lần)",
+        "Điều khiển màn hình, chạm và nhập liệu",
+        "Thay đổi cài đặt thiết bị (luôn hỏi xác nhận từng lần)",
+        "Chạy lệnh ADB Shell tùy ý (luôn xem lệnh và xác nhận)"
+    };
+
+    private void showAiDeviceControlMenu() {
+        java.util.ArrayList<String> online = getFreshAdbDevices();
+        String[] actions = {"CẤP / ĐIỀU CHỈNH QUYỀN CHO THIẾT BỊ", "THU HỒI TOÀN BỘ QUYỀN AI"};
+        new AlertDialog.Builder(this).setTitle("AI • Quyền điều khiển thiết bị")
+            .setMessage("Quyền chỉ tồn tại trong phiên BO hiện tại và gắn với đúng serial ADB. AI không có quyền root, không thể vượt qua xác thực Android. Mỗi thao tác nhạy cảm vẫn cần bạn xác nhận.")
+            .setItems(actions, (d, which) -> {
+                if (which == 1) {
+                    aiDevicePermissions.clear();
+                    line("Đã thu hồi toàn bộ quyền điều khiển AI trong phiên hiện tại.", GREEN);
+                    return;
+                }
+                if (online.isEmpty()) {
+                    new AlertDialog.Builder(this).setTitle("Chưa có thiết bị ADB trực tuyến")
+                        .setMessage("Hãy ghép đôi/kết nối thiết bị, sau đó chạy QUÉT ADB. BO chỉ cấp quyền cho thiết bị đang được xác minh trực tuyến.")
+                        .setPositiveButton("QUÉT ADB", (x, y) -> runTermuxCommand("pkg install -y android-tools && adb devices -l"))
+                        .setNegativeButton("ĐÓNG", null).show();
+                    return;
+                }
+                String[] labels = new String[online.size()];
+                android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+                for (int i = 0; i < online.size(); i++) {
+                    String serial = online.get(i);
+                    String alias = prefs.getString("alias_" + serial, "");
+                    labels[i] = (alias.isEmpty() ? serial : alias + " • " + serial)
+                        + "  [đang trực tuyến]";
+                }
+                new AlertDialog.Builder(this).setTitle("Chọn đúng thiết bị AI được phép điều khiển")
+                    .setItems(labels, (x, index) -> showAiDevicePermissionDialog(online.get(index)))
+                    .setNegativeButton("HỦY", null).show();
+            }).setNegativeButton("ĐÓNG", null).show();
+    }
+
+    private void showAiDevicePermissionDialog(String serial) {
+        if (!isFreshAdbDevice(serial)) {
+            line("Không cấp quyền: thiết bị ADB không còn được xác minh trực tuyến. Hãy quét lại.", 0xffffca70);
+            return;
+        }
+        java.util.HashSet<String> granted = aiDevicePermissions.get(serial);
+        if (granted == null) granted = new java.util.HashSet<>();
+        boolean[] checked = new boolean[AI_DEVICE_SCOPE_IDS.length];
+        for (int i = 0; i < checked.length; i++) checked[i] = granted.contains(AI_DEVICE_SCOPE_IDS[i]);
+        final boolean[] selection = checked.clone();
+        new AlertDialog.Builder(this).setTitle("Quyền AI • " + serial)
+            .setMessage("Chọn đúng khả năng AI được phép sử dụng trên thiết bị này. Bỏ chọn để thu hồi. Quyền không áp dụng cho thiết bị khác và sẽ mất khi BO Kali AI kết thúc phiên.")
+            .setMultiChoiceItems(AI_DEVICE_SCOPE_LABELS, selection,
+                (dialog, which, isChecked) -> selection[which] = isChecked)
+            .setPositiveButton("LƯU QUYỀN PHIÊN", (dialog, which) -> {
+                java.util.HashSet<String> updated = new java.util.HashSet<>();
+                for (int i = 0; i < selection.length; i++) {
+                    if (selection[i]) updated.add(AI_DEVICE_SCOPE_IDS[i]);
+                }
+                if (updated.isEmpty()) aiDevicePermissions.remove(serial);
+                else aiDevicePermissions.put(serial, updated);
+                line("Đã cập nhật quyền AI cho " + serial + ": "
+                    + (updated.isEmpty() ? "không còn quyền nào" : updated.size() + " nhóm quyền")
+                    + ". Đây mới là bước cấp quyền; AI chỉ thực thi qua bộ điều phối có kiểm tra quyền và xác nhận từng hành động.", GREEN);
+            })
+            .setNeutralButton("THU HỒI THIẾT BỊ NÀY", (dialog, which) -> {
+                aiDevicePermissions.remove(serial);
+                line("Đã thu hồi mọi quyền AI đối với " + serial + ".", GREEN);
+            })
+            .setNegativeButton("HỦY", null).show();
+    }
+
+    private boolean hasAiDevicePermission(String serial, String scope) {
+        if (!isFreshAdbDevice(serial)) return false;
+        java.util.HashSet<String> granted = aiDevicePermissions.get(serial);
+        return granted != null && granted.contains(scope);
+    }
+
     private void showAdbDeviceManager() {
         android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
         java.util.ArrayList<String> devices = new java.util.ArrayList<>(
@@ -4753,5 +4843,6 @@ public class MainActivity extends Activity {
         worker.shutdownNow();
         geminiKey = "";
         githubToken = "";
+        aiDevicePermissions.clear();
     }
 }
