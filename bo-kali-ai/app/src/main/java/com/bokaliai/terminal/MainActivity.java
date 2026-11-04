@@ -2543,7 +2543,14 @@ public class MainActivity extends Activity {
                         if (bytes.size() + n > 256 * 1024) throw new IllegalArgumentException("Tệp vượt giới hạn 256 KB.");
                         bytes.write(buffer, 0, n);
                     }
-                    fileContent = new String(bytes.toByteArray(), StandardCharsets.UTF_8);
+                    try {
+                        fileContent = StandardCharsets.UTF_8.newDecoder()
+                            .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                            .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                            .decode(java.nio.ByteBuffer.wrap(bytes.toByteArray())).toString();
+                    } catch (java.nio.charset.CharacterCodingException invalidText) {
+                        throw new IllegalArgumentException("Tệp không phải văn bản UTF-8 hợp lệ.");
+                    }
                     if (fileContent.indexOf(0) >= 0) throw new IllegalArgumentException("Tệp có dữ liệu nhị phân, không phải văn bản UTF-8.");
                 }
                 String fileName = "selected-file.txt";
