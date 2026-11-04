@@ -6002,6 +6002,16 @@ public class MainActivity extends Activity {
                     runOnUiThread(() -> line("GitHub thay đổi trong lúc duyệt; đã hủy an toàn.", 0xffffca70));
                     return;
                 }
+                JSONObject verifiedBaseRef = githubApi("GET",
+                    "/repos/" + repository + "/git/ref/heads/" + encodedBase, null);
+                JSONObject verifiedBaseObject = verifiedBaseRef.optJSONObject("object");
+                if (verifiedBaseObject == null
+                        || !baseObject.optString("sha").equals(verifiedBaseObject.optString("sha"))) {
+                    reportAntigravityToolOutcome("github_base_moved",
+                        "Nhánh đích đã tiến lên trong lúc kiểm tra. BO đã hủy để tránh tạo PR từ mã nguồn cũ; hãy thử lại.");
+                    runOnUiThread(() -> line("Nhánh đích vừa thay đổi; đã hủy thao tác an toàn.", 0xffffca70));
+                    return;
+                }
                 String suffix = Long.toString(System.currentTimeMillis(), 36);
                 branchName = "bo-kali-ai/antigravity-" + suffix;
                 JSONObject refPayload = new JSONObject()
@@ -6026,12 +6036,13 @@ public class MainActivity extends Activity {
                 JSONObject pr = githubApi("POST", "/repos/" + repository + "/pulls", prPayload);
                 String html = pr.optString("html_url", "");
                 int number = pr.optInt("number", 0);
+                final String createdBranchName = branchName;
                 reportAntigravityToolOutcome("github_pull_request_created",
-                    "Đã tạo Pull Request #" + number + " trong " + repository + ". Nhánh: " + branchName
+                    "Đã tạo Pull Request #" + number + " trong " + repository + ". Nhánh: " + createdBranchName
                         + (commitSha.isEmpty() ? "" : ". Commit: " + commitSha)
                         + (html.isEmpty() ? "" : ". URL: " + html)
                         + ". Nhánh đích " + base + " không bị commit trực tiếp.");
-                runOnUiThread(() -> line("Đã tạo Pull Request #" + number + " • " + branchName
+                runOnUiThread(() -> line("Đã tạo Pull Request #" + number + " • " + createdBranchName
                     + (html.isEmpty() ? "" : "\n" + html), GREEN));
             } catch (Exception e) {
                 String partial = branchName.isEmpty() ? "" : " Nhánh có thể đã được tạo: " + branchName
