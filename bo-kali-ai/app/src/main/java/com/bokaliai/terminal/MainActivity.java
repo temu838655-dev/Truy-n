@@ -263,7 +263,8 @@ public class MainActivity extends Activity {
         devicePane.setBackgroundColor(0xff101f2e);
         TextView deviceTitle = text("MÀN HÌNH PHỤ · THIẾT BỊ", 0xff79c9ff, 13, true);
         devicePane.addView(deviceTitle);
-        String alias = prefs.getString("alias_" + serial, "");
+        android.content.SharedPreferences devicePrefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        String alias = devicePrefs.getString("alias_" + serial, "");
         TextView deviceInfo = text("Đã xác nhận ADB: " + (alias.isEmpty() ? serial : alias + " · " + serial)
             + "\nTrạng thái: device\n\nKhung hiển thị trực tiếp đang được triển khai ở bước tiếp theo. Hiện tại bạn có thể chọn thiết bị và mở ứng dụng từ xa.", WHITE, 12, false);
         devicePane.addView(deviceInfo);
