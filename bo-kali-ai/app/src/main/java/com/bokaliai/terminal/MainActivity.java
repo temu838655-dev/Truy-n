@@ -621,10 +621,17 @@ public class MainActivity extends Activity {
             }).show();
     }
 
+    private String formatEndpointHost(String host) {
+        String value = host == null ? "" : host.trim();
+        if (value.startsWith("[") && value.endsWith("]")) return value;
+        // IPv6 literals must be bracketed when followed by a TCP port.
+        if (value.indexOf(':') >= 0) return "[" + value + "]";
+        return value;
+    }
+
     private void connectDeviceProfile(DeviceHubProfile profile) {
         if (DeviceHubProfile.ANDROID_ADB.equals(profile.platform)) {
-            String endpoint = profile.host.contains(":") && profile.host.startsWith("[")
-                ? profile.host + ":" + profile.port : profile.host + ":" + profile.port;
+            String endpoint = formatEndpointHost(profile.host) + ":" + profile.port;
             new AlertDialog.Builder(this).setTitle("Kết nối Android / Android TV")
                 .setMessage("ADB sẽ kết nối tới " + endpoint + ". Thiết bị phải bật Wireless debugging/ADB và chấp nhận khóa RSA hoặc đã ghép đôi. Không thể kết nối trái phép.")
                 .setPositiveButton("KẾT NỐI", (d, w) -> runTermuxCommand(
@@ -633,8 +640,9 @@ public class MainActivity extends Activity {
             return;
         }
         if ((DeviceHubProfile.SSH.equals(profile.platform) || DeviceHubProfile.ROUTER_SSH.equals(profile.platform))) {
+            String sshHost = formatEndpointHost(profile.host);
             String command = "pkg install -y openssh && ssh -p " + profile.port
-                + " -o ConnectTimeout=10 " + shellQuote(profile.username + "@" + profile.host);
+                + " -o ConnectTimeout=10 " + shellQuote(profile.username + "@" + sshHost);
             new AlertDialog.Builder(this).setTitle((DeviceHubProfile.ROUTER_SSH.equals(profile.platform) ? "SSH MODEM / ROUTER · " : "Kết nối SSH · ") + profile.name)
                 .setMessage("Mở phiên SSH trong Termux. Router phải bật SSH Server và cho phép tài khoản này đăng nhập. Lần đầu xác nhận host key; nhập mật khẩu trực tiếp trong Termux. BO Kali AI không lưu mật khẩu. Quyền chạy lệnh phụ thuộc tài khoản và firmware router.")
                 .setPositiveButton("MỞ PHIÊN SSH", (d, w) -> runTermuxInteractiveCommand(command))
@@ -644,7 +652,7 @@ public class MainActivity extends Activity {
         String target = profile.host;
         if (DeviceHubProfile.HOME_ASSISTANT.equals(profile.platform) || DeviceHubProfile.WEB.equals(profile.platform)) {
             if (!target.startsWith("http://") && !target.startsWith("https://")) {
-                target = "http://" + target + ":" + profile.port;
+                target = "http://" + formatEndpointHost(target) + ":" + profile.port;
             }
         }
         try {
