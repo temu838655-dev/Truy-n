@@ -2939,7 +2939,7 @@ public class MainActivity extends Activity {
         }
         if (command == null || command.trim().isEmpty() || command.length() > 1200
             || command.matches("(?s).*[;&|<>$].*") || command.indexOf(96) >= 0
-            || command.contains("\\\\") || command.contains("'") || command.contains("\\\"")
+            || command.contains("\\") || command.contains("'") || command.contains("\"")
             || !isAiCommandAllowedForScope(scope, command)) {
             line("Lệnh không qua kiểm tra cuối cùng; không thực thi.", 0xffff8080); return;
         }
