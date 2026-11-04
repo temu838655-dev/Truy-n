@@ -107,6 +107,10 @@ public class MainActivity extends Activity {
         shellAdb.setOnClickListener(v -> showAdbShellDialog());
         adbRow.addView(shellAdb, new LinearLayout.LayoutParams(0, dp(42), 1));
         root.addView(adbRow);
+        Button dualWorkspace = button("MÀN HÌNH KÉP");
+        dualWorkspace.setOnClickListener(v -> showDualWorkspace());
+        root.addView(dualWorkspace, new LinearLayout.LayoutParams(-1, dp(44)));
+        root.addView(adbRow);
         Button batchAdb = button("KIỂM TRA NHIỀU THIẾT BỊ");
         batchAdb.setOnClickListener(v -> showAdbBatchCheck());
         root.addView(batchAdb);
@@ -161,6 +165,197 @@ public class MainActivity extends Activity {
         setContentView(root);
     }
 
+
+    // Dual workspace: the device pane is available only for a recently verified ADB device.
+    private boolean isFreshAdbDevice(String serial) {
+        if (serial == null || serial.isEmpty()) return false;
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        long scannedAt = prefs.getLong("last_scan_time", 0L);
+        return "device".equals(prefs.getString("state_" + serial, "unknown"))
+            && scannedAt > 0L && System.currentTimeMillis() - scannedAt <= 90_000L;
+    }
+
+    private java.util.ArrayList<String> getFreshAdbDevices() {
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        java.util.ArrayList<String> result = new java.util.ArrayList<>();
+        for (String serial : prefs.getStringSet("serials", new java.util.HashSet<>())) {
+            if (isFreshAdbDevice(serial)) result.add(serial);
+        }
+        java.util.Collections.sort(result);
+        return result;
+    }
+
+    private void showDualWorkspace() {
+        java.util.ArrayList<String> connected = getFreshAdbDevices();
+        if (connected.isEmpty()) {
+            new AlertDialog.Builder(this)
+                .setTitle("Màn hình kép chưa khả dụng")
+                .setMessage("Màn hình phụ chỉ mở khi BO Kali AI xác nhận có thiết bị ADB đang ở trạng thái device trong lần quét gần đây (tối đa 90 giây). Hãy kết nối/ghép đôi thiết bị rồi quét ADB lại.")
+                .setPositiveButton("QUÉT ADB", (d, w) -> runTermuxCommand("pkg install -y android-tools && adb devices -l"))
+                .setNegativeButton("ĐÓNG", null).show();
+            return;
+        }
+        final String[] deviceLabels = new String[connected.size()];
+        android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+        for (int i = 0; i < connected.size(); i++) {
+            String serial = connected.get(i);
+            String alias = prefs.getString("alias_" + serial, "");
+            deviceLabels[i] = (alias.isEmpty() ? serial : alias + " · " + serial);
+        }
+        String selected = connected.contains(dualWorkspaceSerial) ? dualWorkspaceSerial : connected.get(0);
+        showDualWorkspaceForDevice(selected, connected, deviceLabels);
+    }
+
+    private String dualWorkspaceSerial = "";
+
+    private void showDualWorkspaceForDevice(String serial, java.util.ArrayList<String> connected, String[] deviceLabels) {
+        if (!isFreshAdbDevice(serial)) {
+            line("Thiết bị không còn được xác nhận trực tuyến. Quét ADB lại trước khi mở màn phụ.", 0xffffca70);
+            return;
+        }
+        dualWorkspaceSerial = serial;
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(1);
+        page.setPadding(dp(10), dp(10), dp(10), dp(10));
+        page.setBackgroundColor(BG);
+
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(0);
+        Button back = button("QUAY LẠI");
+        back.setOnClickListener(v -> setContentView(root));
+        top.addView(back, new LinearLayout.LayoutParams(0, dp(44), 1));
+        Button choose = button("CHỌN THIẾT BỊ");
+        choose.setOnClickListener(v -> new AlertDialog.Builder(this)
+            .setTitle("Thiết bị ADB đang kết nối")
+            .setItems(deviceLabels, (d, which) -> showDualWorkspaceForDevice(connected.get(which), connected, deviceLabels))
+            .setNegativeButton("ĐÓNG", null).show());
+        top.addView(choose, new LinearLayout.LayoutParams(0, dp(44), 1));
+        Button refresh = button("KIỂM TRA LẠI");
+        refresh.setOnClickListener(v -> runTermuxCommand("adb devices -l"));
+        top.addView(refresh, new LinearLayout.LayoutParams(0, dp(44), 1));
+        page.addView(top);
+
+        LinearLayout split = new LinearLayout(this);
+        split.setOrientation(LinearLayout.HORIZONTAL);
+        split.setWeightSum(5f);
+
+        LinearLayout codePane = new LinearLayout(this);
+        codePane.setOrientation(1);
+        codePane.setPadding(dp(8), dp(8), dp(8), dp(8));
+        codePane.setBackgroundColor(PANEL);
+        TextView codeTitle = text("MÀN HÌNH CHÍNH · CODE / KALI / AI", GREEN, 13, true);
+        codePane.addView(codeTitle);
+        TextView codeInfo = text("Khu vực làm việc chính. Mở terminal đầy đủ để viết/chạy lệnh, dùng Kali và hỏi AI. Màn hình này không phụ thuộc thiết bị ADB.", WHITE, 12, false);
+        codePane.addView(codeInfo);
+        Button openTerminal = button("MỞ CODE / TERMINAL");
+        openTerminal.setOnClickListener(v -> setContentView(root));
+        codePane.addView(openTerminal, new LinearLayout.LayoutParams(-1, dp(48)));
+        Button kali = button("MỞ KALI SHELL");
+        kali.setOnClickListener(v -> kaliShellMenu());
+        codePane.addView(kali, new LinearLayout.LayoutParams(-1, dp(44)));
+        Button ai = button("HỎI AI");
+        ai.setOnClickListener(v -> { setContentView(root); questionInput.requestFocus(); });
+        codePane.addView(ai, new LinearLayout.LayoutParams(-1, dp(44)));
+
+        LinearLayout devicePane = new LinearLayout(this);
+        devicePane.setOrientation(1);
+        devicePane.setPadding(dp(8), dp(8), dp(8), dp(8));
+        devicePane.setBackgroundColor(0xff101f2e);
+        TextView deviceTitle = text("MÀN HÌNH PHỤ · THIẾT BỊ", 0xff79c9ff, 13, true);
+        devicePane.addView(deviceTitle);
+        String alias = prefs.getString("alias_" + serial, "");
+        TextView deviceInfo = text("Đã xác nhận ADB: " + (alias.isEmpty() ? serial : alias + " · " + serial)
+            + "\nTrạng thái: device\n\nKhung hiển thị trực tiếp đang được triển khai ở bước tiếp theo. Hiện tại bạn có thể chọn thiết bị và mở ứng dụng từ xa.", WHITE, 12, false);
+        devicePane.addView(deviceInfo);
+        Button launch = button("CHỌN / MỞ ỨNG DỤNG");
+        launch.setOnClickListener(v -> showAdbLaunchAppDialog(serial));
+        devicePane.addView(launch, new LinearLayout.LayoutParams(-1, dp(48)));
+        Button diagnostics = button("THÔNG TIN THIẾT BỊ");
+        diagnostics.setOnClickListener(v -> showAdbReadOnlyTools(serial));
+        devicePane.addView(diagnostics, new LinearLayout.LayoutParams(-1, dp(44)));
+        Button shell = button("LỆNH ADB SHELL");
+        shell.setOnClickListener(v -> showAdbShellDialogFor(serial));
+        devicePane.addView(shell, new LinearLayout.LayoutParams(-1, dp(44)));
+
+        final boolean[] deviceExpanded = {false};
+        final boolean[] swapped = {false};
+        Button expandCode = button("PHÓNG TO CODE");
+        Button expandDevice = button("PHÓNG TO THIẾT BỊ");
+        Button splitAgain = button("CHIA ĐÔI");
+        Button swap = button("ĐỔI VỊ TRÍ");
+        LinearLayout controls = new LinearLayout(this);
+        controls.setOrientation(0);
+        controls.addView(expandCode, new LinearLayout.LayoutParams(0, dp(42), 1));
+        controls.addView(expandDevice, new LinearLayout.LayoutParams(0, dp(42), 1));
+        controls.addView(splitAgain, new LinearLayout.LayoutParams(0, dp(42), 1));
+        controls.addView(swap, new LinearLayout.LayoutParams(0, dp(42), 1));
+        page.addView(controls);
+
+        LinearLayout.LayoutParams codeParams = new LinearLayout.LayoutParams(0, 0, 1f);
+        LinearLayout.LayoutParams deviceParams = new LinearLayout.LayoutParams(0, 0, 1f);
+        split.addView(codePane, codeParams);
+        split.addView(devicePane, deviceParams);
+        page.addView(split, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        Runnable applySplit = () -> {
+            codePane.setVisibility(View.VISIBLE);
+            devicePane.setVisibility(View.VISIBLE);
+            codePane.setLayoutParams(new LinearLayout.LayoutParams(0, 0, deviceExpanded[0] ? 1f : 1f));
+            devicePane.setLayoutParams(new LinearLayout.LayoutParams(0, 0, deviceExpanded[0] ? 4f : 1f));
+            if (deviceExpanded[0]) {
+                codePane.setLayoutParams(new LinearLayout.LayoutParams(0, 0, 1f));
+                devicePane.setLayoutParams(new LinearLayout.LayoutParams(0, 0, 4f));
+            }
+            if (swapped[0]) {
+                split.removeAllViews();
+                if (deviceExpanded[0]) {
+                    split.addView(devicePane, new LinearLayout.LayoutParams(0, 0, 4f));
+                    split.addView(codePane, new LinearLayout.LayoutParams(0, 0, 1f));
+                } else {
+                    split.addView(devicePane, new LinearLayout.LayoutParams(0, 0, 1f));
+                    split.addView(codePane, new LinearLayout.LayoutParams(0, 0, 1f));
+                }
+            } else {
+                split.removeAllViews();
+                split.addView(codePane, new LinearLayout.LayoutParams(0, 0, deviceExpanded[0] ? 1f : 1f));
+                split.addView(devicePane, new LinearLayout.LayoutParams(0, 0, deviceExpanded[0] ? 4f : 1f));
+            }
+        };
+        expandCode.setOnClickListener(v -> {
+            deviceExpanded[0] = false;
+            codePane.setVisibility(View.VISIBLE);
+            devicePane.setVisibility(View.VISIBLE);
+            split.removeAllViews();
+            split.addView(codePane, new LinearLayout.LayoutParams(0, 0, 4f));
+            split.addView(devicePane, new LinearLayout.LayoutParams(0, 0, 1f));
+        });
+        expandDevice.setOnClickListener(v -> {
+            if (!isFreshAdbDevice(serial)) {
+                devicePane.setVisibility(View.GONE);
+                line("Kết nối ADB đã hết hiệu lực; màn phụ được khóa. Hãy quét lại.", 0xffffca70);
+                return;
+            }
+            deviceExpanded[0] = true;
+            split.removeAllViews();
+            if (swapped[0]) {
+                split.addView(devicePane, new LinearLayout.LayoutParams(0, 0, 4f));
+                split.addView(codePane, new LinearLayout.LayoutParams(0, 0, 1f));
+            } else {
+                split.addView(codePane, new LinearLayout.LayoutParams(0, 0, 1f));
+                split.addView(devicePane, new LinearLayout.LayoutParams(0, 0, 4f));
+            }
+        });
+        splitAgain.setOnClickListener(v -> {
+            deviceExpanded[0] = false;
+            applySplit.run();
+        });
+        swap.setOnClickListener(v -> {
+            swapped[0] = !swapped[0];
+            applySplit.run();
+        });
+
+        setContentView(page);
+    }
 
     // Find the pairing-code service advertised while the target pairing dialog is open.
     private void scanAdbPairingServices() {
