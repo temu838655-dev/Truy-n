@@ -66,6 +66,7 @@ public class MainActivity extends Activity {
     private boolean adbResolveInFlight = false;
     private int adbResolveTaskToken = 0;
     private String adbResolveCurrentKey = "";
+    private long adbResolveDrainDeadline = 0L;
     private Runnable adbResolveTimeout;
     private NsdManager.DiscoveryListener adbDiscoveryListener;
     private NsdManager.DiscoveryListener adbPairingDiscoveryListener;
@@ -1157,8 +1158,8 @@ public class MainActivity extends Activity {
         if (name == null || type == null) return;
         String key = (pairing ? "pair:" : "connect:") + type + "|" + name;
         if (adbResolveQueuedKeys.contains(key)) return;
-        if (adbResolveQueue.size() >= 64) {
-            line("Đã đạt giới hạn 64 dịch vụ ADB trong một lượt quét; bỏ qua mục mới.", 0xffffca70);
+        if (adbResolveQueue.size() >= 24) {
+            line("Đã đạt giới hạn 24 dịch vụ ADB trong một lượt quét; bỏ qua mục mới để tránh kéo dài thời gian chờ.", 0xffffca70);
             return;
         }
         adbResolveQueuedKeys.add(key);
@@ -1167,8 +1168,21 @@ public class MainActivity extends Activity {
     }
 
     private void resolveNextAdbService() {
+        if (!adbResolveInFlight && adbResolveDrainDeadline > 0L
+            && android.os.SystemClock.elapsedRealtime() >= adbResolveDrainDeadline
+            && !adbResolveQueue.isEmpty()) {
+            int dropped = adbResolveQueue.size();
+            adbResolveQueue.clear();
+            adbResolveQueuedKeys.clear();
+            adbResolveDrainDeadline = 0L;
+            line("Đã hết thời gian chờ bổ sung sau khi dừng quét; bỏ qua "
+                + dropped + " dịch vụ ADB chưa phân giải.", 0xffffca70);
+        }
         if (adbResolveInFlight || adbResolveQueue.isEmpty()) {
-            if (!adbResolveInFlight && adbResolveQueue.isEmpty()) releaseHubMulticastLock();
+            if (!adbResolveInFlight && adbResolveQueue.isEmpty()) {
+                adbResolveDrainDeadline = 0L;
+                releaseHubMulticastLock();
+            }
             return;
         }
         Runnable task = adbResolveQueue.poll();
@@ -1285,6 +1299,7 @@ public class MainActivity extends Activity {
         adbResolveCurrentKey = "";
         adbResolveQueue.clear();
         adbResolveQueuedKeys.clear();
+        adbResolveDrainDeadline = 0L;
         releaseHubMulticastLock();
     }
 
@@ -1294,6 +1309,7 @@ public class MainActivity extends Activity {
             return;
         }
         adbResolveQueuedKeys.clear();
+        adbResolveDrainDeadline = 0L;
         nsdManager = (NsdManager) getSystemService(Context.NSD_SERVICE);
         if (nsdManager == null) { line("Thiết bị không hỗ trợ Network Service Discovery.", 0xffff8080); return; }
         adbPairingScanActive = true;
@@ -1335,8 +1351,11 @@ public class MainActivity extends Activity {
                 if (adbPairingDiscoveryTimeout != null) mainHandler.removeCallbacks(adbPairingDiscoveryTimeout);
                 adbPairingDiscoveryTimeout = null;
                 adbPairingDiscoveryListener = null;
+                if (adbResolveInFlight || !adbResolveQueue.isEmpty()) {
+                    adbResolveDrainDeadline = android.os.SystemClock.elapsedRealtime() + 15000L;
+                }
                 releaseHubMulticastLock();
-                line("Đã kết thúc quét cổng pairing.", GREEN);
+                line("Đã kết thúc quét pairing; đang xử lý nốt các endpoint đã tìm thấy.", GREEN);
             }
         };
         adbPairingDiscoveryListener = listener;
@@ -1387,6 +1406,7 @@ public class MainActivity extends Activity {
             return;
         }
         adbResolveQueuedKeys.clear();
+        adbResolveDrainDeadline = 0L;
         nsdManager = (NsdManager) getSystemService(Context.NSD_SERVICE);
         if (nsdManager == null) { line("Thiết bị không hỗ trợ Network Service Discovery.", 0xffff8080); return; }
         adbScanActive = true;
@@ -1429,8 +1449,11 @@ public class MainActivity extends Activity {
                 if (adbDiscoveryTimeout != null) mainHandler.removeCallbacks(adbDiscoveryTimeout);
                 adbDiscoveryTimeout = null;
                 adbDiscoveryListener = null;
+                if (adbResolveInFlight || !adbResolveQueue.isEmpty()) {
+                    adbResolveDrainDeadline = android.os.SystemClock.elapsedRealtime() + 15000L;
+                }
                 releaseHubMulticastLock();
-                line("Đã kết thúc quét ADB.", GREEN);
+                line("Đã kết thúc quét ADB; đang xử lý nốt các endpoint đã tìm thấy.", GREEN);
             }
         };
         adbDiscoveryListener = listener;
