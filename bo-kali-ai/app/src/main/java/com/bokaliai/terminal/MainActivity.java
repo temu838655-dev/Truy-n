@@ -34,6 +34,9 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Spinner;
+import android.widget.ArrayAdapter;
+import android.text.InputType;
 import android.widget.ImageView;
 import android.graphics.BitmapFactory;
 import org.json.JSONArray;
@@ -112,6 +115,9 @@ public class MainActivity extends Activity {
         Button dualWorkspace = button("MÀN HÌNH KÉP");
         dualWorkspace.setOnClickListener(v -> showDualWorkspace());
         root.addView(dualWorkspace, new LinearLayout.LayoutParams(-1, dp(44)));
+        Button deviceHub = button("TRUNG TÂM THIẾT BỊ ĐA NỀN TẢNG");
+        deviceHub.setOnClickListener(v -> showUniversalDeviceHub());
+        root.addView(deviceHub, new LinearLayout.LayoutParams(-1, dp(46)));
         root.addView(adbRow);
         Button batchAdb = button("KIỂM TRA NHIỀU THIẾT BỊ");
         batchAdb.setOnClickListener(v -> showAdbBatchCheck());
@@ -227,13 +233,190 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void showUniversalDeviceHub() {
+        java.util.ArrayList<DeviceHubProfile> profiles = DeviceHubProfile.load(this);
+        String[] labels = new String[profiles.size()];
+        for (int i = 0; i < profiles.size(); i++) {
+            DeviceHubProfile p = profiles.get(i);
+            String type = DeviceHubProfile.ANDROID_ADB.equals(p.platform) ? "Android / TV · ADB"
+                : DeviceHubProfile.SSH.equals(p.platform) ? "SSH · " + p.username
+                : DeviceHubProfile.HOME_ASSISTANT.equals(p.platform) ? "Home Assistant"
+                : "Web / Router / NAS";
+            labels[i] = p.name + "  ·  " + type + "  ·  " + p.host;
+        }
+        String message = "Kết nối theo giao thức mà từng thiết bị hỗ trợ. Android/TV dùng ADB; Windows cần bật OpenSSH Server nếu dùng SSH; Linux/macOS dùng SSH; Home Assistant và router/NAS mở giao diện web. BO Kali AI không thể vượt qua yêu cầu cấp quyền hoặc khóa bảo mật.";
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+            .setTitle("TRUNG TÂM THIẾT BỊ ĐA NỀN TẢNG")
+            .setMessage(message)
+            .setPositiveButton("THÊM THIẾT BỊ", (d, w) -> showAddDeviceProfileDialog())
+            .setNeutralButton("QUÉT ANDROID / TV", (d, w) -> runTermuxCommand("pkg install -y android-tools && adb devices -l"))
+            .setNegativeButton("ĐÓNG", null);
+        if (!profiles.isEmpty()) {
+            builder.setItems(labels, (d, which) -> showDeviceProfileActions(profiles.get(which)));
+        }
+        builder.show();
+    }
+
+    private void showAddDeviceProfileDialog() {
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(1);
+        form.setPadding(dp(18), dp(8), dp(18), 0);
+
+        String[] platformLabels = {
+            "Android / Android TV (ADB)",
+            "Windows (SSH / OpenSSH Server)",
+            "Linux / Kali / macOS (SSH)",
+            "Home Assistant",
+            "Router / NAS / giao diện Web"
+        };
+        String[] platformValues = {
+            DeviceHubProfile.ANDROID_ADB,
+            DeviceHubProfile.SSH,
+            DeviceHubProfile.SSH,
+            DeviceHubProfile.HOME_ASSISTANT,
+            DeviceHubProfile.WEB
+        };
+        Spinner platform = new Spinner(this);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, platformLabels);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        platform.setAdapter(adapter);
+        form.addView(platform, new LinearLayout.LayoutParams(-1, dp(48)));
+
+        EditText name = input("Tên dễ nhớ, ví dụ: PC phòng làm việc");
+        form.addView(name, new LinearLayout.LayoutParams(-1, dp(48)));
+        EditText host = input("IP / tên miền / URL");
+        host.setSingleLine(true);
+        form.addView(host, new LinearLayout.LayoutParams(-1, dp(48)));
+        EditText port = input("Cổng: ADB 5555 · SSH 22 · Home Assistant 8123");
+        port.setInputType(InputType.TYPE_CLASS_NUMBER);
+        port.setText("22");
+        form.addView(port, new LinearLayout.LayoutParams(-1, dp(48)));
+        EditText username = input("Tên đăng nhập SSH (không lưu mật khẩu)");
+        username.setSingleLine(true);
+        form.addView(username, new LinearLayout.LayoutParams(-1, dp(48)));
+
+        platform.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                String defaultPort = position == 0 ? "5555" : position == 3 ? "8123" : position == 4 ? "80" : "22";
+                port.setText(defaultPort);
+                username.setVisibility((position == 1 || position == 2) ? View.VISIBLE : View.GONE);
+                host.setHint(position == 4 ? "http://192.168.1.1 hoặc https://..." : "IP / tên miền");
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+        });
+
+        new AlertDialog.Builder(this).setTitle("THÊM THIẾT BỊ / DỊCH VỤ")
+            .setMessage("Chỉ lưu thông tin định tuyến, không lưu mật khẩu, mã ghép đôi hay token.")
+            .setView(form)
+            .setPositiveButton("LƯU", (d, w) -> {
+                int selected = platform.getSelectedItemPosition();
+                String n = name.getText().toString().trim();
+                String h = host.getText().toString().trim();
+                String u = username.getText().toString().trim();
+                int p;
+                try { p = Integer.parseInt(port.getText().toString().trim()); }
+                catch (Exception error) { p = -1; }
+                String proto = platformValues[selected];
+                boolean web = DeviceHubProfile.WEB.equals(proto);
+                boolean validHost = web
+                    ? (h.startsWith("http://") || h.startsWith("https://")) && h.length() < 512
+                    : h.matches("[A-Za-z0-9._:%\\[\\]-]{1,253}");
+                if (n.isEmpty() || !validHost || p < 1 || p > 65535
+                    || (DeviceHubProfile.SSH.equals(proto) && !u.matches("[A-Za-z0-9._-]{1,64}"))) {
+                    line("Thông tin thiết bị chưa hợp lệ. Kiểm tra tên, địa chỉ, cổng và tài khoản SSH.", 0xffff8080);
+                    return;
+                }
+                DeviceHubProfile.save(this, n, proto, h, p, u);
+                line("Đã lưu profile thiết bị: " + n + ". Chưa có kết nối nào được mở.", GREEN);
+                showUniversalDeviceHub();
+            })
+            .setNegativeButton("HỦY", null).show();
+    }
+
+    private void showDeviceProfileActions(DeviceHubProfile profile) {
+        String[] actions = {"KẾT NỐI", "XÓA PROFILE", "HỦY"};
+        new AlertDialog.Builder(this).setTitle(profile.name)
+            .setItems(actions, (d, which) -> {
+                if (which == 0) connectDeviceProfile(profile);
+                else if (which == 1) new AlertDialog.Builder(this)
+                    .setTitle("Xóa profile?")
+                    .setMessage("Chỉ xóa thông tin kết nối đã lưu trong BO Kali AI. Không xóa dữ liệu trên thiết bị.")
+                    .setPositiveButton("XÓA", (x, y) -> {
+                        DeviceHubProfile.delete(this, profile.id);
+                        line("Đã xóa profile " + profile.name + ".", GREEN);
+                        showUniversalDeviceHub();
+                    }).setNegativeButton("HỦY", null).show();
+            }).show();
+    }
+
+    private void connectDeviceProfile(DeviceHubProfile profile) {
+        if (DeviceHubProfile.ANDROID_ADB.equals(profile.platform)) {
+            String endpoint = profile.host.contains(":") && profile.host.startsWith("[")
+                ? profile.host + ":" + profile.port : profile.host + ":" + profile.port;
+            new AlertDialog.Builder(this).setTitle("Kết nối Android / Android TV")
+                .setMessage("ADB sẽ kết nối tới " + endpoint + ". Thiết bị phải bật Wireless debugging/ADB và chấp nhận khóa RSA hoặc đã ghép đôi. Không thể kết nối trái phép.")
+                .setPositiveButton("KẾT NỐI", (d, w) -> runTermuxCommand(
+                    "pkg install -y android-tools && adb connect " + shellQuote(endpoint) + " && adb devices -l"))
+                .setNegativeButton("HỦY", null).show();
+            return;
+        }
+        if (DeviceHubProfile.SSH.equals(profile.platform)) {
+            String command = "pkg install -y openssh && ssh -p " + profile.port
+                + " -o ConnectTimeout=10 " + shellQuote(profile.username + "@" + profile.host);
+            new AlertDialog.Builder(this).setTitle("Kết nối SSH · " + profile.name)
+                .setMessage("Mở phiên SSH trong Termux. Lần đầu có thể cần xác nhận host key và nhập mật khẩu trực tiếp trong Termux. BO Kali AI không lưu mật khẩu.")
+                .setPositiveButton("MỞ PHIÊN SSH", (d, w) -> runTermuxInteractiveCommand(command))
+                .setNegativeButton("HỦY", null).show();
+            return;
+        }
+        String target = profile.host;
+        if (DeviceHubProfile.HOME_ASSISTANT.equals(profile.platform)) {
+            if (!target.startsWith("http://") && !target.startsWith("https://")) {
+                target = "http://" + target + (profile.port == 8123 ? ":8123" : ":" + profile.port);
+            }
+        }
+        try {
+            Uri uri = Uri.parse(target);
+            String scheme = uri.getScheme();
+            if (!"http".equals(scheme) && !"https".equals(scheme)) {
+                line("Chỉ mở giao diện web qua HTTP/HTTPS.", 0xffff8080);
+                return;
+            }
+            Intent browser = new Intent(Intent.ACTION_VIEW, uri);
+            startActivity(browser);
+            line("Đã yêu cầu mở giao diện " + profile.name + ". Đăng nhập theo quyền của dịch vụ.", GREEN);
+        } catch (Exception error) {
+            line("Không mở được giao diện web: " + error.getMessage(), 0xffff8080);
+        }
+    }
+
+    private void runTermuxInteractiveCommand(String command) {
+        try {
+            Intent intent = new Intent("com.termux.RUN_COMMAND");
+            intent.setClassName("com.termux", "com.termux.app.RunCommandService");
+            intent.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash");
+            intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[]{"-lc", command});
+            intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home");
+            intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", false);
+            intent.putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0");
+            startService(intent);
+            line("Đã mở yêu cầu phiên tương tác trong Termux.", GREEN);
+        } catch (SecurityException error) {
+            line("Termux chưa cấp quyền RUN_COMMAND hoặc chưa bật allow-external-apps.", 0xffffca70);
+            openTermux();
+        } catch (Exception error) {
+            line("Không mở được phiên Termux: " + error.getMessage(), 0xffff8080);
+        }
+    }
+
     private void showDualWorkspace() {
         java.util.ArrayList<String> connected = getFreshAdbDevices();
         if (connected.isEmpty()) {
             new AlertDialog.Builder(this)
-                .setTitle("Màn hình kép chưa khả dụng")
-                .setMessage("Màn hình phụ chỉ mở khi BO Kali AI xác nhận có thiết bị ADB đang ở trạng thái device trong lần quét gần đây (tối đa 90 giây). Hãy kết nối/ghép đôi thiết bị rồi quét ADB lại.")
-                .setPositiveButton("QUÉT ADB", (d, w) -> runTermuxCommand("pkg install -y android-tools && adb devices -l"))
+                .setTitle("Chưa có thiết bị Android ADB")
+                .setMessage("Bạn vẫn có thể quản lý máy tính Windows/Linux/macOS qua SSH, mở giao diện Home Assistant, router hoặc NAS. Thêm thiết bị trong Trung tâm thiết bị đa nền tảng.")
+                .setPositiveButton("MỞ TRUNG TÂM THIẾT BỊ", (d, w) -> showUniversalDeviceHub())
+                .setNeutralButton("QUÉT ADB", (d, w) -> runTermuxCommand("pkg install -y android-tools && adb devices -l"))
                 .setNegativeButton("ĐÓNG", null).show();
             return;
         }
