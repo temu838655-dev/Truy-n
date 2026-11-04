@@ -7,6 +7,10 @@ val ciBuildNumber = providers.environmentVariable("GITHUB_RUN_NUMBER")
     .get()
     .toInt()
 
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+}
+
 android {
     namespace = "com.bokaliai.terminal"
     compileSdk = 35
