@@ -2698,8 +2698,10 @@ public class MainActivity extends Activity {
                 : new java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
                     .format(new java.util.Date(seen));
             String alias = prefs.getString("alias_" + serial, "");
+            boolean hasIdentity = !prefs.getString("identity_hash_" + serial, "").isEmpty();
             labels[i] = (alias.isEmpty() ? serial : alias + "  ·  " + serial)
-                + "  [" + adbStateLabel(state) + "]  •  " + seenLabel;
+                + "  [" + adbStateLabel(state) + "]  •  " + seenLabel
+                + (hasIdentity ? "  •  Đã ghi nhận ID phần cứng" : "");
         }
         String message = filtered.isEmpty()
             ? "Không có thiết bị khớp bộ lọc. " + scanLabel
