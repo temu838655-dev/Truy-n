@@ -846,6 +846,17 @@ public class MainActivity extends Activity {
         remoteKeys.addView(keyHome, new LinearLayout.LayoutParams(0, dp(40), 1));
         remoteKeys.addView(keyRecent, new LinearLayout.LayoutParams(0, dp(40), 1));
         devicePane.addView(remoteKeys);
+        LinearLayout textEntry = new LinearLayout(this);
+        textEntry.setOrientation(LinearLayout.HORIZONTAL);
+        EditText remoteText = input("Nhập chữ để gửi tới thiết bị...");
+        textEntry.addView(remoteText, new LinearLayout.LayoutParams(0, dp(46), 1));
+        Button sendText = button("GỬI CHỮ");
+        sendText.setOnClickListener(v -> {
+            if (activeMirrorView != null) activeMirrorView.sendText(remoteText.getText().toString());
+            remoteText.setText("");
+        });
+        textEntry.addView(sendText, new LinearLayout.LayoutParams(dp(88), dp(46)));
+        devicePane.addView(textEntry);
         Button stopMirror = button("TẮT PHIÊN ADB + SCRCPY HOÀN TOÀN");
         stopMirror.setOnClickListener(v -> stopAdbMirror(serial));
         devicePane.addView(stopMirror, new LinearLayout.LayoutParams(-1, dp(42)));

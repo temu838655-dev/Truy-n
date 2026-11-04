@@ -22,6 +22,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -370,6 +371,27 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             writeKey(output, 1, androidKeyCode);
         } catch (IOException error) {
             setStatus("Không gửi được phím: " + safeMessage(error));
+        }
+    }
+
+    public void sendText(String value) {
+        OutputStream output = controlOutput;
+        if (!running.get() || output == null || value == null || value.isEmpty()) return;
+        byte[] utf8 = value.getBytes(StandardCharsets.UTF_8);
+        if (utf8.length > 300) {
+            setStatus("Văn bản quá dài (tối đa 300 byte UTF-8 mỗi lần gửi)");
+            return;
+        }
+        // scrcpy INJECT_TEXT: type byte + 32-bit UTF-8 byte length + payload.
+        ByteBuffer message = ByteBuffer.allocate(5 + utf8.length).order(ByteOrder.BIG_ENDIAN);
+        message.put((byte) 1).putInt(utf8.length).put(utf8);
+        try {
+            synchronized (output) {
+                output.write(message.array());
+                output.flush();
+            }
+        } catch (IOException error) {
+            setStatus("Không gửi được văn bản: " + safeMessage(error));
         }
     }
 
