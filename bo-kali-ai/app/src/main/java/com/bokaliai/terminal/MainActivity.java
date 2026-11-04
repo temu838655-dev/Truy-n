@@ -1089,7 +1089,8 @@ public class MainActivity extends Activity {
                     line("Mức lọc phải là V, D, I, W, E hoặc F.", 0xffffca70);
                     return;
                 }
-                String filter = "*:" + priority;
+                final String selectedPriority = priority;
+                String filter = "*:" + selectedPriority;
                 String command = "adb -s " + shellQuote(serial)
                     + " logcat -d -v threadtime -t " + count + " " + shellQuote(filter);
                 new AlertDialog.Builder(this)
@@ -1098,7 +1099,7 @@ public class MainActivity extends Activity {
                         + "\\nMức lọc: " + priority
                         + "\\n\\nLệnh chỉ đọc log, không dùng logcat -c. Kết quả gần nhất sẽ được lưu trong BO Kali AI; hãy kiểm tra trước khi chia sẻ.")
                     .setPositiveButton("ĐỌC LOG", (x, y) -> {
-                        line("Đang đọc tối đa " + count + " dòng Logcat (mức " + priority + ") từ " + serial + "...", GREEN);
+                        line("Đang đọc tối đa " + count + " dòng Logcat (mức " + selectedPriority + ") từ " + serial + "...", GREEN);
                         runTermuxCommand(command);
                     })
                     .setNegativeButton("HỦY", null)
