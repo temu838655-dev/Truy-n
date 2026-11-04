@@ -786,6 +786,7 @@ public class MainActivity extends Activity {
             JSONObject data = rootJson.getJSONObject("data");
             android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
             android.content.SharedPreferences.Editor editor = prefs.edit();
+            java.util.HashSet<String> importedSerials = new java.util.HashSet<>();
             String[] setKeys = {"serials", "discovered_endpoints", "pairing_endpoints"};
             for (String key : setKeys) {
                 JSONArray values = data.optJSONArray(key);
@@ -795,7 +796,10 @@ public class MainActivity extends Activity {
                     String value = values.optString(i, "").trim();
                     if (value.isEmpty() || value.length() > 512) continue;
                     if ("serials".equals(key)) {
-                        if (value.matches("[A-Za-z0-9._:-]{1,200}")) merged.add(value);
+                        if (value.matches("[A-Za-z0-9._:-]{1,200}")) {
+                            merged.add(value);
+                            importedSerials.add(value);
+                        }
                     } else if (isValidAdbEndpoint(value)) {
                         merged.add(value);
                     }
@@ -829,8 +833,11 @@ public class MainActivity extends Activity {
                 else continue;
                 restored++;
             }
+            // Trạng thái trực tuyến trong bản sao lưu có thể đã cũ; yêu cầu quét lại trước khi dùng.
+            for (String serial : importedSerials) editor.putString("state_" + serial, "not_listed");
+            editor.remove("last_scan_time");
             editor.apply();
-            line("Đã khôi phục/gộp cấu hình ADB. Không tự kết nối hoặc chạy lệnh.", GREEN);
+            line("Đã khôi phục/gộp cấu hình ADB. Trạng thái thiết bị được đánh dấu cần quét lại; không tự kết nối hoặc chạy lệnh.", GREEN);
             new AlertDialog.Builder(this).setMessage("Đã nhập dữ liệu sao lưu. Hãy quét ADB lại để cập nhật trạng thái trực tuyến.")
                 .setPositiveButton("ĐÓNG", null).show();
         } catch (Exception e) { line("Không khôi phục được sao lưu: " + e.getMessage(), 0xffff8080); }
