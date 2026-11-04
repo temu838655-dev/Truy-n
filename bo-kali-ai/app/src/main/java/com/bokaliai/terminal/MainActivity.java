@@ -3273,8 +3273,8 @@ public class MainActivity extends Activity {
                     if (!alias.isEmpty()) {
                         new AlertDialog.Builder(this).setTitle("Có phải thiết bị cũ?")
                             .setMessage("Thiết bị mới " + adbSerial + " có dấu vân tay SHA-256 trùng với " + label
-                                + (brand.isEmpty() && model.isEmpty() ? "" : "\\nModel hiện tại: " + brand + " " + model)
-                                + "\\n\\nBạn có xác nhận đây là cùng một thiết bị và muốn dùng lại tên gợi nhớ không? Serial ADB cũ vẫn được giữ.")
+                                + (brand.isEmpty() && model.isEmpty() ? "" : "\nModel hiện tại: " + brand + " " + model)
+                                + "\n\nBạn có xác nhận đây là cùng một thiết bị và muốn dùng lại tên gợi nhớ không? Serial ADB cũ vẫn được giữ.")
                             .setPositiveButton("DÙNG TÊN GỢI NHỚ CŨ", (d, w) -> {
                                 prefs.edit().putString("alias_" + adbSerial, alias).apply();
                                 line("Đã gán tên gợi nhớ " + alias + " cho serial ADB mới. Bản ghi cũ vẫn được giữ.", GREEN);
