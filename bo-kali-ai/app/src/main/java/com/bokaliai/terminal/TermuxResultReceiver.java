@@ -131,10 +131,10 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         // overwrite another before the Activity is allowed to resume.
         String previousPending = resultPrefs.getString("pending_output", "");
         String combinedPending = previousPending.isEmpty() ? output.toString()
-            : previousPending + "\\n\\n--- KẾT QUẢ TERMUX TIẾP THEO ---\\n" + output;
+            : previousPending + "\n\n--- KẾT QUẢ TERMUX TIẾP THEO ---\n" + output;
         final int maxPendingChars = 48000;
         if (combinedPending.length() > maxPendingChars) {
-            combinedPending = "[Một số kết quả Termux cũ đã được lược bớt để giới hạn bộ nhớ.]\\n"
+            combinedPending = "[Một số kết quả Termux cũ đã được lược bớt để giới hạn bộ nhớ.]\n"
                 + combinedPending.substring(combinedPending.length() - maxPendingChars);
         }
         boolean previousScreenCapture = resultPrefs.getBoolean("pending_screen_capture", false);
