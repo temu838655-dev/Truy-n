@@ -2587,54 +2587,191 @@ public class MainActivity extends Activity {
         intent.setType("*/*");
         intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"text/*", "application/json", "application/xml",
             "application/javascript", "application/x-sh", "application/x-python", "application/x-java",
-            "application/x-yaml", "application/toml"});
+            "application/x-yaml", "application/toml", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
         startActivityForResult(intent, REQ_AI_TEXT_FILE);
+    }
+
+    private String getAiDocumentName(Uri uri) {
+        String fileName = "selected-file.txt";
+        android.database.Cursor cursor = getContentResolver().query(uri,
+            new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null);
+        if (cursor != null) try {
+            if (cursor.moveToFirst()) {
+                int col = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                if (col >= 0 && cursor.getString(col) != null) fileName = cursor.getString(col);
+            }
+        } finally { cursor.close(); }
+        return fileName;
+    }
+
+    private org.w3c.dom.Document parseOfficeXml(byte[] xml) throws Exception {
+        javax.xml.parsers.DocumentBuilderFactory factory = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        factory.setXIncludeAware(false);
+        factory.setExpandEntityReferences(false);
+        return factory.newDocumentBuilder().parse(new java.io.ByteArrayInputStream(xml));
+    }
+
+    private byte[] readOfficeZipEntry(java.util.Map<String, byte[]> entries, String name) {
+        return entries.get(name);
+    }
+
+    private String extractDocxText(java.util.Map<String, byte[]> entries) throws Exception {
+        byte[] document = readOfficeZipEntry(entries, "word/document.xml");
+        if (document == null) throw new IllegalArgumentException("DOCX thiếu word/document.xml.");
+        org.w3c.dom.Document xml = parseOfficeXml(document);
+        org.w3c.dom.NodeList paragraphs = xml.getElementsByTagNameNS("*", "p");
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < paragraphs.getLength(); i++) {
+            org.w3c.dom.NodeList texts = ((org.w3c.dom.Element) paragraphs.item(i)).getElementsByTagNameNS("*", "t");
+            StringBuilder paragraph = new StringBuilder();
+            for (int j = 0; j < texts.getLength(); j++) paragraph.append(texts.item(j).getTextContent());
+            if (paragraph.length() > 0) {
+                if (out.length() > 0) out.append('\n');
+                out.append(paragraph);
+            }
+            if (out.length() > 120000) throw new IllegalArgumentException("Văn bản DOCX vượt giới hạn 120.000 ký tự.");
+        }
+        return out.toString();
+    }
+
+    private String extractXlsxText(java.util.Map<String, byte[]> entries) throws Exception {
+        java.util.ArrayList<String> shared = new java.util.ArrayList<>();
+        byte[] sharedXml = readOfficeZipEntry(entries, "xl/sharedStrings.xml");
+        if (sharedXml != null) {
+            org.w3c.dom.Document doc = parseOfficeXml(sharedXml);
+            org.w3c.dom.NodeList items = doc.getElementsByTagNameNS("*", "si");
+            for (int i = 0; i < items.getLength(); i++) {
+                org.w3c.dom.NodeList texts = ((org.w3c.dom.Element) items.item(i)).getElementsByTagNameNS("*", "t");
+                StringBuilder value = new StringBuilder();
+                for (int j = 0; j < texts.getLength(); j++) value.append(texts.item(j).getTextContent());
+                shared.add(value.toString());
+            }
+        }
+        java.util.ArrayList<String> sheetNames = new java.util.ArrayList<>();
+        for (String name : entries.keySet()) {
+            if (name.matches("xl/worksheets/sheet[0-9]+\\.xml")) sheetNames.add(name);
+        }
+        java.util.Collections.sort(sheetNames, (a, b) -> {
+            int ai = Integer.parseInt(a.replaceAll("[^0-9]", ""));
+            int bi = Integer.parseInt(b.replaceAll("[^0-9]", ""));
+            return Integer.compare(ai, bi);
+        });
+        if (sheetNames.isEmpty()) throw new IllegalArgumentException("XLSX không có worksheet để đọc.");
+        StringBuilder out = new StringBuilder();
+        for (String sheetName : sheetNames) {
+            org.w3c.dom.Document sheet = parseOfficeXml(entries.get(sheetName));
+            org.w3c.dom.NodeList rows = sheet.getElementsByTagNameNS("*", "row");
+            out.append("\n[").append(sheetName.substring(sheetName.lastIndexOf('/') + 1, sheetName.length() - 4)).append("]\n");
+            for (int r = 0; r < rows.getLength(); r++) {
+                org.w3c.dom.NodeList cells = ((org.w3c.dom.Element) rows.item(r)).getElementsByTagNameNS("*", "c");
+                boolean first = true;
+                for (int c = 0; c < cells.getLength(); c++) {
+                    org.w3c.dom.Element cell = (org.w3c.dom.Element) cells.item(c);
+                    if (!first) out.append('\t');
+                    first = false;
+                    String type = cell.getAttribute("t");
+                    org.w3c.dom.NodeList values = cell.getElementsByTagNameNS("*", "v");
+                    if ("s".equals(type) && values.getLength() > 0) {
+                        int index = Integer.parseInt(values.item(0).getTextContent());
+                        if (index >= 0 && index < shared.size()) out.append(shared.get(index));
+                    } else if ("inlineStr".equals(type)) {
+                        org.w3c.dom.NodeList texts = cell.getElementsByTagNameNS("*", "t");
+                        for (int t = 0; t < texts.getLength(); t++) out.append(texts.item(t).getTextContent());
+                    } else if (values.getLength() > 0) {
+                        out.append(values.item(0).getTextContent());
+                    }
+                    if (out.length() > 120000) throw new IllegalArgumentException("Nội dung XLSX vượt giới hạn 120.000 ký tự.");
+                }
+                out.append('\n');
+            }
+        }
+        return out.toString();
+    }
+
+    private java.util.Map<String, byte[]> readOfficeArchive(byte[] archive) throws Exception {
+        java.util.HashMap<String, byte[]> entries = new java.util.HashMap<>();
+        int total = 0;
+        try (java.util.zip.ZipInputStream zip = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(archive))) {
+            java.util.zip.ZipEntry entry;
+            byte[] buffer = new byte[8192];
+            while ((entry = zip.getNextEntry()) != null) {
+                if (!entry.isDirectory()) {
+                    String name = entry.getName();
+                    if (name.startsWith("/") || name.contains("../") || name.contains("\\\\")) {
+                        throw new IllegalArgumentException("Tệp Office chứa đường dẫn ZIP không an toàn.");
+                    }
+                    boolean wanted = "word/document.xml".equals(name) || "xl/sharedStrings.xml".equals(name)
+                        || name.matches("xl/worksheets/sheet[0-9]+\\.xml");
+                    if (wanted) {
+                        java.io.ByteArrayOutputStream data = new java.io.ByteArrayOutputStream();
+                        int count = 0, n;
+                        while ((n = zip.read(buffer)) != -1) {
+                            count += n; total += n;
+                            if (count > 2 * 1024 * 1024 || total > 4 * 1024 * 1024)
+                                throw new IllegalArgumentException("Tệp Office giải nén vượt giới hạn an toàn.");
+                            data.write(buffer, 0, n);
+                        }
+                        entries.put(name, data.toByteArray());
+                    }
+                }
+                zip.closeEntry();
+            }
+        }
+        return entries;
     }
 
     private void readAiTextFile(Uri uri) {
         worker.execute(() -> {
             try {
-                String mime = getContentResolver().getType(uri);
-                if (mime != null && !(mime.startsWith("text/") || mime.equals("application/json")
-                    || mime.equals("application/xml") || mime.contains("javascript") || mime.contains("yaml")
-                    || mime.contains("x-sh") || mime.contains("python") || mime.contains("java")
-                    || mime.contains("toml"))) {
-                    throw new IllegalArgumentException("Chỉ hỗ trợ tệp văn bản/mã nguồn ở bước này. PDF, DOCX, XLSX và ảnh chưa được bật.");
-                }
-                String fileContent;
+                String fileName = getAiDocumentName(uri);
+                String lowerName = fileName.toLowerCase(java.util.Locale.ROOT);
+                byte[] raw;
                 try (java.io.InputStream in = getContentResolver().openInputStream(uri);
                      java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream()) {
                     if (in == null) throw new java.io.IOException("Không mở được tệp.");
                     byte[] buffer = new byte[8192]; int n;
                     while ((n = in.read(buffer)) != -1) {
-                        if (bytes.size() + n > 256 * 1024) throw new IllegalArgumentException("Tệp vượt giới hạn 256 KB.");
+                        if (bytes.size() + n > 5 * 1024 * 1024) throw new IllegalArgumentException("Tệp vượt giới hạn 5 MB.");
                         bytes.write(buffer, 0, n);
                     }
+                    raw = bytes.toByteArray();
+                }
+                String fileContent;
+                if (lowerName.endsWith(".docx") || lowerName.endsWith(".xlsx")) {
+                    java.util.Map<String, byte[]> entries = readOfficeArchive(raw);
+                    fileContent = lowerName.endsWith(".docx") ? extractDocxText(entries) : extractXlsxText(entries);
+                    if (fileContent.trim().isEmpty()) throw new IllegalArgumentException("Không tìm thấy văn bản có thể trích xuất trong tệp Office.");
+                } else {
+                    String mime = getContentResolver().getType(uri);
+                    if (mime != null && !(mime.startsWith("text/") || mime.equals("application/json")
+                        || mime.equals("application/xml") || mime.contains("javascript") || mime.contains("yaml")
+                        || mime.contains("x-sh") || mime.contains("python") || mime.contains("java")
+                        || mime.contains("toml"))) {
+                        throw new IllegalArgumentException("Định dạng chưa hỗ trợ. Hiện hỗ trợ văn bản UTF-8, DOCX và XLSX; PDF sẽ được bổ sung riêng.");
+                    }
+                    if (raw.length > 256 * 1024) throw new IllegalArgumentException("Tệp văn bản vượt giới hạn 256 KB.");
                     try {
                         fileContent = StandardCharsets.UTF_8.newDecoder()
                             .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
                             .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
-                            .decode(java.nio.ByteBuffer.wrap(bytes.toByteArray())).toString();
+                            .decode(java.nio.ByteBuffer.wrap(raw)).toString();
                     } catch (java.nio.charset.CharacterCodingException invalidText) {
                         throw new IllegalArgumentException("Tệp không phải văn bản UTF-8 hợp lệ.");
                     }
                     if (fileContent.indexOf(0) >= 0) throw new IllegalArgumentException("Tệp có dữ liệu nhị phân, không phải văn bản UTF-8.");
                 }
-                String fileName = "selected-file.txt";
-                android.database.Cursor cursor = getContentResolver().query(uri,
-                    new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null);
-                if (cursor != null) try {
-                    if (cursor.moveToFirst()) {
-                        int col = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
-                        if (col >= 0) fileName = cursor.getString(col);
-                    }
-                } finally { cursor.close(); }
+                if (fileContent.length() > 120000) fileContent = fileContent.substring(0, 120000);
                 final String name = fileName;
                 final String content = fileContent;
                 runOnUiThread(() -> {
                     selectedAiFileName = name;
                     selectedAiFileText = content;
-                    line("Đã nạp tệp vào RAM phiên: " + name + " (" + content.length()
+                    line("Đã trích xuất tệp vào RAM phiên: " + name + " (" + content.length()
                         + " ký tự). Chưa gửi cho AI nào; hãy cấp quyền riêng.", GREEN);
                 });
             } catch (Exception e) {
