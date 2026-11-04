@@ -1443,12 +1443,12 @@ public class MainActivity extends Activity {
             line("Chưa có kết quả ADB / Kali để xuất. Hãy chạy lệnh hoặc kiểm tra thiết bị trước.", 0xffffca70);
             return;
         }
-        final String content = report;
+        final String original = report;
         new AlertDialog.Builder(this)
-            .setTitle("Xuất báo cáo ADB / Kali")
-            .setMessage("Tạo tệp TXT từ kết quả Termux gần nhất. Báo cáo có thể chứa serial, địa chỉ IP, tên thiết bị hoặc dữ liệu riêng tư. Hãy kiểm tra trước khi gửi cho người khác.")
-            .setPositiveButton("XUẤT TXT", (d, w) -> {
-                pendingExportText = content;
+            .setTitle("Bảo vệ dữ liệu báo cáo")
+            .setMessage("Báo cáo có thể chứa serial ADB, địa chỉ IP, tên thiết bị hoặc dữ liệu riêng tư. Bạn có thể xuất nguyên bản hoặc ẩn IP và serial trước khi lưu. Việc ẩn tự động không bảo đảm loại bỏ mọi thông tin cá nhân.")
+            .setItems(new String[]{"Xuất nguyên bản", "Ẩn IP và serial ADB rồi xuất"}, (dialog, which) -> {
+                pendingExportText = which == 0 ? original : redactNetworkIdentifiers(original);
                 Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
                 intent.setType("text/plain");
