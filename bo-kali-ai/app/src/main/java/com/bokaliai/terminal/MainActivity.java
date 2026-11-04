@@ -275,10 +275,21 @@ public class MainActivity extends Activity {
     }
 
     private void stopAdbMirror(String serial) {
-        if (activeMirrorView != null) activeMirrorView.stop();
-        getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE).edit()
-            .putBoolean("keep_alive", false).remove("active_serial").apply();
-        stopAdbKeepAlive();
+        android.content.SharedPreferences session =
+            getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
+        String activeSerial = session.getString("active_serial", "");
+        boolean stoppingActiveSession = serial != null && serial.equals(activeSerial);
+
+        if (stoppingActiveSession) {
+            if (activeMirrorView != null && serial.equals(activeMirrorSerial)) {
+                activeMirrorView.stop();
+            }
+            session.edit().putBoolean("keep_alive", false)
+                .remove("active_serial").remove("active_port").remove("active_scrcpy_id").apply();
+            stopAdbKeepAlive();
+            activeMirrorSerial = "";
+        }
+
         String stopCommand;
         if (serial != null && !serial.isEmpty()) {
             int mirrorPort = scrcpyPortFor(serial);
@@ -288,7 +299,8 @@ public class MainActivity extends Activity {
         } else {
             stopCommand = "echo 'BO_ADB_STOPPED: Không có serial để ngắt'; ";
         }
-        // Keep the shared ADB server alive for any other connected devices.
+        // Stopping a non-active target must not interrupt the foreground keep-alive
+        // service that is protecting another device's session.
         runTermuxCommand(stopCommand + "echo BO_ADB_STOPPED");
     }
 
@@ -822,6 +834,12 @@ public class MainActivity extends Activity {
             return;
         }
         dualWorkspaceSerial = serial;
+        // A workspace switch replaces the single visible decoder. Stop its local
+        // stream before attaching a new view; the old ADB device stays connected.
+        if (activeMirrorView != null && !serial.equals(activeMirrorSerial)) {
+            activeMirrorView.stop();
+            activeMirrorView = null;
+        }
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(1);
         page.setPadding(dp(10), dp(10), dp(10), dp(10));
