@@ -423,11 +423,15 @@ public class MainActivity extends Activity {
             String state = prefs.getString("state_" + serial, "chưa kiểm tra");
             labels[i] = serial + "  [" + adbStateLabel(state) + "]";
         }
+        long lastScan = prefs.getLong("last_scan_time", 0L);
+        String scanLabel = lastScan == 0L ? "Chưa có lần quét thành công nào được ghi nhận."
+            : "Lần quét gần nhất: " + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                .format(new java.util.Date(lastScan)) + ".";
         AlertDialog dialog = new AlertDialog.Builder(this)
             .setTitle("Quản lý thiết bị ADB")
             .setMessage(devices.isEmpty()
-                ? "Chưa có thiết bị được lưu. Nhấn QUÉT LẠI để lấy danh sách từ Termux sau khi đã kết nối ADB."
-                : "Thiết bị đã ghi nhớ (" + devices.size() + "). Trạng thái bên dưới là lần quét gần nhất, không đảm bảo còn trực tuyến.")
+                ? "Chưa có thiết bị được lưu. Nhấn QUÉT LẠI để lấy danh sách từ Termux sau khi đã kết nối ADB.\\n" + scanLabel
+                : "Thiết bị đã ghi nhớ (" + devices.size() + "). " + scanLabel + " Trạng thái không đảm bảo thiết bị còn trực tuyến.")
             .setItems(labels, (d, which) -> showSavedAdbDeviceActions(devices.get(which)))
             .setPositiveButton("QUÉT LẠI", (d, w) -> runTermuxCommand("pkg install -y android-tools && adb devices -l"))
             .setNeutralButton("XÓA THIẾT BỊ LƯU", (d, w) -> {
@@ -530,6 +534,7 @@ public class MainActivity extends Activity {
         String[] rows = output.split("\\n");
         android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
         android.content.SharedPreferences.Editor editor = prefs.edit();
+        editor.putLong("last_scan_time", System.currentTimeMillis());
         java.util.Set<String> previouslySaved = prefs.getStringSet("serials", new java.util.HashSet<>());
         for (String serial : previouslySaved) editor.putString("state_" + serial, "not_listed");
         for (String row : rows) {
