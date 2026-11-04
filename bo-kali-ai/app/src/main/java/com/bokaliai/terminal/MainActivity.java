@@ -310,8 +310,10 @@ public class MainActivity extends Activity {
             if (activeMirrorView != null && serial.equals(activeMirrorSerial)) {
                 activeMirrorView.stop();
             }
+            // Invalidate in-flight Termux results so a late callback cannot revive a stopped session.
             session.edit().putBoolean("keep_alive", false)
-                .remove("active_serial").remove("active_port").remove("active_scrcpy_id").apply();
+                .remove("active_serial").remove("active_port").remove("active_scrcpy_id")
+                .remove("active_request_token").apply();
             stopAdbKeepAlive();
             activeMirrorSerial = "";
         }
