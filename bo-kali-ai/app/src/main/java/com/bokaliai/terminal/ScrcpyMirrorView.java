@@ -25,6 +25,7 @@ import java.nio.ByteOrder;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * scrcpy v4.0 H.264 mirror surface for an ADB-forwarded localabstract socket.
@@ -45,6 +46,8 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
     private final ExecutorService connector = Executors.newSingleThreadExecutor();
     private final ExecutorService decoderExecutor = Executors.newSingleThreadExecutor();
     private final AtomicBoolean running = new AtomicBoolean(false);
+    // Invalidates pending socket connects and decoder callbacks from older sessions.
+    private final AtomicInteger sessionGeneration = new AtomicInteger(0);
     private volatile Socket videoSocket;
     private volatile Socket controlSocket;
     private volatile OutputStream controlOutput;
@@ -104,18 +107,23 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             return;
         }
         running.set(true);
+        final int generation = sessionGeneration.get();
         setStatus("Đang kết nối luồng video và điều khiển...");
-        connector.execute(() -> connectStreams(port));
+        connector.execute(() -> connectStreams(port, generation));
     }
 
-    private void connectStreams(int port) {
+    private boolean isCurrentSession(int generation) {
+        return running.get() && sessionGeneration.get() == generation;
+    }
+
+    private void connectStreams(int port, int generation) {
         Socket video = null;
         Socket control = null;
         try {
             video = new Socket();
             video.connect(new InetSocketAddress("127.0.0.1", port), 8000);
             video.setTcpNoDelay(true);
-            if (!running.get()) {
+            if (!isCurrentSession(generation)) {
                 closeQuietly(video);
                 return;
             }
@@ -124,7 +132,7 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             control = new Socket();
             control.connect(new InetSocketAddress("127.0.0.1", port), 8000);
             control.setTcpNoDelay(true);
-            if (!running.get()) {
+            if (!isCurrentSession(generation)) {
                 closeQuietly(video);
                 closeQuietly(control);
                 stopSockets();
@@ -133,25 +141,33 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             controlSocket = control;
             controlOutput = control.getOutputStream();
 
-            if (!running.get()) {
+            if (!isCurrentSession(generation)) {
+                closeQuietly(video);
+                closeQuietly(control);
+                if (videoSocket == video) videoSocket = null;
+                if (controlSocket == control) { controlSocket = null; controlOutput = null; }
+                return;
+            }
+            /* obsolete guard removed */
+            if (false) {
                 stopSockets();
                 return;
             }
             setStatus("Đã kết nối · Đang truyền màn hình trực tiếp");
             Socket videoStream = video;
             Socket controlStream = control;
-            decoderExecutor.execute(() -> decodeVideo(videoStream, controlStream));
+            decoderExecutor.execute(() -> decodeVideo(videoStream, controlStream, generation));
         } catch (Exception error) {
             closeQuietly(video);
             closeQuietly(control);
             if (videoSocket == video) videoSocket = null;
             if (controlSocket == control) controlSocket = null;
             if (controlSocket == null) controlOutput = null;
-            if (running.get()) setStatus("Không mở được luồng scrcpy: " + safeMessage(error));
+            if (isCurrentSession(generation)) setStatus("Không mở được luồng scrcpy: " + safeMessage(error));
         }
     }
 
-    private void decodeVideo(Socket socket, Socket sessionControlSocket) {
+    private void decodeVideo(Socket socket, Socket sessionControlSocket, int generation) {
         MediaCodec codec = null;
         try {
             DataInputStream input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 256 * 1024));
@@ -172,7 +188,7 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             codec = createDecoder(width, height);
             decoder = codec;
 
-            while (running.get()) {
+            while (isCurrentSession(generation)) {
                 byte[] header = new byte[12];
                 input.readFully(header);
                 ByteBuffer headerBuffer = ByteBuffer.wrap(header).order(ByteOrder.BIG_ENDIAN);
@@ -199,7 +215,7 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
 
                 int inputIndex = codec.dequeueInputBuffer(10_000);
                 long inputDeadline = System.nanoTime() + 500_000_000L;
-                while (inputIndex < 0 && running.get() && System.nanoTime() < inputDeadline) {
+                while (inputIndex < 0 && isCurrentSession(generation) && System.nanoTime() < inputDeadline) {
                     // Drain decoded output while waiting for an input buffer. This applies
                     // backpressure instead of immediately discarding a video frame.
                     drainDecoder(codec);
@@ -218,13 +234,13 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
                     int codecFlags = config ? MediaCodec.BUFFER_FLAG_CODEC_CONFIG : 0;
                     if ((ptsAndFlags & FLAG_KEY_FRAME) != 0) codecFlags |= MediaCodec.BUFFER_FLAG_KEY_FRAME;
                     codec.queueInputBuffer(inputIndex, 0, packet.length, pts, codecFlags);
-                } else if (running.get()) {
+                } else if (isCurrentSession(generation)) {
                     throw new IOException("Bộ giải mã video không nhận buffer sau 500 ms");
                 }
                 drainDecoder(codec);
             }
         } catch (Exception error) {
-            if (running.get()) setStatus("Luồng màn hình đã dừng: " + safeMessage(error));
+            if (isCurrentSession(generation)) setStatus("Luồng màn hình đã dừng: " + safeMessage(error));
         } finally {
             if (codec != null) {
                 try { codec.stop(); } catch (Exception ignored) { }
@@ -372,6 +388,7 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
     }
 
     public void stop() {
+        sessionGeneration.incrementAndGet();
         running.set(false);
         // The decoder thread owns MediaCodec and releases it in decodeVideo()'s finally block.
         // Closing the video socket unblocks readFully(), allowing that thread to clean up safely.
