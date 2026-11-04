@@ -3318,7 +3318,8 @@ public class MainActivity extends Activity {
             }
             String providerName = "antigravity".equals(provider) ? "Google Antigravity"
                 : "openai".equals(provider) ? "OpenAI"
-                : "gemini".equals(provider) ? "Gemini" : "OpenAI Codex";
+                : "gemini".equals(provider) ? "Gemini"
+                : "claude".equals(provider) ? "Claude" : "OpenAI Codex";
             String message = "AI: " + providerName + "\nThiết bị: " + serial + "\nQuyền: " + scope
                 + "\nRủi ro AI tự đánh giá: " + risk + "\n\nLệnh trên thiết bị:\n" + command
                 + "\n\nLý do: " + reason + "\n\nBO chưa chạy lệnh.";
