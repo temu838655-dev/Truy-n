@@ -2707,13 +2707,19 @@ public class MainActivity extends Activity {
 
     private void showAiDeviceControlMenu() {
         java.util.ArrayList<String> online = getFreshAdbDevices();
-        String[] actions = {"CẤP / ĐIỀU CHỈNH QUYỀN CHO THIẾT BỊ", "THU HỒI TOÀN BỘ QUYỀN AI", "XEM NHẬT KÝ ĐIỀU KHIỂN AI"};
+        String[] actions = {"CẤP / ĐIỀU CHỈNH QUYỀN CHO THIẾT BỊ", "THU HỒI TOÀN BỘ QUYỀN AI", "XEM NHẬT KÝ ĐIỀU KHIỂN AI", "HỦY YÊU CẦU AI ĐANG CHỜ"};
         new AlertDialog.Builder(this).setTitle("AI • Quyền điều khiển thiết bị")
             .setMessage("Quyền chỉ tồn tại trong phiên BO hiện tại và gắn với đúng serial ADB. AI không có quyền root, không thể vượt qua xác thực Android. Mỗi thao tác nhạy cảm vẫn cần bạn xác nhận.")
             .setItems(actions, (d, which) -> {
                 if (which == 2) { showAiDeviceAuditLog(); return; }
+                if (which == 3) {
+                    cancelPendingAiDevicePlanFor(null);
+                    line("Đã hủy yêu cầu lập kế hoạch AI đang chờ. Kết quả đến muộn sẽ bị bỏ qua.", GREEN);
+                    return;
+                }
                 if (which == 1) {
                     aiDevicePermissions.clear();
+                    cancelPendingAiDevicePlanFor(null);
                     line("Đã thu hồi toàn bộ quyền điều khiển AI trong phiên hiện tại.", GREEN);
                     return;
                 }
@@ -2765,7 +2771,8 @@ public class MainActivity extends Activity {
             })
             .setNeutralButton("THU HỒI THIẾT BỊ NÀY", (dialog, which) -> {
                 aiDevicePermissions.remove(serial);
-                line("Đã thu hồi mọi quyền AI đối với " + serial + ".", GREEN);
+                cancelPendingAiDevicePlanFor(serial);
+                line("Đã thu hồi mọi quyền AI đối với " + serial + " và hủy yêu cầu đang chờ của thiết bị này.", GREEN);
             })
             .setNegativeButton("HỦY", null).show();
     }
@@ -2774,6 +2781,12 @@ public class MainActivity extends Activity {
         if (!isFreshAdbDevice(serial)) return false;
         java.util.HashSet<String> granted = aiDevicePermissions.get(serial);
         return granted != null && granted.contains(scope);
+    }
+
+    private void cancelPendingAiDevicePlanFor(String serialOrNull) {
+        android.content.SharedPreferences pending = getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE);
+        String pendingSerial = pending.getString("serial", "");
+        if (serialOrNull == null || serialOrNull.equals(pendingSerial)) pending.edit().clear().commit();
     }
 
     private void showAiDeviceTaskDialog() {
