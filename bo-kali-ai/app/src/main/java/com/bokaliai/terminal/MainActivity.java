@@ -1076,8 +1076,8 @@ public class MainActivity extends Activity {
                     + (selectedFlag.isEmpty() ? "" : " " + selectedFlag);
                 new AlertDialog.Builder(this)
                     .setTitle("Xác nhận đọc danh sách")
-                    .setMessage("Thiết bị: " + serial + "\\nLoại: " + selectedLabel
-                        + "\\n\\nChỉ đọc tên package và đường dẫn APK nếu Android cho phép. Không cài, gỡ hoặc thay đổi ứng dụng. Danh sách có thể chứa thông tin riêng tư.")
+                    .setMessage("Thiết bị: " + serial + "\nLoại: " + selectedLabel
+                        + "\n\nChỉ đọc tên package và đường dẫn APK nếu Android cho phép. Không cài, gỡ hoặc thay đổi ứng dụng. Danh sách có thể chứa thông tin riêng tư.")
                     .setPositiveButton("ĐỌC", (d, w) -> {
                         line("Đang đọc " + selectedLabel.toLowerCase() + " trên " + serial + "...", GREEN);
                         runTermuxCommand(command);
