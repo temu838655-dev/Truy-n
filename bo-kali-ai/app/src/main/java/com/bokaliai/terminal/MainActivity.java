@@ -2774,17 +2774,18 @@ public class MainActivity extends Activity {
             .setOnClickListener(b -> {
                 actions.dismiss();
                 new AlertDialog.Builder(this).setTitle("Quản lý " + serial)
-                    .setItems(new String[]{"Kiểm tra kết nối thiết bị này", "Sao chép serial ADB", "Đặt / đổi tên gợi nhớ", "Lưu / chạy lệnh thường dùng", "Báo cáo chẩn đoán tổng hợp", "Đọc Logcat gần đây", "Xuất Logcat gần nhất thành TXT", "Liệt kê ứng dụng", "Mở ứng dụng theo package", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
+                    .setItems(new String[]{"Kiểm tra kết nối thiết bị này", "Sao chép serial ADB", "Đặt / đổi tên gợi nhớ", "Ghi nhận định danh phần cứng (chỉ đọc)", "Lưu / chạy lệnh thường dùng", "Báo cáo chẩn đoán tổng hợp", "Đọc Logcat gần đây", "Xuất Logcat gần nhất thành TXT", "Liệt kê ứng dụng", "Mở ứng dụng theo package", "Ngắt kết nối ADB", "Xóa riêng thiết bị khỏi danh sách lưu"}, (dialog, which) -> {
                         if (which == 0) checkSavedAdbDevice(serial);
                         else if (which == 1) copyText(serial, "Đã sao chép serial ADB.");
                         else if (which == 2) showAdbAliasDialog(serial);
-                        else if (which == 3) showAdbCommandPreset(serial);
-                        else if (which == 4) showAdbFullDiagnosticReport(serial);
-                        else if (which == 5) showAdbLogcatDialog(serial);
-                        else if (which == 6) exportLastAdbLogcat(serial);
-                        else if (which == 7) showAdbInstalledApps(serial);
-                        else if (which == 8) showAdbLaunchAppDialog(serial);
-                        else if (which == 9) confirmAdbDisconnect(serial);
+                        else if (which == 3) recordAdbHardwareIdentity(serial);
+                        else if (which == 4) showAdbCommandPreset(serial);
+                        else if (which == 5) showAdbFullDiagnosticReport(serial);
+                        else if (which == 6) showAdbLogcatDialog(serial);
+                        else if (which == 7) exportLastAdbLogcat(serial);
+                        else if (which == 8) showAdbInstalledApps(serial);
+                        else if (which == 9) showAdbLaunchAppDialog(serial);
+                        else if (which == 10) confirmAdbDisconnect(serial);
                         else confirmForgetAdbDevice(serial);
                     }).setNegativeButton("ĐÓNG", null).show();
             }));
@@ -3171,7 +3172,11 @@ public class MainActivity extends Activity {
             }).setNegativeButton("HỦY", null).show();
     }
 
+    private String pendingIdentityAdbSerial = "";
+    private String activeIdentityAdbSerial = "";
+
     private void handleAdbDevicesOutput(String output) {
+        handleAdbHardwareIdentityOutput(output);
         if (output == null || !output.contains("List of devices attached")) return;
         java.util.HashSet<String> found = new java.util.HashSet<>();
         String[] rows = output.split("\\n");
@@ -3197,6 +3202,80 @@ public class MainActivity extends Activity {
         editor.putStringSet("serials", merged).apply();
         line("ADB: tìm thấy " + found.size() + " thiết bị trong lần quét này; đã ghi nhớ serial để chọn nhanh.", 0xff79c9ff);
         if (found.isEmpty()) line("Không thấy thiết bị. Kiểm tra Wi-Fi, Wireless debugging và chạy adb connect nếu cần.", 0xffffca70);
+    }
+
+    // Read a device-reported hardware serial only after the user explicitly selects this action.
+    // The raw serial is never persisted; BO stores a SHA-256 fingerprint for later comparison.
+    private void recordAdbHardwareIdentity(String adbSerial) {
+        if (adbSerial == null || adbSerial.trim().isEmpty()) return;
+        pendingIdentityAdbSerial = adbSerial;
+        activeIdentityAdbSerial = adbSerial;
+        String script = "printf 'BO_ADB_IDENTITY|%s|%s|%s\\n' "
+            + "\"$(getprop ro.serialno)\" "
+            + "\"$(getprop ro.product.model)\" "
+            + "\"$(getprop ro.product.brand)\"";
+        new AlertDialog.Builder(this).setTitle("Ghi nhận định danh thiết bị")
+            .setMessage("BO sẽ đọc ro.serialno, model và brand từ thiết bị ADB đã được cấp quyền. Serial phần cứng chỉ được lưu dưới dạng SHA-256; không thay đổi cài đặt hay dữ liệu thiết bị. Một số hãng có thể trả về serial trống hoặc giá trị giả.")
+            .setPositiveButton("ĐỌC ĐỊNH DANH", (d, w) ->
+                runTermuxCommand("adb -s " + shellQuote(adbSerial) + " shell " + shellQuote(script)))
+            .setNegativeButton("HỦY", null).show();
+    }
+
+    private void handleAdbHardwareIdentityOutput(String output) {
+        if (output == null) return;
+        for (String row : output.split("\\n")) {
+            String trimmed = row.trim();
+            if (!trimmed.startsWith("BO_ADB_IDENTITY|")) continue;
+            String[] fields = trimmed.split("\\|", -1);
+            if (fields.length < 4) {
+                line("Dữ liệu định danh ADB không đầy đủ; không lưu.", 0xffffca70);
+                continue;
+            }
+            String hardwareSerial = fields[1].trim();
+            String model = fields[2].trim();
+            String brand = fields[3].trim();
+            if (hardwareSerial.isEmpty() || hardwareSerial.equalsIgnoreCase("unknown")
+                || hardwareSerial.equals("0")) {
+                line("Thiết bị không cung cấp serial phần cứng đáng tin cậy. Không tạo dấu vân tay để tránh nhận nhầm.", 0xffffca70);
+                continue;
+            }
+            try {
+                byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(hardwareSerial.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                StringBuilder fingerprint = new StringBuilder();
+                for (byte value : digest) fingerprint.append(String.format(java.util.Locale.ROOT, "%02x", value & 0xff));
+                android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
+                java.util.HashSet<String> serials = new java.util.HashSet<>(
+                    prefs.getStringSet("serials", new java.util.HashSet<>()));
+                String matched = "";
+                for (String saved : serials) {
+                    if (!saved.equals(activeIdentityAdbSerial)
+                        && fingerprint.toString().equals(prefs.getString("identity_hash_" + saved, ""))) {
+                        matched = saved;
+                        break;
+                    }
+                }
+                String adbSerial = pendingIdentityAdbSerial;
+                if (adbSerial == null || adbSerial.isEmpty()) {
+                    line("Không xác định được phiên ADB yêu cầu; bỏ qua dữ liệu định danh.", 0xffffca70);
+                    continue;
+                }
+                prefs.edit().putString("identity_hash_" + adbSerial, fingerprint.toString())
+                    .putString("identity_model_" + adbSerial, model)
+                    .putString("identity_brand_" + adbSerial, brand).apply();
+                line("Đã lưu dấu vân tay phần cứng SHA-256 cho " + adbSerial
+                    + (brand.isEmpty() && model.isEmpty() ? "" : " · " + brand + " " + model), GREEN);
+                if (!matched.isEmpty()) {
+                    String alias = prefs.getString("alias_" + matched, "");
+                    line("Dấu vân tay trùng với thiết bị đã lưu " + (alias.isEmpty() ? matched : alias + " (" + matched + ")")
+                        + ". Đây là đối chiếu serial phần cứng; hãy xác nhận đúng thiết bị trước khi thao tác.", 0xff79c9ff);
+                } else {
+                    line("Chưa có thiết bị lưu nào khác trùng dấu vân tay này. Lần kết nối sau có thể dùng để đối chiếu.", WHITE);
+                }
+            } catch (Exception error) {
+                line("Không tạo được dấu vân tay phần cứng: " + error.getMessage(), 0xffff8080);
+            }
+        }
     }
 
     private void showAdbShellDialog() {
