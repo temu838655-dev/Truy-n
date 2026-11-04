@@ -159,7 +159,7 @@ public final class AiToolRegistry {
             .put("additionalProperties", false);
         JSONObject githubProposeUpdateFunction = new JSONObject().put("type", "function")
             .put("name", "github_propose_file_update")
-            .put("description", "Đề xuất cập nhật một tệp GitHub. BO tải phiên bản hiện tại, hiển thị nội dung thay đổi và chỉ commit sau khi người dùng xác nhận rõ ràng. Không bao giờ commit trực tiếp khi chưa có xác nhận.")
+            .put("description", "Đề xuất cập nhật một tệp GitHub. BO tải và hiển thị toàn bộ tệp hiện tại/mới; sau khi người dùng xác nhận, BO kiểm tra SHA, tạo nhánh riêng và mở Pull Request. Không commit trực tiếp vào nhánh đích.")
             .put("parameters", githubUpdateSchema);
 
         return new JSONArray()
