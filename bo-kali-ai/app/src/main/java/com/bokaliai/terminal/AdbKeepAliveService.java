@@ -5,6 +5,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
+import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -16,6 +17,7 @@ public class AdbKeepAliveService extends Service {
     private static final String CHANNEL_ID = "bo_adb_session";
     private static final int NOTIFICATION_ID = 27183;
     private PowerManager.WakeLock wakeLock;
+    private WifiManager.WifiLock wifiLock;
 
     @Override public void onCreate() {
         super.onCreate();
@@ -25,7 +27,7 @@ public class AdbKeepAliveService extends Service {
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? ACTION_START : intent.getAction();
         if (ACTION_STOP.equals(action)) {
-            releaseWakeLock();
+            releaseLocks();
             stopForeground(true);
             stopSelf();
             return START_NOT_STICKY;
@@ -48,20 +50,41 @@ public class AdbKeepAliveService extends Service {
         } else {
             startForeground(NOTIFICATION_ID, notification);
         }
-        acquireWakeLock();
+        acquireLocks();
         return START_STICKY;
     }
 
-    private void acquireWakeLock() {
-        if (wakeLock != null && wakeLock.isHeld()) return;
-        PowerManager power = (PowerManager) getSystemService(POWER_SERVICE);
-        if (power == null) return;
-        wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "BOKaliAI:AdbSession");
-        wakeLock.setReferenceCounted(false);
-        wakeLock.acquire();
+    private void acquireLocks() {
+        if (wakeLock == null || !wakeLock.isHeld()) {
+            PowerManager power = (PowerManager) getSystemService(POWER_SERVICE);
+            if (power != null) {
+                wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "BOKaliAI:AdbSession");
+                wakeLock.setReferenceCounted(false);
+                wakeLock.acquire();
+            }
+        }
+        if (wifiLock == null || !wifiLock.isHeld()) {
+            WifiManager wifi = (WifiManager) getApplicationContext()
+                .getSystemService(WIFI_SERVICE);
+            if (wifi != null) {
+                wifiLock = wifi.createWifiLock(
+                    WifiManager.WIFI_MODE_FULL_HIGH_PERF, "BOKaliAI:AdbWifiSession");
+                wifiLock.setReferenceCounted(false);
+                try {
+                    wifiLock.acquire();
+                } catch (SecurityException | RuntimeException error) {
+                    // Keep the CPU lock even if the Android build refuses a Wi-Fi lock.
+                    wifiLock = null;
+                }
+            }
+        }
     }
 
-    private void releaseWakeLock() {
+    private void releaseLocks() {
+        if (wifiLock != null && wifiLock.isHeld()) {
+            try { wifiLock.release(); } catch (RuntimeException ignored) { }
+        }
+        wifiLock = null;
         if (wakeLock != null && wakeLock.isHeld()) {
             try { wakeLock.release(); } catch (RuntimeException ignored) { }
         }
@@ -75,14 +98,14 @@ public class AdbKeepAliveService extends Service {
             return new Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
                 .setContentTitle("BO Kali AI · ADB đang hoạt động")
-                .setContentText(detail + " · Vẫn giữ ADB khi khóa màn hình · Dừng trong ứng dụng để ngắt")
+                .setContentText(detail + " · Giữ CPU/Wi-Fi khi khóa màn hình · Dừng trong ứng dụng để ngắt")
                 .setCategory(Notification.CATEGORY_SERVICE)
                 .setOngoing(true).setOnlyAlertOnce(true).build();
         }
         return new Notification.Builder(this)
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
             .setContentTitle("BO Kali AI · ADB đang hoạt động")
-            .setContentText(detail + " · Vẫn giữ ADB khi khóa màn hình · Dừng trong ứng dụng để ngắt")
+            .setContentText(detail + " · Giữ CPU/Wi-Fi khi khóa màn hình · Dừng trong ứng dụng để ngắt")
             .setOngoing(true).build();
     }
 
@@ -92,12 +115,12 @@ public class AdbKeepAliveService extends Service {
         if (manager == null) return;
         NotificationChannel channel = new NotificationChannel(CHANNEL_ID,
             "Phiên kết nối ADB", NotificationManager.IMPORTANCE_LOW);
-        channel.setDescription("Duy trì phiên ADB khi màn hình điện thoại tắt hoặc khóa");
+        channel.setDescription("Giữ CPU và Wi-Fi hoạt động để duy trì phiên ADB khi màn hình tắt hoặc khóa");
         manager.createNotificationChannel(channel);
     }
 
     @Override public void onDestroy() {
-        releaseWakeLock();
+        releaseLocks();
         super.onDestroy();
     }
 
