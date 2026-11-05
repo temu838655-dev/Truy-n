@@ -165,7 +165,8 @@ public class TermuxResultReceiver extends BroadcastReceiver {
             .putBoolean("pending_scrcpy_ready", previousScrcpyReady || scrcpyReady)
             .putString("pending_scrcpy_token", scrcpyReady ? scrcpyToken : previousScrcpyToken).commit();
         if (!pendingResultSaved) {
-            output.append("\\nCẢNH BÁO: Android không xác nhận lưu bền kết quả chờ; mã tác vụ vẫn có thể cần kiểm tra thủ công.");
+            output.append("\nCẢNH BÁO: Android không xác nhận lưu bền kết quả chờ; mã tác vụ vẫn có thể cần kiểm tra thủ công.");
+            show.putExtra("termux_output", output.toString());
         }
         try {
             context.startActivity(show);
