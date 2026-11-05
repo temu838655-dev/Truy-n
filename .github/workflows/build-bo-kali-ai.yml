@@ -51,8 +51,10 @@ jobs:
 
       - name: Generate APK SHA-256 checksum and update metadata
         run: |
-          APK="bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk"
-          test -s "$APK"
+          DEBUG_APK="bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk"
+          APK="bo-kali-ai/app/build/outputs/apk/debug/BO-Kali-AI.apk"
+          test -s "$DEBUG_APK"
+          cp "$DEBUG_APK" "$APK"
           sha256sum "$APK" > "$APK.sha256"
           cat > bo-kali-ai/app/build/outputs/apk/debug/bo-kali-ai-update.json <<EOF
           {
@@ -68,8 +70,8 @@ jobs:
         with:
           name: BO-KALI-AI-DEBUG-APK
           path: |
-            bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk
-            bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk.sha256
+            bo-kali-ai/app/build/outputs/apk/debug/BO-Kali-AI.apk
+            bo-kali-ai/app/build/outputs/apk/debug/BO-Kali-AI.apk.sha256
             bo-kali-ai/app/build/outputs/apk/debug/bo-kali-ai-update.json
             bo-kali-ai/app/build/reports/lint-results-debug.html
           if-no-files-found: error
@@ -81,7 +83,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="bo-kali-ai-latest"
-          APK="bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk"
+          APK="bo-kali-ai/app/build/outputs/apk/debug/BO-Kali-AI.apk"
           CHECKSUM="$APK.sha256"
           METADATA="bo-kali-ai/app/build/outputs/apk/debug/bo-kali-ai-update.json"
           git tag -f "$TAG" "$GITHUB_SHA"
