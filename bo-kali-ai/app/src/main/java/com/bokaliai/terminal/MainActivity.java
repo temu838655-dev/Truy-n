@@ -3487,12 +3487,39 @@ public class MainActivity extends Activity {
             reportAiProposalOutcome(provider, "rejected_by_bo", "Lệnh không qua kiểm tra quyền/phạm vi cuối cùng của BO: " + registryCheck);
             return;
         }
+        android.content.SharedPreferences executionGuard =
+            getSharedPreferences("bo_kali_ai_execution_guard", MODE_PRIVATE);
+        String activeExecution = executionGuard.getString("active_execution_id", "");
+        if (!activeExecution.isEmpty()) {
+            long activeAt = executionGuard.getLong("active_started_at", 0L);
+            long ageSeconds = activeAt <= 0L ? -1L : Math.max(0L, (System.currentTimeMillis() - activeAt) / 1000L);
+            String state = ageSeconds >= 180L ? "KẾT QUẢ CHƯA XÁC ĐỊNH" : "ĐANG CHỜ KẾT QUẢ";
+            line("Chặn lệnh ADB mới: đang có tác vụ trước chưa nhận được kết quả (" + state
+                + (ageSeconds >= 0L ? ", " + ageSeconds + " giây" : "")
+                + "). Hãy kiểm tra thiết bị và nhật ký trước; BO không tự gửi lại để tránh chạy trùng.", 0xffffca70);
+            appendAiDeviceAudit("CHẶN TÁC VỤ MỚI | tác vụ trước=" + activeExecution
+                + " | trạng thái=" + state + " | thiết bị=" + serial);
+            reportAiProposalOutcome(provider, "blocked_previous_execution_unresolved",
+                "Một tác vụ ADB trước vẫn chưa có kết quả xác minh. BO không tự chạy lại hoặc xếp chồng lệnh.");
+            return;
+        }
         String executionId = java.util.UUID.randomUUID().toString();
         if ("antigravity".equals(provider)) {
             getSharedPreferences("bo_kali_antigravity_pending_tool", MODE_PRIVATE).edit()
                 .putString("execution_id", executionId).commit();
         }
         String detail = "Thiết bị=" + serial + " | quyền=" + scope + " | lệnh=" + command;
+        boolean guardSaved = executionGuard.edit()
+            .putString("active_execution_id", executionId)
+            .putString("active_detail", detail)
+            .putLong("active_started_at", System.currentTimeMillis())
+            .commit();
+        if (!guardSaved) {
+            appendAiDeviceAudit("TỪ CHỐI GỬI LỆNH | không lưu được khóa chống chạy trùng | " + detail);
+            reportAiProposalOutcome(provider, "execution_guard_storage_failed",
+                "BO không lưu được khóa chống chạy trùng; lệnh chưa được gửi.");
+            return;
+        }
         android.content.SharedPreferences audit = getSharedPreferences("bo_kali_ai_device_audit", MODE_PRIVATE);
         audit.edit().putString("pending_" + executionId, detail).apply();
         appendAiDeviceAudit("ĐÃ XÁC NHẬN / GỬI THERMUX | " + detail);
@@ -3502,6 +3529,9 @@ public class MainActivity extends Activity {
             + ":%s\\n' \"$__bo_ai_status\"; exit \"$__bo_ai_status\"";
         if (!runTermuxCommand(commandLine)) {
             audit.edit().remove("pending_" + executionId).apply();
+            if (executionId.equals(executionGuard.getString("active_execution_id", ""))) {
+                executionGuard.edit().clear().commit();
+            }
             appendAiDeviceAudit("KHÔNG GỬI ĐƯỢC TERMUX / CHƯA THỰC THI | " + detail);
             if ("antigravity".equals(provider)) {
                 getSharedPreferences("bo_kali_antigravity_pending_tool", MODE_PRIVATE).edit()
@@ -3554,6 +3584,11 @@ public class MainActivity extends Activity {
             String detail = prefs.getString("pending_" + id, "");
             if (detail.isEmpty()) continue;
             prefs.edit().remove("pending_" + id).apply();
+            android.content.SharedPreferences executionGuard =
+                getSharedPreferences("bo_kali_ai_execution_guard", MODE_PRIVATE);
+            if (id.equals(executionGuard.getString("active_execution_id", ""))) {
+                executionGuard.edit().clear().commit();
+            }
             appendAiDeviceAudit("KẾT QUẢ exit=" + status + " | " + detail);
             reportAntigravityExecutionResult(id, status, output);
             line("AI ADB hoàn tất: mã thoát " + status + ". Xem Nhật ký điều khiển AI để biết chi tiết.",
