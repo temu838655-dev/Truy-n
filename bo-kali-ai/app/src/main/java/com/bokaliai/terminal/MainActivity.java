@@ -6737,11 +6737,27 @@ public class MainActivity extends Activity {
 
     private String readAiHttpResponse(HttpURLConnection conn, int code) throws Exception {
         java.io.InputStream stream = code >= 200 && code < 300 ? conn.getInputStream() : conn.getErrorStream();
+        if (stream == null) return "";
         StringBuilder out = new StringBuilder();
-        if (stream != null) try (BufferedReader br = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            String row; while ((row = br.readLine()) != null) out.append(row);
+        // Bound response size so a proxy error page cannot exhaust memory on a low-RAM phone.
+        final int maxChars = 128 * 1024;
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            String row;
+            while ((row = br.readLine()) != null) {
+                int remaining = maxChars - out.length();
+                if (remaining <= 0) {
+                    out.append("\\n[Phản hồi API đã bị cắt do quá dài.]");
+                    break;
+                }
+                if (row.length() > remaining) {
+                    out.append(row, 0, remaining);
+                    out.append("\\n[Phản hồi API đã bị cắt do quá dài.]");
+                    break;
+                }
+                out.append(row).append('\\n');
+            }
         }
-        return out.toString();
+        return out.toString().trim();
     }
 
     private String extractAiAnswer(String provider, JSONObject result, int code) {
