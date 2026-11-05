@@ -46,6 +46,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -6951,17 +6952,17 @@ public class MainActivity extends Activity {
                 JSONArray jobs = response.optJSONArray("jobs");
                 StringBuilder report = new StringBuilder();
                 report.append("REPOSITORY: ").append(repository)
-                    .append("\\nWORKFLOW: ").append(run.optString("name"))
-                    .append("\\nRUN: #").append(run.optInt("run_number"))
-                    .append("\\nSTATUS: ").append(run.optString("status"))
-                    .append("\\nCONCLUSION: ").append(run.optString("conclusion"))
-                    .append("\\nCOMMIT: ").append(run.optString("head_sha"))
-                    .append("\\nBRANCH: ").append(run.optString("head_branch"))
-                    .append("\\nURL: ").append(run.optString("html_url"));
+                    .append("\nWORKFLOW: ").append(run.optString("name"))
+                    .append("\nRUN: #").append(run.optInt("run_number"))
+                    .append("\nSTATUS: ").append(run.optString("status"))
+                    .append("\nCONCLUSION: ").append(run.optString("conclusion"))
+                    .append("\nCOMMIT: ").append(run.optString("head_sha"))
+                    .append("\nBRANCH: ").append(run.optString("head_branch"))
+                    .append("\nURL: ").append(run.optString("html_url"));
                 boolean failed = false;
                 if (jobs != null) for (int i = 0; i < jobs.length(); i++) {
                     JSONObject job = jobs.getJSONObject(i);
-                    report.append("\\n\\nJOB: ").append(job.optString("name"))
+                    report.append("\n\nJOB: ").append(job.optString("name"))
                         .append(" · ").append(job.optString("status"))
                         .append("/").append(job.optString("conclusion"));
                     JSONArray steps = job.optJSONArray("steps");
@@ -6970,20 +6971,20 @@ public class MainActivity extends Activity {
                         String conclusion = step.optString("conclusion", "");
                         if ("failure".equalsIgnoreCase(conclusion)) failed = true;
                         if ("failure".equalsIgnoreCase(conclusion) || "cancelled".equalsIgnoreCase(conclusion)) {
-                            report.append("\\n  STEP ").append(step.optInt("number"))
+                            report.append("\n  STEP ").append(step.optInt("number"))
                                 .append(": ").append(step.optString("name"))
                                 .append(" · ").append(conclusion);
                         }
                     }
                 }
-                if (jobs == null || jobs.length() == 0) report.append("\\nChưa có job hoặc workflow đang chờ runner.");
+                if (jobs == null || jobs.length() == 0) report.append("\nChưa có job hoặc workflow đang chờ runner.");
                 final String summary = report.toString();
                 final boolean hasFailure = failed;
                 runOnUiThread(() -> new AlertDialog.Builder(this)
                     .setTitle(hasFailure ? "Phát hiện bước build thất bại" : "Chi tiết GitHub Actions")
-                    .setMessage(summary + "\\n\\nBO chỉ lấy metadata job/step, chưa tải raw log. Muốn gửi phần tóm tắt này cho AI phân tích, hãy xác nhận bên dưới.")
+                    .setMessage(summary + "\n\nBO chỉ lấy metadata job/step, chưa tải raw log. Muốn gửi phần tóm tắt này cho AI phân tích, hãy xác nhận bên dưới.")
                     .setPositiveButton("GỬI TÓM TẮT CHO AI", (dialog, which) -> {
-                        questionInput.setText("Phân tích workflow GitHub Actions dưới đây bằng tiếng Việt. Xác định bước lỗi, giải thích những gì có thể kết luận từ metadata, nêu thông tin còn thiếu vì chưa có raw log, và đề xuất cách lấy log/chẩn đoán an toàn. Không bịa nguyên nhân khi chưa có log:\\n\\n" + summary);
+                        questionInput.setText("Phân tích workflow GitHub Actions dưới đây bằng tiếng Việt. Xác định bước lỗi, giải thích những gì có thể kết luận từ metadata, nêu thông tin còn thiếu vì chưa có raw log, và đề xuất cách lấy log/chẩn đoán an toàn. Không bịa nguyên nhân khi chưa có log:\n\n" + summary);
                         askAi();
                     })
                     .setNegativeButton("ĐÓNG", null).show());
