@@ -3576,9 +3576,16 @@ public class MainActivity extends Activity {
             new AlertDialog.Builder(this).setTitle("Duyệt bước " + (index + 1) + " của kế hoạch AI")
                 .setMessage(message)
                 .setPositiveButton("DUYỆT VÀ CHẠY BƯỚC NÀY", (d, w) -> {
-                    if (!isFreshAdbDevice(serial) || !hasAiDevicePermission(serial, scope)) {
-                        queue.edit().clear().commit();
-                        reportAiProposalOutcome(provider, "plan_stopped_before_step", "Thiết bị hoặc quyền thay đổi trước khi chạy bước.");
+                    if (!isFreshAdbDevice(serial)) {
+                        appendAiDeviceAudit("GIỮ KẾ HOẠCH | thiết bị ngoại tuyến trước khi duyệt bước " + (index + 1)
+                            + " | thiết bị=" + serial);
+                        line("Thiết bị vừa mất kết nối. Kế hoạch vẫn được giữ; hãy kết nối và quét lại rồi tiếp tục duyệt.", 0xffffca70);
+                        return;
+                    }
+                    if (!hasAiDevicePermission(serial, scope)) {
+                        appendAiDeviceAudit("GIỮ KẾ HOẠCH | quyền bị thu hồi trước khi duyệt bước " + (index + 1)
+                            + " | thiết bị=" + serial + " | quyền=" + scope);
+                        line("Quyền " + scope + " không còn được cấp. Kế hoạch vẫn được giữ; hãy cấp lại đúng quyền rồi tiếp tục.", 0xffffca70);
                         return;
                     }
                     executeAiAdbCommand(serial, scope, command, provider);
