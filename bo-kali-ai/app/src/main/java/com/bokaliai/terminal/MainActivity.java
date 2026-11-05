@@ -2519,6 +2519,12 @@ public class MainActivity extends Activity {
     }
 
     private void readAiImage(Uri uri) {
+        // Clear the previous selection before loading a replacement. If the new file
+        // is invalid or too large, the old image must not remain silently sendable.
+        selectedAiImageName = "";
+        selectedAiImageMime = "";
+        selectedAiImageBase64 = "";
+        if (aiImageStatusLabel != null) aiImageStatusLabel.setText("Đang đọc ảnh… ảnh cũ đã được bỏ chọn.");
         worker.execute(() -> {
             try {
                 String mime = getContentResolver().getType(uri);
@@ -2557,7 +2563,10 @@ public class MainActivity extends Activity {
                     line("Đã nạp ảnh vào RAM phiên: " + imageName + ". Chưa gửi cho AI nào; cần cấp quyền riêng.", GREEN);
                 });
             } catch (Exception e) {
-                runOnUiThread(() -> line("Không đọc được ảnh AI: " + e.getMessage(), 0xffff8080));
+                runOnUiThread(() -> {
+                    if (aiImageStatusLabel != null) aiImageStatusLabel.setText("Không nạp được ảnh · chưa chọn ảnh nào.");
+                    line("Không đọc được ảnh AI: " + e.getMessage(), 0xffff8080);
+                });
             }
         });
     }
