@@ -207,7 +207,7 @@ public class AdbTargetProfileParserTest {
             AdbTargetProfileParser.parse(output).get(0);
         assertEquals("uid=2000(shell) gid=2000(shell) groups=1003,1004",
             profile.get("ANDROID_UID"));
-        assertEquals(AndroidDeviceCapabilityAssessment.State.BLOCKED,
+        assertEquals(AndroidDeviceCapabilityAssessment.State.UNKNOWN,
             AndroidDeviceCapabilityAssessment.assess(profile).rootStatus);
     }
 
