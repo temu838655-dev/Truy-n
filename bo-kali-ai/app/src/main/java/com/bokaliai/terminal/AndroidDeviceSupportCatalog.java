@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 /**
  * Strict, evidence-backed Android support catalog.
@@ -73,8 +75,9 @@ public final class AndroidDeviceSupportCatalog {
             return !manufacturer.isEmpty() && !model.isEmpty()
                 && !codename.isEmpty() && !firmwareFingerprint.isEmpty()
                 && !regionOrSku.isEmpty()
-                && sourceUrl.startsWith("https://")
-                && !verifiedDate.isEmpty() && !summary.isEmpty()
+                && isHttpsSource(sourceUrl)
+                && verifiedDate.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")
+                && !summary.isEmpty()
                 && evidenceSource != EvidenceSource.UNKNOWN
                 && evidenceSource != EvidenceSource.COMMUNITY_REFERENCE
                 && manuallyReviewed && !reviewerNote.isEmpty();
@@ -155,6 +158,18 @@ public final class AndroidDeviceSupportCatalog {
             }
         }
         return new Result(null);
+    }
+
+    private static boolean isHttpsSource(String value) {
+        if (value == null || value.trim().isEmpty() || value.matches(".*\\\\s+.*")) return false;
+        try {
+            URI uri = new URI(value);
+            return "https".equalsIgnoreCase(uri.getScheme())
+                && uri.getHost() != null && !uri.getHost().isEmpty()
+                && uri.getUserInfo() == null;
+        } catch (URISyntaxException e) {
+            return false;
+        }
     }
 
     private static boolean same(String expected, String actual) {

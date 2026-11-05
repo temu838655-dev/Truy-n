@@ -123,6 +123,28 @@ public class AndroidDeviceSupportCatalogTest {
     }
 
     @Test
+    public void rejectsEvidenceWithMalformedOrNonHttpsSource() {
+        AndroidDeviceSupportCatalog.Entry entry = new AndroidDeviceSupportCatalog.Entry(
+            "Example", "Model X", "device_x", "fingerprint", "REGION_A",
+            AndroidDeviceSupportCatalog.Status.VERIFIED_ROOT_METHOD,
+            "Claim with an unsafe source.", "http://example.com/device", "2026-11-05",
+            AndroidDeviceSupportCatalog.EvidenceSource.PROJECT_DOCUMENTATION, true,
+            "Reviewed note.");
+        assertFalse(entry.hasRequiredEvidence());
+    }
+
+    @Test
+    public void rejectsEvidenceWithMalformedVerificationDate() {
+        AndroidDeviceSupportCatalog.Entry entry = new AndroidDeviceSupportCatalog.Entry(
+            "Example", "Model X", "device_x", "fingerprint", "REGION_A",
+            AndroidDeviceSupportCatalog.Status.VERIFIED_ROOT_METHOD,
+            "Claim with a malformed date.", "https://example.com/device", "yesterday",
+            AndroidDeviceSupportCatalog.EvidenceSource.PROJECT_DOCUMENTATION, true,
+            "Reviewed note.");
+        assertFalse(entry.hasRequiredEvidence());
+    }
+
+    @Test
     public void builtInCatalogDoesNotPretendToSupportUnverifiedDevices() {
         assertTrue(AndroidDeviceSupportCatalog.builtInEntries().isEmpty());
         assertFalse(AndroidDeviceSupportCatalog.lookupBuiltIn(
