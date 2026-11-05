@@ -3663,7 +3663,14 @@ public class MainActivity extends Activity {
                 "BO không lưu được khóa chống chạy trùng; lệnh chưa được gửi.");
             return;
         }
-        if (isQueuedStep) stepQueueAtDispatch.edit().putString("active_step_execution_id", executionId).commit();
+        if (isQueuedStep && !stepQueueAtDispatch.edit()
+            .putString("active_step_execution_id", executionId).commit()) {
+            executionGuard.edit().clear().commit();
+            appendAiDeviceAudit("TỪ CHỐI GỬI BƯỚC | không lưu được dấu chống chạy trùng vào hàng đợi | " + detail);
+            reportAiProposalOutcome(provider, "queue_marker_storage_failed",
+                "BO không lưu được dấu trạng thái bước trước khi gửi; lệnh chưa được gửi.");
+            return;
+        }
         android.content.SharedPreferences audit = getSharedPreferences("bo_kali_ai_device_audit", MODE_PRIVATE);
         audit.edit().putString("pending_" + executionId, detail).apply();
         appendAiDeviceAudit("ĐÃ XÁC NHẬN / GỬI THERMUX | " + detail);
