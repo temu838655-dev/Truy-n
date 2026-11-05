@@ -2459,8 +2459,7 @@ public class MainActivity extends Activity {
         }
         int selected = aiProviderPicker == null ? 0 : aiProviderPicker.getSelectedItemPosition();
         String selectedApiKey = selected == 1 ? claudeKey
-            : selected == 2 ? openAiKey
-            : selected == 3 ? geminiKey : geminiKey;
+            : selected == 2 ? openAiKey : geminiKey;
         if (selectedApiKey == null || selectedApiKey.trim().isEmpty()) {
             showTranslationNotice("Chưa cấu hình API key cho nhà cung cấp AI đang chọn. Văn bản nguồn và ảnh đã chọn vẫn được giữ lại; hãy cấu hình khóa rồi thử lại.");
             return;
@@ -2476,19 +2475,32 @@ public class MainActivity extends Activity {
             .append("không tự đoán. Chỉ trả về bản dịch và ghi chú ngắn về phần không đọc được.");
         if (!sourceText.isEmpty()) request.append("\n\nVĂN BẢN NGUỒN:\n").append(sourceText);
         questionInput.setText(request.toString());
-        boolean oldGemini = shareImageGemini, oldClaude = shareImageClaude, oldOpenAi = shareImageOpenAi;
         if (hasImage) {
-            if (selected == 0) shareImageGemini = true;
-            else if (selected == 1) shareImageClaude = true;
-            else if (selected == 2) shareImageOpenAi = true;
-            line("Ảnh đã chọn sẽ được gửi cho nhà cung cấp AI đang chọn để đọc chữ và dịch theo yêu cầu.", 0xff91a9bd);
+            String provider = selected == 0 ? "Gemini" : selected == 1 ? "Claude" : "OpenAI";
+            new AlertDialog.Builder(this)
+                .setTitle("Xác nhận gửi ảnh OCR")
+                .setMessage("Ảnh \"" + selectedAiImageName + "\" sẽ được gửi qua Internet đến " + provider
+                    + " để nhận dạng chữ và dịch. Chỉ tiếp tục nếu bạn đồng ý chia sẻ ảnh này.")
+                .setNegativeButton("HỦY", (dialog, which) -> { })
+                .setPositiveButton("ĐỒNG Ý GỬI ẢNH", (dialog, which) -> sendTranslationRequest(selected))
+                .show();
+            return;
         }
         askAi();
-        // askAi snapshots the consent and image into its request before returning.
+        // Giữ nguyên văn bản nguồn để người dùng có thể sửa hoặc thử dịch lại nếu API lỗi.
+    }
+
+    private void sendTranslationRequest(int selected) {
+        boolean oldGemini = shareImageGemini, oldClaude = shareImageClaude, oldOpenAi = shareImageOpenAi;
+        if (selected == 0) shareImageGemini = true;
+        else if (selected == 1) shareImageClaude = true;
+        else if (selected == 2) shareImageOpenAi = true;
+        line("Người dùng đã xác nhận gửi ảnh OCR cho nhà cung cấp AI đã chọn.", 0xff91a9bd);
+        askAi();
+        // askAi snapshots the explicit one-request consent before returning.
         shareImageGemini = oldGemini;
         shareImageClaude = oldClaude;
         shareImageOpenAi = oldOpenAi;
-        // Giữ nguyên văn bản nguồn để người dùng có thể sửa hoặc thử dịch lại nếu API lỗi.
     }
 
     private void pickAiImage() {
