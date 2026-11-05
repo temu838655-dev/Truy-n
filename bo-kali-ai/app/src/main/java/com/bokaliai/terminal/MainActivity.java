@@ -5433,7 +5433,9 @@ public class MainActivity extends Activity {
                         ? "KHÔNG ĐỌC ĐƯỢC" : profile.getCatalogRegionSkuKey())
                     .append("\n");
                 if (!profile.hasMinimumIdentity()) {
-                    targetSummary.append("Danh mục root/unlock: KHÔNG TRA CỨU XÁC MINH — hồ sơ ADB chưa có đủ model, codename và dấu kết thúc đọc thành công.\n");
+                    targetSummary.append("Danh mục root/unlock: KHÔNG TRA CỨU XÁC MINH — thiếu dữ liệu định danh bắt buộc: ")
+                        .append(String.join(", ", profile.getMissingMinimumIdentityFields()))
+                        .append(". Không coi trường thiếu là wildcard.\\n");
                 } else {
                     AndroidDeviceSupportCatalog.Result catalogResult =
                         AndroidDeviceSupportCatalog.lookupBuiltIn(

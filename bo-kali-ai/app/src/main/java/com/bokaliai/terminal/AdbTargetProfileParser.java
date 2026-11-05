@@ -61,9 +61,24 @@ public final class AdbTargetProfileParser {
             return complete;
         }
 
+        /**
+         * A profile is eligible for exact catalog lookup only when every identity
+         * dimension required by the catalog was actually collected. Missing SKU or
+         * region data must never be treated as a wildcard.
+         */
+        public List<String> getMissingMinimumIdentityFields() {
+            List<String> missing = new ArrayList<>();
+            if (!complete) missing.add("dấu kết thúc hồ sơ ADB");
+            if (!hasText(get("ro.product.manufacturer"))) missing.add("hãng (ro.product.manufacturer)");
+            if (!hasText(get("ro.product.model"))) missing.add("model (ro.product.model)");
+            if (!hasText(get("ro.product.device"))) missing.add("codename (ro.product.device)");
+            if (!hasText(get("ro.build.fingerprint"))) missing.add("firmware fingerprint (ro.build.fingerprint)");
+            if (!hasText(getCatalogRegionSkuKey())) missing.add("SKU/region/locale");
+            return Collections.unmodifiableList(missing);
+        }
+
         public boolean hasMinimumIdentity() {
-            return complete && hasText(get("ro.product.model"))
-                && hasText(get("ro.product.device"));
+            return getMissingMinimumIdentityFields().isEmpty();
         }
 
         private static boolean hasText(String value) {

@@ -15,6 +15,8 @@ public class AdbTargetProfileParserTest {
             "ro.product.manufacturer=Acme\n" +
             "ro.product.model=Phone A\n" +
             "ro.product.device=phone_a\n" +
+            "ro.build.fingerprint=acme/phone_a:14/BUILD_A/1:user/release-keys\n" +
+            "ro.boot.hardware.sku=SKU_A\n" +
             "ro.build.version.release=14\n" +
             "--- END TARGET PROFILE: READ ONLY ---\n" +
             "=== TARGET SERIAL: emulator-5554 ===\n" +
@@ -22,6 +24,8 @@ public class AdbTargetProfileParserTest {
             "ro.product.manufacturer=Example\n" +
             "ro.product.model=Emulator B\n" +
             "ro.product.device=emu_b\n" +
+            "ro.build.fingerprint=example/emu_b:15/BUILD_B/2:user/release-keys\n" +
+            "ro.boot.hardware.sku=SKU_B\n" +
             "ro.build.version.release=15\n" +
             "--- END TARGET PROFILE: READ ONLY ---\n";
 
@@ -48,6 +52,38 @@ public class AdbTargetProfileParserTest {
         assertEquals(1, profiles.size());
         assertFalse(profiles.get(0).isComplete());
         assertFalse(profiles.get(0).hasMinimumIdentity());
+    }
+
+    @Test
+    public void exactCatalogIdentityRequiresManufacturerFingerprintAndRegionSku() {
+        String output =
+            "=== TARGET SERIAL: device-identity ===\\n" +
+            "ro.product.model=Phone Identity\\n" +
+            "ro.product.device=phone_identity\\n" +
+            "ro.build.fingerprint=maker/phone_identity:14/BUILD/1:user/release-keys\\n" +
+            "--- END TARGET PROFILE: READ ONLY ---\\n";
+        AdbTargetProfileParser.DeviceProfile profile =
+            AdbTargetProfileParser.parse(output).get(0);
+        assertFalse(profile.hasMinimumIdentity());
+        assertEquals(3, profile.getMissingMinimumIdentityFields().size());
+        assertTrue(profile.getMissingMinimumIdentityFields().contains("hãng (ro.product.manufacturer)"));
+        assertTrue(profile.getMissingMinimumIdentityFields().contains("SKU/region/locale"));
+    }
+
+    @Test
+    public void completeExactIdentityIsEligibleForCatalogLookup() {
+        String output =
+            "=== TARGET SERIAL: device-exact ===\\n" +
+            "ro.product.manufacturer=Maker\\n" +
+            "ro.product.model=Phone Exact\\n" +
+            "ro.product.device=phone_exact\\n" +
+            "ro.build.fingerprint=maker/phone_exact:14/BUILD/1:user/release-keys\\n" +
+            "ro.boot.hardware.sku=SKU_EXACT\\n" +
+            "--- END TARGET PROFILE: READ ONLY ---\\n";
+        AdbTargetProfileParser.DeviceProfile profile =
+            AdbTargetProfileParser.parse(output).get(0);
+        assertTrue(profile.hasMinimumIdentity());
+        assertTrue(profile.getMissingMinimumIdentityFields().isEmpty());
     }
 
     @Test
