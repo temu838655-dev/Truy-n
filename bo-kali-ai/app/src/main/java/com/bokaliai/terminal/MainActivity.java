@@ -97,8 +97,9 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        // Never resume a previous session's AI plan after process recreation.
-        cancelPendingAiDevicePlanFor(null);
+        // Clear only an unfinished AI planning request. Preserve queued steps for explicit review;
+        // device permissions remain session-only and must be granted again after process recreation.
+        getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE).edit().clear().commit();
         buildUi();
         registerAdbNetworkCallback();
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -3157,9 +3158,27 @@ public class MainActivity extends Activity {
                 message += (n + 1) + ". [" + step.optString("scope", "") + "] "
                     + step.optString("command", "") + "\n";
             }
+            boolean needsRegrant = !hasAiDevicePermission(queue.getString("serial", ""), "READ_INFO")
+                && !hasAiDevicePermission(queue.getString("serial", ""), "APP_LIST")
+                && !hasAiDevicePermission(queue.getString("serial", ""), "READ_LOGS")
+                && !hasAiDevicePermission(queue.getString("serial", ""), "APP_LAUNCH")
+                && !hasAiDevicePermission(queue.getString("serial", ""), "APP_INSTALL_REMOVE")
+                && !hasAiDevicePermission(queue.getString("serial", ""), "SCREEN_CONTROL")
+                && !hasAiDevicePermission(queue.getString("serial", ""), "DEVICE_SETTINGS")
+                && !hasAiDevicePermission(queue.getString("serial", ""), "NETWORK_DIAGNOSTICS")
+                && !hasAiDevicePermission(queue.getString("serial", ""), "RAW_ADB_SHELL");
+            if (needsRegrant) message += "\\n\\nLưu ý: quyền AI chỉ tồn tại trong phiên trước. Hãy cấp lại quyền cho đúng thiết bị trước khi duyệt tiếp.";
+            if (!active.isEmpty()) message += "\\n\\nCẢNH BÁO: có bước đang/đã được gửi nhưng chưa xác nhận kết quả. Không chạy lại bước này tự động.";
             AlertDialog.Builder builder = new AlertDialog.Builder(this).setTitle("Kế hoạch AI nhiều bước")
                 .setMessage(message).setPositiveButton("ĐÓNG", null);
             if (active.isEmpty()) builder.setNeutralButton("TIẾP TỤC DUYỆT", (d, w) -> showNextAiQueuedStep());
+            else builder.setNeutralButton("DỪNG PHẦN CÒN LẠI", (d, w) -> {
+                String queuedSerial = queue.getString("serial", "");
+                String uncertainId = queue.getString("active_step_execution_id", "");
+                queue.edit().clear().commit();
+                appendAiDeviceAudit("DỪNG PHẦN CÒN LẠI SAU TÁC VỤ CHƯA XÁC ĐỊNH | thiết bị=" + queuedSerial + " | tác vụ=" + uncertainId);
+                line("Đã dừng kế hoạch và xóa các bước chưa chạy. BO không thể hủy lệnh đã gửi tới Termux; hãy kiểm tra thiết bị trước khi thao tác tiếp.", 0xffffca70);
+            });
             builder.setNegativeButton("HỦY KẾ HOẠCH", (d, w) -> {
                 String queuedSerial = queue.getString("serial", "");
                 queue.edit().clear().commit();
