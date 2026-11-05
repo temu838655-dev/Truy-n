@@ -6212,12 +6212,18 @@ public class MainActivity extends Activity {
             return;
         }
         String requestId = java.util.UUID.randomUUID().toString();
-        getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE).edit()
+        boolean requestSaved = getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE).edit()
             .putString("request_id", requestId)
             .putString("serial", serial)
             .putString("provider", providerId)
             .putLong("requested_at", System.currentTimeMillis())
             .commit();
+        if (!requestSaved) {
+            line("BO không lưu được trạng thái yêu cầu ADB một cách bền vững. Đã hủy đề xuất; không chuyển lệnh sang bước duyệt.", 0xffff8080);
+            reportAiProposalOutcome(providerId, "request_state_not_saved",
+                "BO không xác nhận được việc lưu trạng thái yêu cầu ADB; không tạo hoặc gửi lệnh.");
+            return;
+        }
         try {
             JSONObject plan = new JSONObject()
                 .put("scope", scope)
