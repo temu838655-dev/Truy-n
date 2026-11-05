@@ -104,7 +104,7 @@ public final class AdbTargetProfileParser {
                 continue;
             }
             if (current == null) continue;
-            if (line.contains("END TARGET PROFILE: READ ONLY")) {
+            if (line.equals("--- END TARGET PROFILE: READ ONLY ---")) {
                 current.complete = true;
                 current = null;
                 continue;
