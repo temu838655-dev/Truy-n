@@ -5175,7 +5175,15 @@ public class MainActivity extends Activity {
             boolean pendingConsumed = prefs.edit().remove("pending_output").remove("pending_screen_capture")
                 .remove("pending_scrcpy_ready").remove("pending_scrcpy_token").commit();
             if (!pendingConsumed) {
-                line("CẢNH BÁO: Không xác nhận được việc nhận kết quả Termux. Kết quả vẫn được giữ để thử nhận lại; BO chưa xử lý tác vụ để tránh chạy lặp.", 0xffffca70);
+                boolean restored = prefs.edit()
+                    .putString("pending_output", pending == null ? "" : pending)
+                    .putBoolean("pending_screen_capture", pendingScreenCapture)
+                    .putBoolean("pending_scrcpy_ready", pendingScrcpyReady)
+                    .putString("pending_scrcpy_token", pendingScrcpyToken).commit();
+                line(restored
+                    ? "CẢNH BÁO: Chưa xác nhận được việc nhận kết quả; đã khôi phục gói chờ để thử lại. BO chưa xử lý tác vụ."
+                    : "LỖI NGHIÊM TRỌNG: Không xác nhận được việc nhận hoặc khôi phục kết quả Termux. Không chạy lại lệnh; cần kiểm tra nhật ký và trạng thái thiết bị.",
+                    0xffffca70);
             } else {
             if (pending != null && !pending.isEmpty()) {
                 lastCommandOutput = pending;
@@ -5272,7 +5280,15 @@ public class MainActivity extends Activity {
             boolean pendingConsumed = resultPrefs.edit().remove("pending_output").remove("pending_screen_capture")
                 .remove("pending_scrcpy_ready").remove("pending_scrcpy_token").commit();
             if (!pendingConsumed) {
-                line("CẢNH BÁO: Không xác nhận được việc nhận kết quả Termux. Kết quả vẫn được giữ để thử nhận lại; BO chưa xử lý tác vụ để tránh chạy lặp.", 0xffffca70);
+                boolean restored = resultPrefs.edit()
+                    .putString("pending_output", pendingOutput == null ? "" : pendingOutput)
+                    .putBoolean("pending_screen_capture", pendingScreenCapture)
+                    .putBoolean("pending_scrcpy_ready", pendingScrcpyReady)
+                    .putString("pending_scrcpy_token", pendingScrcpyToken).commit();
+                line(restored
+                    ? "CẢNH BÁO: Chưa xác nhận được việc nhận kết quả; đã khôi phục gói chờ để thử lại. BO chưa xử lý tác vụ."
+                    : "LỖI NGHIÊM TRỌNG: Không xác nhận được việc nhận hoặc khôi phục kết quả Termux. Không chạy lại lệnh; cần kiểm tra nhật ký và trạng thái thiết bị.",
+                    0xffffca70);
                 return;
             }
             lastCommandOutput = pendingOutput != null && !pendingOutput.isEmpty()
