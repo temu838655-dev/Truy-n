@@ -7278,6 +7278,8 @@ public class MainActivity extends Activity {
         worker.execute(() -> {
             String branchName = "";
             String commitSha = "";
+            boolean branchCreated = false;
+            boolean pullRequestCreated = false;
             try {
                 String encodedBase = java.net.URLEncoder.encode(base, "UTF-8");
                 JSONObject baseRef = githubApi("GET", "/repos/" + repository + "/git/ref/heads/" + encodedBase, null);
@@ -7309,6 +7311,7 @@ public class MainActivity extends Activity {
                     .put("ref", "refs/heads/" + branchName)
                     .put("sha", baseObject.optString("sha"));
                 githubApi("POST", "/repos/" + repository + "/git/refs", refPayload);
+                branchCreated = true;
 
                 JSONObject filePayload = new JSONObject()
                     .put("message", summary)
@@ -7325,6 +7328,7 @@ public class MainActivity extends Activity {
                     .put("base", base)
                     .put("body", "Pull Request được tạo từ BO Kali AI • Antigravity.\n\nHãy kiểm tra toàn bộ diff, chạy build/test và chỉ merge sau khi xác minh.");
                 JSONObject pr = githubApi("POST", "/repos/" + repository + "/pulls", prPayload);
+                pullRequestCreated = true;
                 String html = pr.optString("html_url", "");
                 int number = pr.optInt("number", 0);
                 final String createdBranchName = branchName;
@@ -7336,9 +7340,21 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> line("Đã tạo Pull Request #" + number + " • " + createdBranchName
                     + (html.isEmpty() ? "" : "\n" + html), GREEN));
             } catch (Exception e) {
-                String partial = branchName.isEmpty() ? "" : " Nhánh có thể đã được tạo: " + branchName
-                    + (commitSha.isEmpty() ? "" : "; commit: " + commitSha)
-                    + ". Hãy kiểm tra GitHub trước khi thử lại.";
+                String partial = "";
+                if (branchCreated && !pullRequestCreated) {
+                    try {
+                        githubApi("DELETE", "/repos/" + repository + "/git/refs/heads/" + branchName, null);
+                        partial = " Đã xóa nhánh tạm " + branchName + " vì Pull Request chưa được tạo.";
+                    } catch (Exception cleanupError) {
+                        partial = " Không xóa được nhánh tạm " + branchName
+                            + "; hãy kiểm tra thủ công trên GitHub. Lỗi dọn dẹp: " + cleanupError.getMessage();
+                    }
+                } else if (!branchName.isEmpty() && !branchCreated) {
+                    partial = " Chưa xác nhận được nhánh đã tạo; hãy kiểm tra GitHub trước khi thử lại.";
+                } else if (pullRequestCreated) {
+                    partial = " GitHub đã xác nhận tạo Pull Request; giữ nguyên nhánh để không làm hỏng PR.";
+                }
+                if (!commitSha.isEmpty()) partial += " Commit gần nhất: " + commitSha + ".";
                 reportAntigravityToolOutcome("github_pull_request_failed",
                     "Không hoàn tất được Pull Request: " + e.getMessage() + partial);
                 runOnUiThread(() -> line("Tạo Pull Request thất bại: " + e.getMessage() + partial, 0xffff8080));
