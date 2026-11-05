@@ -29,6 +29,39 @@ public class AndroidDeviceSupportCatalogTest {
     }
 
     @Test
+    public void parserIdentityKeyMatchesCatalogOnlyWhenAllLabeledFieldsMatch() {
+        String profileOutput =
+            "=== TARGET SERIAL: test-device ===\n" +
+            "ro.product.model=Model X\n" +
+            "ro.product.device=device_x\n" +
+            "ro.boot.hardware.sku=SKU_A\n" +
+            "ro.boot.product.hardware.sku=PRODUCT_SKU_B\n" +
+            "ro.boot.region=REGION_C\n" +
+            "ro.product.locale=en-US\n" +
+            "--- END TARGET PROFILE: READ ONLY ---\n";
+        AdbTargetProfileParser.DeviceProfile profile =
+            AdbTargetProfileParser.parse(profileOutput).get(0);
+        String identityKey = profile.getCatalogRegionSkuKey();
+        AndroidDeviceSupportCatalog.Entry entry = new AndroidDeviceSupportCatalog.Entry(
+            "Example", "Model X", "device_x",
+            "example/device_x:14/BUILD/123:user/release-keys", identityKey,
+            AndroidDeviceSupportCatalog.Status.VERIFIED_UNLOCK_SUPPORTED,
+            "Exact identity fixture.", "https://example.com/device-x", "2026-11-05",
+            AndroidDeviceSupportCatalog.EvidenceSource.OEM_OFFICIAL, true,
+            "Reviewed test fixture.");
+        AndroidDeviceSupportCatalog.Result exact = AndroidDeviceSupportCatalog.lookup(
+            Collections.singletonList(entry), "Example", "Model X", "device_x",
+            "example/device_x:14/BUILD/123:user/release-keys", identityKey);
+        AndroidDeviceSupportCatalog.Result missingRegion = AndroidDeviceSupportCatalog.lookup(
+            Collections.singletonList(entry), "Example", "Model X", "device_x",
+            "example/device_x:14/BUILD/123:user/release-keys",
+            "ro.boot.hardware.sku=SKU_A|ro.boot.product.hardware.sku=PRODUCT_SKU_B|" +
+            "ro.product.locale=en-US");
+        assertTrue(exact.isVerifiedMatch());
+        assertFalse(missingRegion.isVerifiedMatch());
+    }
+
+    @Test
     public void rejectsDifferentFirmwareEvenWhenModelAndCodenameMatch() {
         AndroidDeviceSupportCatalog.Result result = AndroidDeviceSupportCatalog.lookup(
             Collections.singletonList(verifiedEntry()), "Example", "Model X", "device_x",
