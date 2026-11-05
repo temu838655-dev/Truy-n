@@ -4575,33 +4575,43 @@ public class MainActivity extends Activity {
     }
 
     // Read-only ADB security inventory. No pairing, root escalation, writes or package changes.
+    // Read-only target-device profile for model-specific root/unlock/kernel research.
+    // ADB shell is used only against authorized devices in state "device"; no writes or root escalation.
     private void runAdbDeviceSecurityAudit() {
         final String remoteAudit =
             "echo '--- DEVICE IDENTITY ---'; " +
             "for p in ro.product.manufacturer ro.product.brand ro.product.model ro.product.device " +
-            "ro.build.version.release ro.build.version.sdk ro.product.cpu.abi; do " +
+            "ro.product.vendor.device ro.product.odm.device ro.product.board ro.board.platform " +
+            "ro.hardware ro.soc.manufacturer ro.soc.model ro.build.fingerprint ro.vendor.build.fingerprint " +
+            "ro.build.id ro.build.version.release ro.build.version.sdk ro.build.version.security_patch " +
+            "ro.product.first_api_level ro.product.cpu.abi; do " +
             "v=$(getprop \"$p\"); [ -n \"$v\" ] && printf '%s=%s\\n' \"$p\" \"$v\"; done; " +
-            "echo '--- BOOT / SECURITY ---'; " +
-            "for p in ro.boot.verifiedbootstate ro.boot.flash.locked ro.boot.vbmeta.device_state; do " +
+            "echo '--- BOOT / PARTITION METADATA ---'; " +
+            "for p in ro.bootloader ro.boot.bootloader ro.boot.slot_suffix ro.boot.dynamic_partitions " +
+            "ro.boot.boot_devices ro.boot.verifiedbootstate ro.boot.flash.locked " +
+            "ro.boot.vbmeta.device_state ro.crypto.state; do " +
             "v=$(getprop \"$p\"); [ -n \"$v\" ] && printf '%s=%s\\n' \"$p\" \"$v\"; done; " +
+            "echo '--- KERNEL / SECURITY ---'; uname -a; " +
             "if command -v getenforce >/dev/null 2>&1; then printf 'SELINUX='; getenforce; fi; " +
-            "echo '--- ADB / USER ---'; printf 'ADB_ENABLED='; settings get global adb_enabled 2>/dev/null; id; " +
-            "echo '--- KERNEL ---'; uname -a; " +
-            "echo '--- INSTALLED PACKAGE COUNT ---'; pm list packages 2>/dev/null | wc -l; " +
-            "echo '--- END DEVICE AUDIT ---'";
+            "printf 'ANDROID_UID='; id; " +
+            "echo '--- PARTITION NAMES (IF READABLE) ---'; " +
+            "if [ -d /dev/block/by-name ]; then ls -l /dev/block/by-name 2>&1 | head -n 100; " +
+            "elif [ -d /dev/block/bootdevice/by-name ]; then ls -l /dev/block/bootdevice/by-name 2>&1 | head -n 100; " +
+            "else echo 'Partition map not readable from this ADB shell; this is normal on production builds.'; fi; " +
+            "echo '--- END TARGET PROFILE: READ ONLY ---'";
         final String command =
-            "echo '=== BO KALI AI: ADB DEVICE SECURITY AUDIT (READ ONLY) ==='; " +
+            "echo '=== BO KALI AI: TARGET DEVICE PROFILE (READ ONLY) ==='; " +
             "if ! command -v adb >/dev/null 2>&1; then " +
             "echo 'ADB_NOT_INSTALLED: cài android-tools trong Termux rồi chạy lại.'; exit 127; fi; " +
             "echo '=== ADB DEVICE STATES ==='; adb devices -l; " +
-            "echo '=== READ-ONLY AUDIT FOR AUTHORIZED ONLINE DEVICES ==='; " +
+            "echo '=== PROFILE FOR AUTHORIZED ONLINE DEVICES ==='; " +
             "adb devices | awk 'NR > 1 && $2 == \"device\" {print $1}' | " +
             "while IFS= read -r serial; do " +
             "[ -n \"$serial\" ] || continue; " +
-            "echo \"=== DEVICE SERIAL: $serial ===\"; " +
+            "echo \"=== TARGET SERIAL: $serial ===\"; " +
             "adb -s \"$serial\" shell " + shellQuote(remoteAudit) + "; " +
-            "done; echo '=== AUDIT COMPLETE: no device settings or data changed ==='";
-        line("Đang kiểm tra trạng thái ADB và đọc thông tin bảo mật của thiết bị trực tuyến. Không chạy lệnh ghi/root.", GREEN);
+            "done; echo '=== PROFILE COMPLETE: no device settings or partitions changed ==='";
+        line("Đang lập hồ sơ thiết bị Android đích qua ADB (chỉ đọc). Dữ liệu này giúp tra đúng model/firmware trước khi xem hướng dẫn root hoặc flash.", GREEN);
         runTermuxCommand(command);
     }
 
