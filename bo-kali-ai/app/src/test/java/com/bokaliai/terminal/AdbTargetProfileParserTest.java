@@ -196,6 +196,20 @@ public class AdbTargetProfileParserTest {
     }
 
     @Test
+    public void parsesAndroidUidMetadataForRootAssessment() {
+        String output =
+            "=== TARGET SERIAL: device-root-check ===\\n" +
+            "ANDROID_UID=uid=2000(shell) gid=2000(shell) groups=1003,1004\\n" +
+            "--- END TARGET PROFILE: READ ONLY ---\\n";
+        AdbTargetProfileParser.DeviceProfile profile =
+            AdbTargetProfileParser.parse(output).get(0);
+        assertEquals("uid=2000(shell) gid=2000(shell) groups=1003,1004",
+            profile.get("ANDROID_UID"));
+        assertEquals(AndroidDeviceCapabilityAssessment.State.BLOCKED,
+            AndroidDeviceCapabilityAssessment.assess(profile).rootStatus);
+    }
+
+    @Test
     public void missingIdentityFieldsCannotBeModifiedByCaller() {
         String output =
             "=== TARGET SERIAL: device-immutable ===\n" +
