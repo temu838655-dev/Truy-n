@@ -470,7 +470,7 @@ public final class AiToolRegistry {
         }
         if (name.startsWith("github.")) {
             String repo = args.optString("repository", "").trim();
-            if (!repo.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")) return "INVALID_REPOSITORY";
+            if (!validRepositoryName(repo)) return "INVALID_REPOSITORY";
         }
         if ("github.read_file".equals(name) || "github.propose_patch".equals(name)
                 || "github.commit_patch".equals(name)) {
@@ -483,6 +483,22 @@ public final class AiToolRegistry {
                 return "BRANCH_REQUIRED";
         }
         return "OK";
+    }
+
+    /** Validate a GitHub owner/repository pair before building REST API paths. */
+    public static boolean validRepositoryName(String repository) {
+        if (repository == null || repository.length() > 201) return false;
+        for (int i = 0; i < repository.length(); i++) {
+            char ch = repository.charAt(i);
+            if (ch <= 0x1f || ch == 0x7f) return false;
+        }
+        String[] parts = repository.split("/", -1);
+        if (parts.length != 2) return false;
+        for (String part : parts) {
+            if (part.isEmpty() || part.length() > 100 || ".".equals(part) || "..".equals(part)
+                    || !part.matches("[A-Za-z0-9_.-]+")) return false;
+        }
+        return true;
     }
 
     public static boolean validRepoPath(String path) {

@@ -201,4 +201,17 @@ public class AiToolRegistryTest {
         }
     }
 
+    @Test
+    public void validatesRepositoryNamesWithoutDotSegmentTraversal() {
+        assertTrue(AiToolRegistry.validRepositoryName("owner/repo"));
+        assertTrue(AiToolRegistry.validRepositoryName("owner-name/repo.name"));
+        assertFalse(AiToolRegistry.validRepositoryName("../repo"));
+        assertFalse(AiToolRegistry.validRepositoryName("owner/.."));
+        assertFalse(AiToolRegistry.validRepositoryName("./repo"));
+        assertFalse(AiToolRegistry.validRepositoryName("owner/./repo"));
+        assertFalse(AiToolRegistry.validRepositoryName("owner/repo/extra"));
+        assertFalse(AiToolRegistry.validRepositoryName("owner/"));
+        assertFalse(AiToolRegistry.validRepositoryName("owner/repo\n"));
+    }
+
 }

@@ -6815,7 +6815,7 @@ public class MainActivity extends Activity {
             return;
         }
         String repository = args.optString("repository", "").trim();
-        if (!repository.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")) {
+        if (!AiToolRegistry.validRepositoryName(repository)) {
             reportAntigravityToolOutcome("invalid_repository", "Repository phải có dạng owner/name.");
             return;
         }
@@ -6886,7 +6886,7 @@ public class MainActivity extends Activity {
         String repository = args.optString("repository", "").trim();
         String ref = args.optString("ref", "main").trim();
         JSONArray requested = args.optJSONArray("paths");
-        if (!repository.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+        if (!AiToolRegistry.validRepositoryName(repository)
                 || ref.isEmpty() || ref.length() > 200 || ref.matches(".*[\\r\\n\\u0000].*")
                 || requested == null || requested.length() < 2 || requested.length() > 8) {
             reportAntigravityToolOutcome("invalid_multi_file_read",
@@ -6949,7 +6949,7 @@ public class MainActivity extends Activity {
         String branch = args.optString("branch", "main").trim();
         String content = args.optString("content", "");
         String summary = args.optString("summary", "Update " + path).trim();
-        if (!repository.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+        if (!AiToolRegistry.validRepositoryName(repository)
                 || !AiToolRegistry.validRepoPath(path) || branch.isEmpty()
                 || branch.length() > 200 || branch.matches(".*[\\r\\n\\u0000].*")
                 || content.isEmpty() || content.length() > 60000
@@ -7098,7 +7098,7 @@ public class MainActivity extends Activity {
         String base = args.optString("branch", "main").trim();
         String summary = args.optString("summary", "Update multiple files").trim();
         JSONArray requested = args.optJSONArray("files");
-        if (!repository.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+        if (!AiToolRegistry.validRepositoryName(repository)
                 || base.isEmpty() || base.length() > 200 || base.matches(".*[\\r\\n\\u0000].*")
                 || summary.isEmpty() || summary.length() > 120
                 || requested == null || requested.length() < 2 || requested.length() > 6) {
