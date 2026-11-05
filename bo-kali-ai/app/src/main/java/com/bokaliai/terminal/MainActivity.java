@@ -5172,8 +5172,11 @@ public class MainActivity extends Activity {
         if ((pending != null && !pending.isEmpty()) || pendingScreenCapture || pendingScrcpyReady) {
             // Consume the pending callback atomically before rendering it. This keeps
             // onResume consistent with onNewIntent and avoids replay after recreation.
-            prefs.edit().remove("pending_output").remove("pending_screen_capture")
+            boolean pendingConsumed = prefs.edit().remove("pending_output").remove("pending_screen_capture")
                 .remove("pending_scrcpy_ready").remove("pending_scrcpy_token").commit();
+            if (!pendingConsumed) {
+                line("CẢNH BÁO: Không xác nhận được việc nhận kết quả Termux. Kết quả vẫn được giữ để thử nhận lại; BO chưa xử lý tác vụ để tránh chạy lặp.", 0xffffca70);
+            } else {
             if (pending != null && !pending.isEmpty()) {
                 lastCommandOutput = pending;
                 processAiDevicePlanOutput(pending);
@@ -5209,6 +5212,7 @@ public class MainActivity extends Activity {
                     && pendingScrcpyToken.equals(session.getString("active_request_token", ""));
                 adbMirrorResumePending = false;
                 if (currentRequest) scheduleScrcpyResumeRetry(pending);
+            }
             }
         }
         resumeAdbMirrorAfterUnlock();
@@ -5265,8 +5269,12 @@ public class MainActivity extends Activity {
             boolean pendingScreenCapture = resultPrefs.getBoolean("pending_screen_capture", false);
             boolean pendingScrcpyReady = resultPrefs.getBoolean("pending_scrcpy_ready", false);
             String pendingScrcpyToken = resultPrefs.getString("pending_scrcpy_token", "");
-            resultPrefs.edit().remove("pending_output").remove("pending_screen_capture")
+            boolean pendingConsumed = resultPrefs.edit().remove("pending_output").remove("pending_screen_capture")
                 .remove("pending_scrcpy_ready").remove("pending_scrcpy_token").commit();
+            if (!pendingConsumed) {
+                line("CẢNH BÁO: Không xác nhận được việc nhận kết quả Termux. Kết quả vẫn được giữ để thử nhận lại; BO chưa xử lý tác vụ để tránh chạy lặp.", 0xffffca70);
+                return;
+            }
             lastCommandOutput = pendingOutput != null && !pendingOutput.isEmpty()
                 ? pendingOutput : intent.getStringExtra("termux_output");
             if (lastCommandOutput == null) lastCommandOutput = "Termux trả về kết quả trống.";
