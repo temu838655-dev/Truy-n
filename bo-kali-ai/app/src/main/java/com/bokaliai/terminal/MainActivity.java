@@ -2530,7 +2530,7 @@ public class MainActivity extends Activity {
         String sourceText = translationInput == null ? "" : translationInput.getText().toString().trim();
         boolean hasImage = selectedAiImageBase64 != null && !selectedAiImageBase64.isEmpty();
         if (sourceText.isEmpty() && !hasImage) {
-            line("Hãy nhập văn bản hoặc chọn ảnh trước khi dịch.", 0xffffca70);
+            showTranslationNotice("Chưa có nội dung. Hãy nhập văn bản hoặc chọn ảnh OCR trước khi dịch.");
             return;
         }
         int selected = aiProviderPicker == null ? 0 : aiProviderPicker.getSelectedItemPosition();
@@ -2538,11 +2538,11 @@ public class MainActivity extends Activity {
             : selected == 2 ? openAiKey
             : selected == 3 ? geminiKey : geminiKey;
         if (selectedApiKey == null || selectedApiKey.trim().isEmpty()) {
-            line("Chưa cấu hình API key cho nhà cung cấp AI đang chọn. Nội dung dịch được giữ nguyên; hãy cấu hình khóa rồi thử lại.", 0xffffca70);
+            showTranslationNotice("Chưa cấu hình API key cho nhà cung cấp AI đang chọn. Văn bản nguồn và ảnh đã chọn vẫn được giữ lại; hãy cấu hình khóa rồi thử lại.");
             return;
         }
         if (hasImage && selected == 3) {
-            line("Google Antigravity hiện không nhận ảnh trong luồng này. Chọn Gemini, Claude hoặc OpenAI để OCR ảnh.", 0xffffca70);
+            showTranslationNotice("Google Antigravity hiện chưa hỗ trợ nhận ảnh trong luồng dịch này. Hãy chọn Gemini, Claude hoặc OpenAI để OCR ảnh.");
             return;
         }
         StringBuilder request = new StringBuilder(
@@ -6053,6 +6053,11 @@ public class MainActivity extends Activity {
             }
         }
         return answer.toString().trim();
+    }
+
+    private void showTranslationNotice(String message) {
+        if (translationResultView != null) translationResultView.setText(message);
+        line(message, 0xffffca70);
     }
 
     private void showAiAnswer(String provider, String answer, boolean translationRequest) {
