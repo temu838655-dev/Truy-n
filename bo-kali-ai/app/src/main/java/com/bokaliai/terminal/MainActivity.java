@@ -6002,7 +6002,7 @@ public class MainActivity extends Activity {
                 final String out = answer.isEmpty()
                     ? "Đã gửi trạng thái duyệt cho Antigravity. Không có phản hồi văn bản bổ sung."
                     : answer;
-                runOnUiThread(() -> showAiAnswer("Antigravity Agent", out, isTranslationRequest));
+                runOnUiThread(() -> showAiAnswer("Antigravity Agent", out, false));
             } catch (Exception e) {
                 android.content.SharedPreferences pendingTool =
                     getSharedPreferences("bo_kali_antigravity_pending_tool", MODE_PRIVATE);
