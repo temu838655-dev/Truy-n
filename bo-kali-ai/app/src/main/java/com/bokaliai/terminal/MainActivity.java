@@ -6960,14 +6960,16 @@ public class MainActivity extends Activity {
                     .append("\nBRANCH: ").append(run.optString("head_branch"))
                     .append("\nURL: ").append(run.optString("html_url"));
                 boolean failed = false;
-                long failedJobId = 0L;
+                final ArrayList<Long> failedJobIds = new ArrayList<>();
+                final ArrayList<String> failedJobLabels = new ArrayList<>();
                 if (jobs != null) for (int i = 0; i < jobs.length(); i++) {
                     JSONObject job = jobs.getJSONObject(i);
+                    String jobConclusion = job.optString("conclusion", "");
                     report.append("\n\nJOB: ").append(job.optString("name"))
                         .append(" · ").append(job.optString("status"))
-                        .append("/").append(job.optString("conclusion"));
+                        .append("/").append(jobConclusion);
                     JSONArray steps = job.optJSONArray("steps");
-                    boolean jobFailed = false;
+                    boolean jobFailed = "failure".equalsIgnoreCase(jobConclusion);
                     if (steps != null) for (int j = 0; j < steps.length(); j++) {
                         JSONObject step = steps.getJSONObject(j);
                         String conclusion = step.optString("conclusion", "");
@@ -6981,17 +6983,23 @@ public class MainActivity extends Activity {
                                 .append(" · ").append(conclusion);
                         }
                     }
-                    if (jobFailed && failedJobId == 0L) failedJobId = job.optLong("id", 0L);
+                    if (jobFailed) {
+                        failed = true;
+                        long candidateJobId = job.optLong("id", 0L);
+                        if (candidateJobId > 0L) {
+                            failedJobIds.add(candidateJobId);
+                            failedJobLabels.add(job.optString("name", "Job lỗi") + " · ID " + candidateJobId);
+                        }
+                    }
                 }
                 if (jobs == null || jobs.length() == 0) report.append("\nChưa có job hoặc workflow đang chờ runner.");
                 final String summary = report.toString();
                 final boolean hasFailure = failed;
-                final long logJobId = failedJobId;
                 runOnUiThread(() -> new AlertDialog.Builder(this)
                     .setTitle(hasFailure ? "Phát hiện bước build thất bại" : "Chi tiết GitHub Actions")
-                    .setMessage(summary + "\n\nBO đã đọc metadata job/step. Nếu có job thất bại, bạn có thể tải raw log riêng; log chỉ được gửi AI khi bạn xác nhận.")
-                    .setPositiveButton(hasFailure && logJobId > 0L ? "TẢI RAW LOG LỖI" : "ĐÓNG", (dialog, which) -> {
-                        if (hasFailure && logJobId > 0L) downloadGithubJobLogs(repository, logJobId, summary);
+                    .setMessage(summary + "\n\nBO đã đọc metadata job/step. Bạn có thể chọn từng job lỗi để tải raw log; log chỉ được gửi AI khi bạn xác nhận.")
+                    .setPositiveButton(hasFailure && !failedJobIds.isEmpty() ? "CHỌN JOB TẢI LOG" : "ĐÓNG", (dialog, which) -> {
+                        if (hasFailure && !failedJobIds.isEmpty()) showGithubFailedJobPicker(repository, failedJobIds, failedJobLabels, summary);
                     })
                     .setNeutralButton("GỬI TÓM TẮT CHO AI", (dialog, which) -> {
                         questionInput.setText("Phân tích metadata workflow GitHub Actions dưới đây bằng tiếng Việt. Xác định bước lỗi, nêu điều gì có thể kết luận và thông tin còn thiếu vì chưa có raw log. Không bịa nguyên nhân:\n\n" + summary);
@@ -7003,6 +7011,28 @@ public class MainActivity extends Activity {
                     + " · Token cần Actions: Read.", 0xffff8080));
             }
         });
+    }
+
+    private void showGithubFailedJobPicker(String repository, ArrayList<Long> jobIds,
+            ArrayList<String> jobLabels, String summary) {
+        if (jobIds == null || jobIds.isEmpty()) {
+            line("Không có job lỗi hợp lệ để tải log.", 0xffffca70);
+            return;
+        }
+        if (jobIds.size() == 1) {
+            downloadGithubJobLogs(repository, jobIds.get(0), summary);
+            return;
+        }
+        String[] labels = jobLabels.toArray(new String[0]);
+        new AlertDialog.Builder(this)
+            .setTitle("Chọn job cần tải raw log")
+            .setItems(labels, (dialog, which) -> {
+                if (which >= 0 && which < jobIds.size()) {
+                    downloadGithubJobLogs(repository, jobIds.get(which), summary);
+                }
+            })
+            .setNegativeButton("HỦY", null)
+            .show();
     }
 
     // GitHub returns a short-lived redirect for job logs. The bearer token is sent only
