@@ -218,6 +218,23 @@ public class MainActivity extends Activity {
         translationResultView.setBackgroundColor(0xff142334);
         root.addView(text("KẾT QUẢ DỊCH / OCR", 0xff79c9ff, 12, true));
         root.addView(translationResultView, new LinearLayout.LayoutParams(-1, dp(150)));
+        Button copyTranslation = button("SAO CHÉP BẢN DỊCH");
+        copyTranslation.setOnClickListener(v -> {
+            String translated = translationResultView == null ? "" : translationResultView.getText().toString().trim();
+            if (translated.isEmpty() || translated.startsWith("Bản dịch sẽ hiển thị")) {
+                Toast.makeText(this, "Chưa có nội dung để sao chép.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            android.content.ClipboardManager clipboard =
+                (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("BO Kali AI - Bản dịch", translated));
+                Toast.makeText(this, "Đã sao chép bản dịch.", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Không thể mở bộ nhớ tạm trên thiết bị.", Toast.LENGTH_SHORT).show();
+            }
+        });
+        root.addView(copyTranslation, new LinearLayout.LayoutParams(-1, dp(38)));
         Button clearTranslation = button("XÓA KẾT QUẢ DỊCH");
         clearTranslation.setOnClickListener(v -> {
             if (translationResultView != null) translationResultView.setText("Bản dịch sẽ hiển thị tại đây sau khi AI phản hồi.");
