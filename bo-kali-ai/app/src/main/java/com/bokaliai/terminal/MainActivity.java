@@ -5385,6 +5385,7 @@ public class MainActivity extends Activity {
         java.util.List<AdbTargetProfileParser.DeviceProfile> profiles =
             AdbTargetProfileParser.parse(targetOutput);
         StringBuilder targetSummary = new StringBuilder();
+        int verifiedCatalogMatches = 0;
         if (profiles.isEmpty()) {
             targetSummary.append("CHƯA CÓ HỒ SƠ ADB ĐÍCH HOÀN CHỈNH. Chạy 'PHÂN TÍCH BẢO MẬT THIẾT BỊ ADB (CHỈ ĐỌC)' sau khi kết nối đúng máy. HOST không thay thế TARGET.");
         } else {
@@ -5427,6 +5428,7 @@ public class MainActivity extends Activity {
                 targetSummary.append("Danh mục root/unlock: ")
                     .append(catalogResult.getMessageVi()).append("\n");
                 if (catalogResult.isVerifiedMatch()) {
+                    verifiedCatalogMatches++;
                     targetSummary.append(catalogResult.getEvidenceSummaryVi()).append("\n");
                 }
             }
@@ -5439,7 +5441,9 @@ public class MainActivity extends Activity {
             "\nABI: " + abi +
             "\n\n=== HỒ SƠ TỪ THIẾT BỊ ĐÍCH ADB ===\n" + targetSummary +
             "\n\n=== TRẠNG THÁI HỖ TRỢ ROOT / UNLOCK ===\n" +
-            "Model profile: CHƯA ĐƯỢC XÁC MINH TRONG CƠ SỞ DỮ LIỆU THEO TỪNG MODEL/REGION/FIRMWARE." +
+            "Model profile: " + (verifiedCatalogMatches > 0
+                ? "CÓ " + verifiedCatalogMatches + " HỒ SƠ KHỚP CHÍNH XÁC VÀ ĐỦ BẰNG CHỨNG."
+                : "CHƯA CÓ HỒ SƠ KHỚP CHÍNH XÁC VÀ ĐỦ BẰNG CHỨNG.") +
             "\nBootloader unlock: cần xác minh chính xác model, mã vùng, nhà mạng và chính sách OEM." +
             "\nRoot: cần xác minh firmware đúng bản, boot.img/init_boot.img và khả năng tương thích kernel." +
             "\n\n=== LỆNH FASTBOOT THAM KHẢO (KHÔNG TỰ CHẠY) ===\n" +
