@@ -3470,12 +3470,17 @@ public class MainActivity extends Activity {
             reportAiProposalOutcome(provider, "rejected_before_execution", "Thiết bị ngoại tuyến, serial không hợp lệ hoặc quyền bị thu hồi tại bước kiểm tra cuối.");
             return;
         }
-        java.util.Set<String> currentGrants = aiDevicePermissions.get(serial);
-        String registryCheck = AiToolRegistry.validateAdbPlan(scope, serial, command, currentGrants);
         if (command == null || command.trim().isEmpty() || command.length() > 1200
             || command.matches("(?s).*[;&|<>$].*") || command.indexOf(96) >= 0
-            || command.contains("\\") || command.contains("'") || command.contains("\"")
-            || !"OK".equals(registryCheck) || !isAiCommandAllowedForScope(scope, command)) {
+            || command.contains("\\") || command.contains("'") || command.contains("\"")) {
+            line("Lệnh không hợp lệ hoặc chứa cú pháp shell không được phép; không thực thi.", 0xffff8080);
+            appendAiDeviceAudit("TỪ CHỐI LỆNH KHÔNG HỢP LỆ | thiết bị=" + serial + " | quyền=" + scope);
+            reportAiProposalOutcome(provider, "rejected_by_bo", "Lệnh rỗng, quá dài hoặc chứa cú pháp shell không được phép.");
+            return;
+        }
+        java.util.Set<String> currentGrants = aiDevicePermissions.get(serial);
+        String registryCheck = AiToolRegistry.validateAdbPlan(scope, serial, command, currentGrants);
+        if (!"OK".equals(registryCheck) || !isAiCommandAllowedForScope(scope, command)) {
             line("Lệnh không qua kiểm tra quyền/phạm vi lần cuối; không thực thi.", 0xffff8080);
             appendAiDeviceAudit("TỪ CHỐI KIỂM TRA CUỐI | thiết bị=" + serial + " | quyền=" + scope
                 + " | lý do=" + registryCheck);
