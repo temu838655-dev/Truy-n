@@ -179,7 +179,7 @@ public final class AndroidDeviceSupportCatalog {
     }
 
     private static boolean isHttpsSource(String value) {
-        if (value == null || value.trim().isEmpty() || value.matches(".*\\\\s+.*")) return false;
+        if (value == null || value.trim().isEmpty() || value.matches(".*\\s+.*")) return false;
         try {
             URI uri = new URI(value);
             return "https".equalsIgnoreCase(uri.getScheme())
