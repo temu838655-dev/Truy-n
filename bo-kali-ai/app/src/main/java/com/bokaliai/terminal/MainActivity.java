@@ -3311,7 +3311,7 @@ public class MainActivity extends Activity {
         for (String token : blocked) if (lower.contains(token)) return false;
 
         if ("READ_INFO".equals(scope)) {
-            return lower.matches("^(getprop ro\\.(product\\.(model|manufacturer|device)|build\\.(version\\.(release|sdk)|fingerprint))|df|df -h|uptime|uname -a|dumpsys (battery|display)|ip addr show wlan0|cat /proc/(meminfo|uptime|cpuinfo))$");
+            return lower.matches("^(getprop ro\\.(product\\.(model|manufacturer|device)|build\\.version\\.(release|sdk))|df|df -h|uptime|uname -a|dumpsys (battery|display)|ip addr show wlan0|cat /proc/(meminfo|uptime|cpuinfo))$");
         }
         if ("READ_LOGS".equals(scope)) {
             // No clear/write options; only bounded diagnostic reads.
@@ -3353,7 +3353,7 @@ public class MainActivity extends Activity {
         // RAW_ADB_SHELL is still constrained to a read-only diagnostic allowlist.
         // A permission grant must never turn AI output into unrestricted device shell access.
         if ("RAW_ADB_SHELL".equals(scope)) {
-            return lower.matches("^getprop ro\\.(product\\.(model|manufacturer|device)|build\\.(version\\.(release|sdk)|fingerprint))$")
+            return lower.matches("^getprop ro\\.(product\\.(model|manufacturer|device)|build\\.version\\.(release|sdk))$")
                 || lower.matches("^dumpsys (battery|activity|meminfo|cpuinfo|window|display|package|wifi|connectivity)$")
                 || lower.matches("^logcat -d -t ([1-9][0-9]{0,2}|1000)$")
                 || lower.matches("^cat /proc/(meminfo|uptime|cpuinfo|version|cmdline)$")

@@ -95,7 +95,7 @@ public final class AiToolRegistry {
     private static boolean isCommandAllowedForScope(String scope, String command) {
         String c = command.toLowerCase(Locale.ROOT).trim();
         if (READ_INFO.equals(scope)) return c.matches(
-            "^(getprop ro\\.(product\\.(model|manufacturer|device)|build\\.(version\\.(release|sdk)|fingerprint))|df|df -h|uptime|uname -a|dumpsys (battery|display)|ip addr show wlan0|cat /proc/(meminfo|uptime|cpuinfo))$");
+            "^(getprop ro\\.(product\\.(model|manufacturer|device)|build\\.version\\.(release|sdk))|df|df -h|uptime|uname -a|dumpsys (battery|display)|ip addr show wlan0|cat /proc/(meminfo|uptime|cpuinfo))$");
         if (READ_LOGS.equals(scope)) return c.matches(
             "^(logcat -d -t ([1-9][0-9]{0,2}|1000)|dumpsys (battery|activity|meminfo|cpuinfo|window|display|package))$");
         if (APP_LIST.equals(scope)) return c.matches("^pm list packages( -3|-s)?$");
@@ -122,7 +122,7 @@ public final class AiToolRegistry {
             || c.equals("wm size") || c.equals("wm density")
             || c.equals("cmd uimode night yes") || c.equals("cmd uimode night no");
         if (RAW_ADB_SHELL.equals(scope)) return c.matches(
-            "^getprop ro\\.(product\\.(model|manufacturer|device)|build\\.(version\\.(release|sdk)|fingerprint))$")
+            "^getprop ro\\.(product\\.(model|manufacturer|device)|build\\.version\\.(release|sdk))$")
             || c.matches("^dumpsys (battery|activity|meminfo|cpuinfo|window|display|package|wifi|connectivity)$")
             || c.matches("^logcat -d -t ([1-9][0-9]{0,2}|1000)$")
             || c.matches("^cat /proc/(meminfo|uptime|cpuinfo|version|cmdline)$")

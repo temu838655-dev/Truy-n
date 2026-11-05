@@ -175,6 +175,12 @@ public class AiToolRegistryTest {
         assertEquals("COMMAND_NOT_ALLOWED_FOR_SCOPE", AiToolRegistry.validateAdbPlan(
             AiToolRegistry.READ_INFO, "device-01", "getprop ro.serialno",
             grant(AiToolRegistry.READ_INFO)));
+        assertEquals("COMMAND_NOT_ALLOWED_FOR_SCOPE", AiToolRegistry.validateAdbPlan(
+            AiToolRegistry.READ_INFO, "device-01", "getprop ro.build.fingerprint",
+            grant(AiToolRegistry.READ_INFO)));
+        assertEquals("COMMAND_NOT_ALLOWED_FOR_SCOPE", AiToolRegistry.validateAdbPlan(
+            AiToolRegistry.RAW_ADB_SHELL, "device-01", "getprop ro.build.fingerprint",
+            grant(AiToolRegistry.RAW_ADB_SHELL)));
     }
 
     @Test
