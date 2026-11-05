@@ -7565,6 +7565,9 @@ public class MainActivity extends Activity {
         selectedAiImageMime = "";
         selectedAiImageBase64 = "";
         aiDevicePermissions.clear();
-        cancelPendingAiDevicePlanFor(null);
+        // Activity recreation must not erase a reviewed multi-step queue.
+        // Clear only an unfinished planner request; queued steps remain available
+        // for explicit review after reconnecting and re-granting session permissions.
+        getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE).edit().clear().commit();
     }
 }
