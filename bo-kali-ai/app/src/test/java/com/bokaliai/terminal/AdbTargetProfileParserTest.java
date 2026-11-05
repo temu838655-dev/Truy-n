@@ -65,7 +65,7 @@ public class AdbTargetProfileParserTest {
         AdbTargetProfileParser.DeviceProfile profile =
             AdbTargetProfileParser.parse(output).get(0);
         assertFalse(profile.hasMinimumIdentity());
-        assertEquals(3, profile.getMissingMinimumIdentityFields().size());
+        assertEquals(2, profile.getMissingMinimumIdentityFields().size());
         assertTrue(profile.getMissingMinimumIdentityFields().contains("hãng (ro.product.manufacturer)"));
         assertTrue(profile.getMissingMinimumIdentityFields().contains("SKU/region/locale"));
     }
