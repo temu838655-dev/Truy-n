@@ -3186,6 +3186,12 @@ public class MainActivity extends Activity {
     }
 
     private void showAiDeviceTaskDialog() {
+        android.content.SharedPreferences existingQueue = getSharedPreferences("bo_kali_ai_step_queue", MODE_PRIVATE);
+        if (!existingQueue.getString("steps", "").isEmpty()) {
+            line("Đang có kế hoạch AI nhiều bước chưa kết thúc. Hãy tiếp tục hoặc hủy kế hoạch đó trước khi tạo kế hoạch mới.", 0xffffca70);
+            showAiQueuedPlanStatus();
+            return;
+        }
         java.util.ArrayList<String> devices = getFreshAdbDevices();
         if (devices.isEmpty()) {
             new AlertDialog.Builder(this).setTitle("AI điều khiển ADB")
