@@ -1413,30 +1413,7 @@ public class MainActivity extends Activity {
         top.addView(add, new LinearLayout.LayoutParams(0, dp(44), 1));
         page.addView(top);
 
-        LinearLayout split = new LinearLayout(this);
-        split.setOrientation(LinearLayout.HORIZONTAL);
-        split.setWeightSum(2f);
-
-        LinearLayout codePane = new LinearLayout(this);
-        codePane.setOrientation(LinearLayout.VERTICAL);
-        codePane.setPadding(dp(7), dp(8), dp(7), dp(8));
-        codePane.setBackgroundColor(PANEL);
-        codePane.addView(text("MÀN HÌNH CHÍNH · DỊCH / OCR / CODE / KALI / AI", GREEN, 13, true));
-        codePane.addView(text("Dịch văn bản và OCR ảnh ở màn hình chính. Màn hình phụ chỉ dành cho điều khiển thiết bị.", WHITE, 11, false));
-        Button terminal = button("MỞ MÀN HÌNH CHÍNH · DỊCH / OCR");
-        terminal.setOnClickListener(v -> {
-            setContentView(root);
-            if (translationInput != null) translationInput.requestFocus();
-        });
-        codePane.addView(terminal, new LinearLayout.LayoutParams(-1, dp(48)));
-        Button kali = button("MỞ KALI SHELL");
-        kali.setOnClickListener(v -> kaliShellMenu());
-        codePane.addView(kali, new LinearLayout.LayoutParams(-1, dp(44)));
-        Button ai = button("HỎI AI");
-        ai.setOnClickListener(v -> { setContentView(root); questionInput.requestFocus(); });
-        codePane.addView(ai, new LinearLayout.LayoutParams(-1, dp(44)));
-        split.addView(codePane, new LinearLayout.LayoutParams(0, -1, 1f));
-
+        // Secondary workspace is dedicated to controlling other devices.
         LinearLayout devicePane = new LinearLayout(this);
         devicePane.setOrientation(LinearLayout.VERTICAL);
         devicePane.setPadding(dp(7), dp(8), dp(7), dp(8));
@@ -1468,9 +1445,7 @@ public class MainActivity extends Activity {
         Button hub = button("QUẢN LÝ PROFILE");
         hub.setOnClickListener(v -> showUniversalDeviceHub());
         devicePane.addView(hub, new LinearLayout.LayoutParams(-1, dp(44)));
-        split.addView(devicePane, new LinearLayout.LayoutParams(0, -1, 1f));
-
-        page.addView(split, new LinearLayout.LayoutParams(-1, 0, 1f));
+        page.addView(devicePane, new LinearLayout.LayoutParams(-1, 0, 1f));
         setContentView(page);
     }
 
@@ -1533,31 +1508,7 @@ public class MainActivity extends Activity {
         top.addView(refresh, new LinearLayout.LayoutParams(0, dp(44), 1));
         page.addView(top);
 
-        LinearLayout split = new LinearLayout(this);
-        split.setOrientation(LinearLayout.HORIZONTAL);
-        split.setWeightSum(5f);
-
-        LinearLayout codePane = new LinearLayout(this);
-        codePane.setOrientation(LinearLayout.VERTICAL);
-        codePane.setPadding(dp(8), dp(8), dp(8), dp(8));
-        codePane.setBackgroundColor(PANEL);
-        TextView codeTitle = text("MÀN HÌNH CHÍNH · DỊCH / OCR / CODE / KALI / AI", GREEN, 13, true);
-        codePane.addView(codeTitle);
-        TextView codeInfo = text("Dịch văn bản và OCR ảnh ở màn hình chính. Màn hình phụ chỉ dành cho điều khiển thiết bị.", WHITE, 12, false);
-        codePane.addView(codeInfo);
-        Button openTerminal = button("MỞ MÀN HÌNH CHÍNH · DỊCH / OCR");
-        openTerminal.setOnClickListener(v -> {
-            setContentView(root);
-            if (translationInput != null) translationInput.requestFocus();
-        });
-        codePane.addView(openTerminal, new LinearLayout.LayoutParams(-1, dp(48)));
-        Button kali = button("MỞ KALI SHELL");
-        kali.setOnClickListener(v -> kaliShellMenu());
-        codePane.addView(kali, new LinearLayout.LayoutParams(-1, dp(44)));
-        Button ai = button("HỎI AI");
-        ai.setOnClickListener(v -> { setContentView(root); questionInput.requestFocus(); });
-        codePane.addView(ai, new LinearLayout.LayoutParams(-1, dp(44)));
-
+        // Secondary screen contains device controls only; translation/OCR stays on main screen.
         LinearLayout devicePane = new LinearLayout(this);
         devicePane.setOrientation(LinearLayout.VERTICAL);
         devicePane.setPadding(dp(8), dp(8), dp(8), dp(8));
@@ -1610,82 +1561,7 @@ public class MainActivity extends Activity {
         shell.setOnClickListener(v -> showAdbShellDialogFor(serial));
         devicePane.addView(shell, new LinearLayout.LayoutParams(-1, dp(44)));
 
-        final boolean[] deviceExpanded = {false};
-        final boolean[] swapped = {false};
-        Button expandCode = button("PHÓNG TO CODE");
-        Button expandDevice = button("PHÓNG TO THIẾT BỊ");
-        Button splitAgain = button("CHIA ĐÔI");
-        Button swap = button("ĐỔI VỊ TRÍ");
-        LinearLayout controls = new LinearLayout(this);
-        controls.setOrientation(LinearLayout.HORIZONTAL);
-        controls.addView(expandCode, new LinearLayout.LayoutParams(0, dp(42), 1));
-        controls.addView(expandDevice, new LinearLayout.LayoutParams(0, dp(42), 1));
-        controls.addView(splitAgain, new LinearLayout.LayoutParams(0, dp(42), 1));
-        controls.addView(swap, new LinearLayout.LayoutParams(0, dp(42), 1));
-        page.addView(controls);
-
-        LinearLayout.LayoutParams codeParams = new LinearLayout.LayoutParams(0, -1, 1f);
-        LinearLayout.LayoutParams deviceParams = new LinearLayout.LayoutParams(0, -1, 1f);
-        split.addView(codePane, codeParams);
-        split.addView(devicePane, deviceParams);
-        page.addView(split, new LinearLayout.LayoutParams(-1, 0, 1f));
-
-        Runnable applySplit = () -> {
-            codePane.setVisibility(View.VISIBLE);
-            devicePane.setVisibility(View.VISIBLE);
-            codePane.setLayoutParams(new LinearLayout.LayoutParams(0, -1, deviceExpanded[0] ? 1f : 1f));
-            devicePane.setLayoutParams(new LinearLayout.LayoutParams(0, -1, deviceExpanded[0] ? 4f : 1f));
-            if (deviceExpanded[0]) {
-                codePane.setLayoutParams(new LinearLayout.LayoutParams(0, -1, 1f));
-                devicePane.setLayoutParams(new LinearLayout.LayoutParams(0, -1, 4f));
-            }
-            if (swapped[0]) {
-                split.removeAllViews();
-                if (deviceExpanded[0]) {
-                    split.addView(devicePane, new LinearLayout.LayoutParams(0, -1, 4f));
-                    split.addView(codePane, new LinearLayout.LayoutParams(0, -1, 1f));
-                } else {
-                    split.addView(devicePane, new LinearLayout.LayoutParams(0, -1, 1f));
-                    split.addView(codePane, new LinearLayout.LayoutParams(0, -1, 1f));
-                }
-            } else {
-                split.removeAllViews();
-                split.addView(codePane, new LinearLayout.LayoutParams(0, -1, deviceExpanded[0] ? 1f : 1f));
-                split.addView(devicePane, new LinearLayout.LayoutParams(0, -1, deviceExpanded[0] ? 4f : 1f));
-            }
-        };
-        expandCode.setOnClickListener(v -> {
-            deviceExpanded[0] = false;
-            codePane.setVisibility(View.VISIBLE);
-            devicePane.setVisibility(View.VISIBLE);
-            split.removeAllViews();
-            split.addView(codePane, new LinearLayout.LayoutParams(0, -1, 4f));
-            split.addView(devicePane, new LinearLayout.LayoutParams(0, -1, 1f));
-        });
-        expandDevice.setOnClickListener(v -> {
-            if (!isFreshAdbDevice(serial)) {
-                devicePane.setVisibility(View.GONE);
-                line("Kết nối ADB đã hết hiệu lực; màn phụ được khóa. Hãy quét lại.", 0xffffca70);
-                return;
-            }
-            deviceExpanded[0] = true;
-            split.removeAllViews();
-            if (swapped[0]) {
-                split.addView(devicePane, new LinearLayout.LayoutParams(0, -1, 4f));
-                split.addView(codePane, new LinearLayout.LayoutParams(0, -1, 1f));
-            } else {
-                split.addView(codePane, new LinearLayout.LayoutParams(0, -1, 1f));
-                split.addView(devicePane, new LinearLayout.LayoutParams(0, -1, 4f));
-            }
-        });
-        splitAgain.setOnClickListener(v -> {
-            deviceExpanded[0] = false;
-            applySplit.run();
-        });
-        swap.setOnClickListener(v -> {
-            swapped[0] = !swapped[0];
-            applySplit.run();
-        });
+        page.addView(devicePane, new LinearLayout.LayoutParams(-1, 0, 1f));
 
         setContentView(page);
         // If Android recreated the Activity while the ADB session stayed alive,
