@@ -2982,13 +2982,14 @@ public class MainActivity extends Activity {
 
     private void showAiDeviceControlMenu() {
         java.util.ArrayList<String> online = getFreshAdbDevices();
-        String[] actions = {"CẤP / ĐIỀU CHỈNH QUYỀN CHO THIẾT BỊ", "THU HỒI TOÀN BỘ QUYỀN AI", "XEM NHẬT KÝ ĐIỀU KHIỂN AI", "HỦY YÊU CẦU AI ĐANG CHỜ", "XEM QUYỀN ĐANG CẤP", "XEM NHẬT KÝ LỆNH ADB SHELL", "KIỂM TRA TÁC VỤ ADB ĐANG CHỜ"};
+        String[] actions = {"CẤP / ĐIỀU CHỈNH QUYỀN CHO THIẾT BỊ", "THU HỒI TOÀN BỘ QUYỀN AI", "XEM NHẬT KÝ ĐIỀU KHIỂN AI", "HỦY YÊU CẦU AI ĐANG CHỜ", "XEM QUYỀN ĐANG CẤP", "XEM NHẬT KÝ LỆNH ADB SHELL", "KIỂM TRA TÁC VỤ ADB ĐANG CHỜ", "XEM KẾ HOẠCH AI NHIỀU BƯỚC"};
         new AlertDialog.Builder(this).setTitle("AI • Quyền điều khiển thiết bị")
             .setMessage("Quyền chỉ tồn tại trong phiên BO hiện tại và gắn với đúng serial ADB. AI không có quyền root, không thể vượt qua xác thực Android. Mỗi thao tác nhạy cảm vẫn cần bạn xác nhận.")
             .setItems(actions, (d, which) -> {
                 if (which == 2) { showAiDeviceAuditLog(); return; }
                 if (which == 5) { showAdbShellAuditLog(); return; }
                 if (which == 6) { showAiPendingExecutionStatus(); return; }
+                if (which == 7) { showAiQueuedPlanStatus(); return; }
                 if (which == 4) { showAiDeviceGrantStatus(); return; }
                 if (which == 3) {
                     cancelPendingAiDevicePlanFor(null);
@@ -3126,6 +3127,49 @@ public class MainActivity extends Activity {
         android.content.SharedPreferences pending = getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE);
         String pendingSerial = pending.getString("serial", "");
         if (serialOrNull == null || serialOrNull.equals(pendingSerial)) pending.edit().clear().commit();
+        android.content.SharedPreferences queue = getSharedPreferences("bo_kali_ai_step_queue", MODE_PRIVATE);
+        String queuedSerial = queue.getString("serial", "");
+        if (serialOrNull == null || serialOrNull.equals(queuedSerial)) {
+            queue.edit().clear().commit();
+            appendAiDeviceAudit("HỦY HÀNG ĐỢI KẾ HOẠCH AI THEO YÊU CẦU NGƯỜI DÙNG | thiết bị=" + queuedSerial);
+        }
+    }
+
+    private void showAiQueuedPlanStatus() {
+        android.content.SharedPreferences queue = getSharedPreferences("bo_kali_ai_step_queue", MODE_PRIVATE);
+        String raw = queue.getString("steps", "");
+        if (raw.isEmpty()) {
+            new AlertDialog.Builder(this).setTitle("Kế hoạch AI đang chờ")
+                .setMessage("Không có kế hoạch nhiều bước nào đang chờ.")
+                .setPositiveButton("ĐÓNG", null).show();
+            return;
+        }
+        try {
+            org.json.JSONArray steps = new org.json.JSONArray(raw);
+            int index = queue.getInt("index", 0);
+            String active = queue.getString("active_step_execution_id", "");
+            String message = "Thiết bị: " + queue.getString("serial", "")
+                + "\nTiến độ: " + Math.min(index, steps.length()) + "/" + steps.length()
+                + (active.isEmpty() ? "\nKhông có bước nào đang được gửi." : "\nĐang chờ kết quả tác vụ: " + active)
+                + "\n\nCác bước còn lại:\n";
+            for (int n = index; n < steps.length(); n++) {
+                JSONObject step = steps.getJSONObject(n);
+                message += (n + 1) + ". [" + step.optString("scope", "") + "] "
+                    + step.optString("command", "") + "\n";
+            }
+            AlertDialog.Builder builder = new AlertDialog.Builder(this).setTitle("Kế hoạch AI nhiều bước")
+                .setMessage(message).setPositiveButton("ĐÓNG", null);
+            if (active.isEmpty()) builder.setNeutralButton("TIẾP TỤC DUYỆT", (d, w) -> showNextAiQueuedStep());
+            builder.setNegativeButton("HỦY KẾ HOẠCH", (d, w) -> {
+                String queuedSerial = queue.getString("serial", "");
+                queue.edit().clear().commit();
+                appendAiDeviceAudit("NGƯỜI DÙNG HỦY KẾ HOẠCH ĐANG CHỜ | thiết bị=" + queuedSerial);
+                line("Đã hủy các bước chưa chạy. Lệnh ADB đang chạy (nếu có) không bị dừng.", 0xffffca70);
+            }).show();
+        } catch (Exception e) {
+            queue.edit().clear().commit();
+            line("Không đọc được kế hoạch đang chờ; đã xóa hàng đợi lỗi.", 0xffffca70);
+        }
     }
 
     private String grantedAiScopesForPrompt(String serial) {
@@ -3397,7 +3441,7 @@ public class MainActivity extends Activity {
                 if (scope.isEmpty() || command.isEmpty() || command.length() > 1200
                     || command.indexOf(0) >= 0 || command.contains("\n") || command.contains("\r")
                     || command.matches("(?s).*[;&|<>$].*") || command.indexOf(96) >= 0
-                    || command.contains("\\\\") || command.contains("'") || command.contains("\\\"")
+                    || command.contains("\\") || command.contains("\"")
                     || command.startsWith("adb") || command.contains("adb ")
                     || !isAiCommandAllowedForScope(scope, command)) {
                     throw new IllegalArgumentException("Bước " + (i + 1) + " chứa lệnh không hợp lệ hoặc không thuộc phạm vi.");
