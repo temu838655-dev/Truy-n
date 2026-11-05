@@ -2982,12 +2982,13 @@ public class MainActivity extends Activity {
 
     private void showAiDeviceControlMenu() {
         java.util.ArrayList<String> online = getFreshAdbDevices();
-        String[] actions = {"CẤP / ĐIỀU CHỈNH QUYỀN CHO THIẾT BỊ", "THU HỒI TOÀN BỘ QUYỀN AI", "XEM NHẬT KÝ ĐIỀU KHIỂN AI", "HỦY YÊU CẦU AI ĐANG CHỜ", "XEM QUYỀN ĐANG CẤP", "XEM NHẬT KÝ LỆNH ADB SHELL"};
+        String[] actions = {"CẤP / ĐIỀU CHỈNH QUYỀN CHO THIẾT BỊ", "THU HỒI TOÀN BỘ QUYỀN AI", "XEM NHẬT KÝ ĐIỀU KHIỂN AI", "HỦY YÊU CẦU AI ĐANG CHỜ", "XEM QUYỀN ĐANG CẤP", "XEM NHẬT KÝ LỆNH ADB SHELL", "KIỂM TRA TÁC VỤ ADB ĐANG CHỜ"};
         new AlertDialog.Builder(this).setTitle("AI • Quyền điều khiển thiết bị")
             .setMessage("Quyền chỉ tồn tại trong phiên BO hiện tại và gắn với đúng serial ADB. AI không có quyền root, không thể vượt qua xác thực Android. Mỗi thao tác nhạy cảm vẫn cần bạn xác nhận.")
             .setItems(actions, (d, which) -> {
                 if (which == 2) { showAiDeviceAuditLog(); return; }
                 if (which == 5) { showAdbShellAuditLog(); return; }
+                if (which == 6) { showAiPendingExecutionStatus(); return; }
                 if (which == 4) { showAiDeviceGrantStatus(); return; }
                 if (which == 3) {
                     cancelPendingAiDevicePlanFor(null);
@@ -3540,6 +3541,29 @@ public class MainActivity extends Activity {
             reportAiProposalOutcome(provider, "dispatch_failed",
                 "BO không gửi được tác vụ tới Termux (thiếu quyền RUN_COMMAND, Termux chưa sẵn sàng hoặc lỗi dịch vụ). Lệnh chưa được xác nhận là đã chạy.");
         }
+    }
+
+    private void showAiPendingExecutionStatus() {
+        android.content.SharedPreferences guard =
+            getSharedPreferences("bo_kali_ai_execution_guard", MODE_PRIVATE);
+        String id = guard.getString("active_execution_id", "");
+        if (id.isEmpty()) {
+            new AlertDialog.Builder(this).setTitle("Tác vụ ADB đang chờ")
+                .setMessage("Không có tác vụ AI ADB nào đang chờ xác minh kết quả.")
+                .setPositiveButton("ĐÓNG", null).show();
+            return;
+        }
+        long started = guard.getLong("active_started_at", 0L);
+        long age = started <= 0L ? -1L : Math.max(0L, (System.currentTimeMillis() - started) / 1000L);
+        String detail = guard.getString("active_detail", "Không còn thông tin chi tiết.");
+        String state = age >= 180L ? "KẾT QUẢ CHƯA XÁC ĐỊNH" : "ĐANG CHỜ KẾT QUẢ";
+        String message = state + (age >= 0L ? "\nThời gian chờ: " + age + " giây" : "")
+            + "\nMã tác vụ: " + id + "\n\n" + detail
+            + "\n\nBO giữ khóa để tránh gửi lặp. Hãy kiểm tra thiết bị đích và nhật ký Termux/ADB. "
+            + "Không xóa khóa chỉ vì hết thời gian chờ: lệnh cũ có thể vẫn đang chạy.";
+        new AlertDialog.Builder(this).setTitle("Tác vụ ADB chưa xác minh")
+            .setMessage(message)
+            .setPositiveButton("ĐÃ HIỂU", null).show();
     }
 
     private void appendAiDeviceAudit(String entry) {
