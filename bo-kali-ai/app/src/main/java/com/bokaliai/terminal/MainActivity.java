@@ -5055,8 +5055,8 @@ public class MainActivity extends Activity {
             "echo '=== KALI TOOL INVENTORY (IF INSTALLED) ==='; " +
             "if command -v nh >/dev/null 2>&1; then " +
             "nh bash -lc 'for x in git python3 curl wget jq ip ping dig; do " +
-            "if command -v \"$x\" >/dev/null 2>&1; then printf \"%s: INSTALLED\\\\n\" \"$x\"; " +
-            "else printf \"%s: MISSING\\\\n\" \"$x\"; fi; done' 2>&1; " +
+            "if command -v \"$x\" >/dev/null 2>&1; then printf \"%s: INSTALLED\\n\" \"$x\"; " +
+            "else printf \"%s: MISSING\\n\" \"$x\"; fi; done' 2>&1; " +
             "else echo 'NetHunter command nh not found'; fi; " +
             "echo 'END=Read-only inventory; no packages installed'";
         line("Đang kiểm tra các tiện ích cơ bản, không cài đặt...", GREEN);
@@ -5077,8 +5077,8 @@ public class MainActivity extends Activity {
             "echo '=== KALI APT (IF AVAILABLE) ==='; " +
             "if command -v nh >/dev/null 2>&1; then nh bash -lc 'apt-get --version | head -n 1; " +
             "for x in git python3 curl wget jq ip ping dig; do " +
-            "if command -v \"$x\" >/dev/null 2>&1; then printf \"%s: INSTALLED\\\\n\" \"$x\"; " +
-            "else printf \"%s: MISSING\\\\n\" \"$x\"; fi; done' 2>&1; " +
+            "if command -v \"$x\" >/dev/null 2>&1; then printf \"%s: INSTALLED\\n\" \"$x\"; " +
+            "else printf \"%s: MISSING\\n\" \"$x\"; fi; done' 2>&1; " +
             "else echo 'NetHunter not installed'; fi; " +
             "echo 'END=Version check only; no package changes'";
         line("Đang kiểm tra phiên bản các công cụ...", GREEN);
