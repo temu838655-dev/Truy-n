@@ -1451,7 +1451,7 @@ public class MainActivity extends Activity {
             profileList.addView(text("Chưa có profile. Thêm Android, PC, máy chủ, Home Assistant, router hoặc NAS.", 0xffb4c7d8, 11, false));
         } else {
             for (DeviceHubProfile profile : profiles) {
-                Button item = button(profile.name + "\\n" + profile.host + ":" + profile.port);
+                Button item = button(profile.name + "\n" + profile.host + ":" + profile.port);
                 item.setOnClickListener(v -> showDeviceProfileActions(profile));
                 profileList.addView(item, new LinearLayout.LayoutParams(-1, dp(58)));
             }
@@ -2324,7 +2324,7 @@ public class MainActivity extends Activity {
         for (int i = 0; i < endpoints.size(); i++) {
             String endpoint = endpoints.get(i);
             String service = prefs.getString(servicePrefix + endpoint, "");
-            labels[i] = endpoint + (service.isEmpty() ? "" : "\\n" + service);
+            labels[i] = endpoint + (service.isEmpty() ? "" : "\n" + service);
         }
         new AlertDialog.Builder(this).setTitle(title)
             .setMessage("Chọn endpoint muốn xóa khỏi danh sách lưu. Thao tác này chỉ xóa địa chỉ đã lưu trong BO Kali AI; không ngắt kết nối ADB và không thay đổi thiết bị.")
@@ -2368,11 +2368,11 @@ public class MainActivity extends Activity {
         java.util.Collections.sort(stale);
         StringBuilder preview = new StringBuilder();
         int shown = Math.min(stale.size(), 8);
-        for (int i = 0; i < shown; i++) preview.append("• ").append(stale.get(i)).append("\\n");
-        if (stale.size() > shown) preview.append("… và ").append(stale.size() - shown).append(" endpoint khác\\n");
+        for (int i = 0; i < shown; i++) preview.append("• ").append(stale.get(i)).append("\n");
+        if (stale.size() > shown) preview.append("… và ").append(stale.size() - shown).append(" endpoint khác\n");
         new AlertDialog.Builder(this).setTitle("Xác nhận dọn endpoint cũ")
-            .setMessage("Tìm thấy " + stale.size() + " endpoint đã quá 24 giờ hoặc không có thời điểm quét:\\n\\n" +
-                preview + "\\nChỉ xóa địa chỉ lưu trong ứng dụng. Không ngắt kết nối ADB và không tác động thiết bị.")
+            .setMessage("Tìm thấy " + stale.size() + " endpoint đã quá 24 giờ hoặc không có thời điểm quét:\n\n" +
+                preview + "\nChỉ xóa địa chỉ lưu trong ứng dụng. Không ngắt kết nối ADB và không tác động thiết bị.")
             .setPositiveButton("XÓA ENDPOINT CŨ", (dialog, which) -> {
                 java.util.HashSet<String> remaining = new java.util.HashSet<>(
                     prefs.getStringSet(listKey, new java.util.HashSet<>()));
@@ -2447,8 +2447,8 @@ public class MainActivity extends Activity {
                 "Lần cuối tìm thấy cách đây " + android.text.format.DateUtils.getRelativeTimeSpanString(
                     foundAt, System.currentTimeMillis(), android.text.format.DateUtils.MINUTE_IN_MILLIS) + ".";
             new AlertDialog.Builder(this).setTitle("Endpoint có thể đã cũ")
-                .setMessage(endpoint + "\\n" + ageText +
-                    "\\nĐịa chỉ hoặc cổng có thể đã thay đổi sau khi thiết bị khởi động lại hoặc đổi mạng. Bạn nên quét ADB lại trước.")
+                .setMessage(endpoint + "\n" + ageText +
+                    "\nĐịa chỉ hoặc cổng có thể đã thay đổi sau khi thiết bị khởi động lại hoặc đổi mạng. Bạn nên quét ADB lại trước.")
                 .setPositiveButton("VẪN THỬ KẾT NỐI", (d, w) -> confirmAdbEndpointConnection(endpoint))
                 .setNeutralButton("QUÉT LẠI", (d, w) -> scanAdbServices())
                 .setNegativeButton("HỦY", null).show();
@@ -2539,12 +2539,12 @@ public class MainActivity extends Activity {
                         + "echo SECURITY_PATCH:; getprop ro.build.version.security_patch; "
                         + "echo BATTERY:; dumpsys battery | grep -E 'level:|temperature:' | head -n 2; "
                         + "echo STORAGE_DATA:; df -h /data | tail -n 1";
-                    command.append("printf '\\n===== DEVICE ").append(serial).append(" =====\\n'; ")
+                    command.append("printf '\n===== DEVICE ").append(serial).append(" =====\n'; ")
                         .append("adb -s ").append(quoted).append(" get-state 2>&1; ")
                         .append("adb -s ").append(quoted).append(" shell ").append(shellQuote(remoteReadOnly))
                         .append(" 2>&1; ");
                 }
-                command.append("printf '\\n===== ADB DEVICES =====\\n'; adb devices -l");
+                command.append("printf '\n===== ADB DEVICES =====\n'; adb devices -l");
                 new AlertDialog.Builder(this).setTitle("Xác nhận kiểm tra hàng loạt")
                     .setMessage("Sẽ đọc trạng thái, model, hãng, phiên bản Android, SDK, bản vá bảo mật, pin và dung lượng /data của "
                         + selected.size() + " thiết bị:" + summary
@@ -2833,7 +2833,7 @@ public class MainActivity extends Activity {
     }
 
     private String addAiSourceLineNumbers(String content) {
-        String[] lines = content.split("\\r?\\n", -1);
+        String[] lines = content.split("\\r?\n", -1);
         StringBuilder numbered = new StringBuilder(Math.min(content.length() + lines.length * 8, 140000));
         for (int i = 0; i < lines.length; i++) {
             if (numbered.length() > 0) numbered.append('\n');
@@ -3115,23 +3115,23 @@ public class MainActivity extends Activity {
         }
         StringBuilder preview = new StringBuilder();
         preview.append("Số hồ sơ đọc được: ").append(result.getEntries().size())
-            .append("\\nTất cả đều được gắn trạng thái RESEARCH_REQUIRED.")
-            .append("\\nKhông có hồ sơ nào được dùng để cấp lệnh root/unlock/flash.\\n");
+            .append("\nTất cả đều được gắn trạng thái RESEARCH_REQUIRED.")
+            .append("\nKhông có hồ sơ nào được dùng để cấp lệnh root/unlock/flash.\n");
         for (int i = 0; i < result.getEntries().size(); i++) {
             AndroidDeviceSupportCatalog.Entry entry = result.getEntries().get(i);
-            preview.append("\\n#").append(i + 1).append(" ")
+            preview.append("\n#").append(i + 1).append(" ")
                 .append(entry.manufacturer).append(" ").append(entry.model)
-                .append("\\nCodename: ").append(entry.codename)
-                .append("\\nFirmware: ").append(entry.firmwareFingerprint)
-                .append("\\nSKU/Region: ").append(entry.regionOrSku)
-                .append("\\nNguồn: ").append(entry.sourceUrl)
-                .append("\\nNgày ghi trong tệp: ").append(entry.verifiedDate)
-                .append("\\nTrạng thái: CHƯA XÁC MINH\\n");
+                .append("\nCodename: ").append(entry.codename)
+                .append("\nFirmware: ").append(entry.firmwareFingerprint)
+                .append("\nSKU/Region: ").append(entry.regionOrSku)
+                .append("\nNguồn: ").append(entry.sourceUrl)
+                .append("\nNgày ghi trong tệp: ").append(entry.verifiedDate)
+                .append("\nTrạng thái: CHƯA XÁC MINH\n");
         }
         if (!result.getErrors().isEmpty()) {
-            preview.append("\\nCác bản ghi bị bỏ qua: ").append(result.getErrors().size());
+            preview.append("\nCác bản ghi bị bỏ qua: ").append(result.getErrors().size());
             for (String error : result.getErrors())
-                preview.append("\\n• ").append(error);
+                preview.append("\n• ").append(error);
         }
         new AlertDialog.Builder(this).setTitle("Xem trước hồ sơ thiết bị")
             .setMessage(preview.toString())
@@ -3156,14 +3156,14 @@ public class MainActivity extends Activity {
         }
         StringBuilder report = new StringBuilder("Tổng hồ sơ nghiên cứu: ")
             .append(importedDeviceProfiles.size())
-            .append("\\nTất cả đều chưa xác minh; không dùng làm căn cứ chạy lệnh.\\n");
+            .append("\nTất cả đều chưa xác minh; không dùng làm căn cứ chạy lệnh.\n");
         for (int i = 0; i < importedDeviceProfiles.size(); i++) {
             AndroidDeviceSupportCatalog.Entry entry = importedDeviceProfiles.get(i);
-            report.append("\\n").append(i + 1).append(". ")
+            report.append("\n").append(i + 1).append(". ")
                 .append(entry.manufacturer).append(" ").append(entry.model)
                 .append(" (").append(entry.codename).append(")")
-                .append("\\nFirmware: ").append(entry.firmwareFingerprint)
-                .append("\\nNguồn: ").append(entry.sourceUrl).append("\\n");
+                .append("\nFirmware: ").append(entry.firmwareFingerprint)
+                .append("\nNguồn: ").append(entry.sourceUrl).append("\n");
         }
         new AlertDialog.Builder(this).setTitle("Hồ sơ đã nhập • chỉ nghiên cứu")
             .setMessage(report.toString())
@@ -3478,8 +3478,8 @@ public class MainActivity extends Activity {
                 String currentScope = steps.getJSONObject(index).optString("scope", "");
                 needsRegrant = !hasAiDevicePermission(queue.getString("serial", ""), currentScope);
             }
-            if (needsRegrant) message += "\\n\\nLưu ý: quyền AI chỉ tồn tại trong phiên trước. Hãy cấp lại quyền cho đúng thiết bị trước khi duyệt tiếp.";
-            if (!active.isEmpty()) message += "\\n\\nCẢNH BÁO: có bước đang/đã được gửi nhưng chưa xác nhận kết quả. Không chạy lại bước này tự động.";
+            if (needsRegrant) message += "\n\nLưu ý: quyền AI chỉ tồn tại trong phiên trước. Hãy cấp lại quyền cho đúng thiết bị trước khi duyệt tiếp.";
+            if (!active.isEmpty()) message += "\n\nCẢNH BÁO: có bước đang/đã được gửi nhưng chưa xác nhận kết quả. Không chạy lại bước này tự động.";
             AlertDialog.Builder builder = new AlertDialog.Builder(this).setTitle("Kế hoạch AI nhiều bước")
                 .setMessage(message).setPositiveButton("ĐÓNG", null);
             if (active.isEmpty()) builder.setNeutralButton("TIẾP TỤC DUYỆT", (d, w) -> showNextAiQueuedStep());
@@ -3745,7 +3745,7 @@ public class MainActivity extends Activity {
             return;
         }
         java.util.regex.Matcher matcher = java.util.regex.Pattern
-            .compile("(?m)^BO_AI_PLAN:([0-9a-fA-F-]{36}):(\\{[^\\r\\n]{1,12000}\\})\\s*$").matcher(output);
+            .compile("(?m)^BO_AI_PLAN:([0-9a-fA-F-]{36}):(\\{[^\\r\n]{1,12000}\\})\\s*$").matcher(output);
         if (!matcher.find() || !requestId.equalsIgnoreCase(matcher.group(1))) {
             line("Bỏ qua kế hoạch AI không khớp request ID đang chờ. Không thực thi lệnh.", 0xffffca70);
             reportAiProposalOutcome(provider, "rejected_by_bo", "BO từ chối kế hoạch vì request ID không khớp.");
@@ -3980,9 +3980,9 @@ public class MainActivity extends Activity {
         line("AI → ADB: thực thi trên " + serial + " theo quyền " + scope, 0xff79c9ff);
         String commandLine = "adb -s " + shellQuote(serial) + " shell " + shellQuote(command)
             + "; __bo_ai_status=$?; __bo_ai_state=$(adb -s " + shellQuote(serial)
-            + " get-state 2>/dev/null | tr -d '\\r\\n'); "
-            + "printf '\\nBO_AI_EXEC_RESULT:" + executionId
-            + ":%s:%s\\n' \"$__bo_ai_status\" \"$__bo_ai_state\"; "
+            + " get-state 2>/dev/null | tr -d '\\r\n'); "
+            + "printf '\nBO_AI_EXEC_RESULT:" + executionId
+            + ":%s:%s\n' \"$__bo_ai_status\" \"$__bo_ai_state\"; "
             + "exit \"$__bo_ai_status\"";
         if (!runTermuxCommand(commandLine)) {
             audit.edit().remove("pending_" + executionId).apply();
@@ -4314,8 +4314,8 @@ public class MainActivity extends Activity {
                     + " -c android.intent.category.LAUNCHER 1";
                 new AlertDialog.Builder(this)
                     .setTitle("Xác nhận mở ứng dụng")
-                    .setMessage("Thiết bị: " + serial + "\\nPackage: " + packageName
-                        + "\\n\\nLệnh sẽ yêu cầu Android mở ứng dụng nếu package có màn hình Launcher. Không xóa dữ liệu hay thay đổi cài đặt.")
+                    .setMessage("Thiết bị: " + serial + "\nPackage: " + packageName
+                        + "\n\nLệnh sẽ yêu cầu Android mở ứng dụng nếu package có màn hình Launcher. Không xóa dữ liệu hay thay đổi cài đặt.")
                     .setPositiveButton("MỞ ỨNG DỤNG", (confirm, choice) -> {
                         line("Đang yêu cầu mở " + packageName + " trên " + serial + "...", GREEN);
                         runTermuxCommand(command);
@@ -4406,12 +4406,12 @@ public class MainActivity extends Activity {
                 }
                 new AlertDialog.Builder(this)
                     .setTitle("Xác nhận đọc Logcat")
-                    .setMessage("Thiết bị: " + serial + "\\nSố dòng tối đa: " + count
-                        + "\\nMức lọc: " + selectedPriority
-                        + "\\nLog buffer: " + selectedBuffer
-                        + "\\nLog tag: " + (selectedTag.isEmpty() ? "Tất cả" : selectedTag)
-                        + "\\nPackage: " + (selectedPackage.isEmpty() ? "Tất cả ứng dụng" : selectedPackage)
-                        + "\\n\\nLệnh chỉ đọc log, không dùng logcat -c. Lọc package dựa trên PID của ứng dụng đang chạy; ứng dụng chưa chạy có thể không có kết quả.")
+                    .setMessage("Thiết bị: " + serial + "\nSố dòng tối đa: " + count
+                        + "\nMức lọc: " + selectedPriority
+                        + "\nLog buffer: " + selectedBuffer
+                        + "\nLog tag: " + (selectedTag.isEmpty() ? "Tất cả" : selectedTag)
+                        + "\nPackage: " + (selectedPackage.isEmpty() ? "Tất cả ứng dụng" : selectedPackage)
+                        + "\n\nLệnh chỉ đọc log, không dùng logcat -c. Lọc package dựa trên PID của ứng dụng đang chạy; ứng dụng chưa chạy có thể không có kết quả.")
                     .setPositiveButton("ĐỌC LOG", (x, y) -> {
                         line("Đang đọc tối đa " + count + " dòng Logcat (buffer " + selectedBuffer + ", mức " + selectedPriority
                             + (selectedTag.isEmpty() ? "" : ", tag " + selectedTag)
@@ -4482,10 +4482,10 @@ public class MainActivity extends Activity {
         String command = "echo '===== KIEM TRA ADB ====='; "
             + "adb -s " + shellQuote(serial) + " get-state; "
             + "adb -s " + shellQuote(serial) + " shell getprop ro.product.model; "
-            + "echo '\\n===== DANH SACH ADB ====='; adb devices -l";
+            + "echo '\n===== DANH SACH ADB ====='; adb devices -l";
         new AlertDialog.Builder(this).setTitle("Kiểm tra kết nối")
             .setMessage("Kiểm tra serial: " + serial
-                + "\\nĐọc trạng thái kết nối, model và làm mới danh sách thiết bị. Không thay đổi dữ liệu trên thiết bị.")
+                + "\nĐọc trạng thái kết nối, model và làm mới danh sách thiết bị. Không thay đổi dữ liệu trên thiết bị.")
             .setPositiveButton("KIỂM TRA", (d, w) -> runTermuxCommand(command))
             .setNegativeButton("HỦY", null).show();
     }
@@ -4522,8 +4522,8 @@ public class MainActivity extends Activity {
 
     private void confirmRunAdbPreset(String serial, String command) {
         new AlertDialog.Builder(this).setTitle("Xác nhận lệnh đã lưu")
-            .setMessage("Thiết bị: " + serial + "\\nLệnh: " + command
-                + "\\n\\nLệnh có thể thay đổi dữ liệu hoặc cài đặt trên thiết bị. Hãy đọc kỹ trước khi chạy.")
+            .setMessage("Thiết bị: " + serial + "\nLệnh: " + command
+                + "\n\nLệnh có thể thay đổi dữ liệu hoặc cài đặt trên thiết bị. Hãy đọc kỹ trước khi chạy.")
             .setPositiveButton("CHẠY", (d, w) ->
                 runTermuxCommand("adb -s " + shellQuote(serial) + " shell " + shellQuote(command)))
             .setNegativeButton("HỦY", null).show();
@@ -4561,22 +4561,22 @@ public class MainActivity extends Activity {
 
     private void showAdbFullDiagnosticReport(String serial) {
         String command = "echo '===== BO KALI AI - BAO CAO CHAN DOAN ====='; "
-            + "echo '\\n[THIET BI / ANDROID]'; "
+            + "echo '\n[THIET BI / ANDROID]'; "
             + "echo MODEL; getprop ro.product.model; echo BRAND; getprop ro.product.brand; "
             + "echo ANDROID; getprop ro.build.version.release; echo SDK; getprop ro.build.version.sdk; "
             + "echo BUILD; getprop ro.build.display.id; echo SECURITY_PATCH; getprop ro.build.version.security_patch; "
-            + "echo '\\n[PIN / NHIET DO]'; dumpsys battery; "
-            + "echo '\\n[BO NHO]'; df -h; "
-            + "echo '\\n[CPU / SOC]'; getprop ro.product.cpu.abi; getprop ro.soc.model; "
+            + "echo '\n[PIN / NHIET DO]'; dumpsys battery; "
+            + "echo '\n[BO NHO]'; df -h; "
+            + "echo '\n[CPU / SOC]'; getprop ro.product.cpu.abi; getprop ro.soc.model; "
             + "grep -c '^processor' /proc/cpuinfo; "
-            + "echo '\\n[MAN HINH]'; wm size; wm density; "
-            + "echo '\\n[THOI GIAN HOAT DONG]'; uptime; "
-            + "echo '\\n[NETWORK]'; ip addr";
+            + "echo '\n[MAN HINH]'; wm size; wm density; "
+            + "echo '\n[THOI GIAN HOAT DONG]'; uptime; "
+            + "echo '\n[NETWORK]'; ip addr";
         String alias = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE)
             .getString("alias_" + serial, "");
         new AlertDialog.Builder(this).setTitle("Báo cáo tổng hợp")
             .setMessage("Thiết bị: " + (alias.isEmpty() ? serial : alias + " • " + serial)
-                + "\\nBáo cáo chỉ đọc thông tin hệ thống; không thay đổi cài đặt hoặc dữ liệu.")
+                + "\nBáo cáo chỉ đọc thông tin hệ thống; không thay đổi cài đặt hoặc dữ liệu.")
             .setPositiveButton("TẠO BÁO CÁO", (d, w) ->
                 runTermuxCommand("adb -s " + shellQuote(serial) + " shell " + shellQuote(command)))
             .setNegativeButton("HỦY", null).show();
@@ -4645,7 +4645,7 @@ public class MainActivity extends Activity {
         handleAdbHardwareIdentityOutput(output);
         if (output == null || !output.contains("List of devices attached")) return;
         java.util.HashSet<String> found = new java.util.HashSet<>();
-        String[] rows = output.split("\\n");
+        String[] rows = output.split("\n");
         android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_adb_devices", MODE_PRIVATE);
         android.content.SharedPreferences.Editor editor = prefs.edit();
         editor.putLong("last_scan_time", System.currentTimeMillis());
@@ -4674,7 +4674,7 @@ public class MainActivity extends Activity {
     // The raw serial is never persisted; BO stores a SHA-256 fingerprint for later comparison.
     private void recordAdbHardwareIdentity(String adbSerial) {
         if (adbSerial == null || adbSerial.trim().isEmpty()) return;
-        String script = "printf 'BO_ADB_IDENTITY|%s|%s|%s|%s\\n' "
+        String script = "printf 'BO_ADB_IDENTITY|%s|%s|%s|%s\n' "
             + shellQuote(adbSerial) + " "
             + "\"$(getprop ro.serialno)\" "
             + "\"$(getprop ro.product.model)\" "
@@ -4688,7 +4688,7 @@ public class MainActivity extends Activity {
 
     private void handleAdbHardwareIdentityOutput(String output) {
         if (output == null) return;
-        for (String row : output.split("\\n")) {
+        for (String row : output.split("\n")) {
             String trimmed = row.trim();
             if (!trimmed.startsWith("BO_ADB_IDENTITY|")) continue;
             String[] fields = trimmed.split("\\|", -1);
@@ -4896,12 +4896,12 @@ public class MainActivity extends Activity {
             "ro.build.version.incremental ro.build.version.release ro.build.version.sdk ro.build.version.security_patch " +
             "ro.product.first_api_level ro.product.cpu.abi ro.boot.hardware.sku " +
             "ro.boot.product.hardware.sku ro.boot.region ro.product.locale; do " +
-            "v=$(getprop \"$p\"); [ -n \"$v\" ] && printf '%s=%s\\n' \"$p\" \"$v\"; done; " +
+            "v=$(getprop \"$p\"); [ -n \"$v\" ] && printf '%s=%s\n' \"$p\" \"$v\"; done; " +
             "echo '--- BOOT / PARTITION METADATA ---'; " +
             "for p in ro.bootloader ro.boot.bootloader ro.boot.slot_suffix ro.boot.dynamic_partitions " +
             "ro.boot.boot_devices ro.boot.verifiedbootstate ro.boot.flash.locked " +
             "ro.boot.vbmeta.device_state ro.crypto.state; do " +
-            "v=$(getprop \"$p\"); [ -n \"$v\" ] && printf '%s=%s\\n' \"$p\" \"$v\"; done; " +
+            "v=$(getprop \"$p\"); [ -n \"$v\" ] && printf '%s=%s\n' \"$p\" \"$v\"; done; " +
             "echo '--- KERNEL / SECURITY ---'; uname -a; " +
             "if command -v getenforce >/dev/null 2>&1; then printf 'SELINUX='; getenforce; fi; " +
             "printf 'ANDROID_UID='; id; " +
@@ -4972,7 +4972,7 @@ public class MainActivity extends Activity {
                         .setNeutralButton("KIỂM TRA BỘ NHỚ TRƯỚC", (d, w) -> {
                             String storageCheck =
                                 "echo '=== TERMUX STORAGE PREFLIGHT (READ ONLY) ==='; " +
-                                "echo 'HOME / PREFIX:'; printf 'HOME=%s\\nPREFIX=%s\\n' \"$HOME\" \"$PREFIX\"; " +
+                                "echo 'HOME / PREFIX:'; printf 'HOME=%s\nPREFIX=%s\n' \"$HOME\" \"$PREFIX\"; " +
                                 "echo 'FREE SPACE:'; df -h \"$HOME\" 2>&1; " +
                                 "echo 'CURRENT TERMUX SIZE:'; du -sh \"$PREFIX\" 2>/dev/null || true; " +
                                 "echo '=== END: no files changed ==='";
@@ -5006,7 +5006,7 @@ public class MainActivity extends Activity {
             "ro.build.version.release ro.build.version.sdk ro.product.cpu.abi ro.product.cpu.abilist " +
             "ro.bootloader ro.boot.bootloader ro.boot.slot_suffix ro.boot.verifiedbootstate " +
             "ro.boot.flash.locked ro.boot.vbmeta.device_state ro.crypto.state; do " +
-            "v=$(getprop \"$p\"); [ -n \"$v\" ] && printf '%s=%s\\n' \"$p\" \"$v\"; done; " +
+            "v=$(getprop \"$p\"); [ -n \"$v\" ] && printf '%s=%s\n' \"$p\" \"$v\"; done; " +
             "echo '=== KERNEL ==='; uname -a; " +
             "echo '=== CPU ==='; grep -m 8 -E '^(processor|Hardware|model name|CPU architecture|Features)' /proc/cpuinfo 2>/dev/null; " +
             "echo '=== SELINUX ==='; if command -v getenforce >/dev/null 2>&1; then getenforce; else echo 'getenforce unavailable'; fi; " +
@@ -5050,13 +5050,13 @@ public class MainActivity extends Activity {
         String command =
             "echo '=== TERMUX TOOL INVENTORY (READ ONLY) ==='; " +
             "for x in git python python3 curl wget jq openssh clang make pkg; do " +
-            "if command -v \"$x\" >/dev/null 2>&1; then printf '%s: INSTALLED\\n' \"$x\"; " +
-            "else printf '%s: MISSING\\n' \"$x\"; fi; done; " +
+            "if command -v \"$x\" >/dev/null 2>&1; then printf '%s: INSTALLED\n' \"$x\"; " +
+            "else printf '%s: MISSING\n' \"$x\"; fi; done; " +
             "echo '=== KALI TOOL INVENTORY (IF INSTALLED) ==='; " +
             "if command -v nh >/dev/null 2>&1; then " +
             "nh bash -lc 'for x in git python3 curl wget jq ip ping dig; do " +
-            "if command -v \"$x\" >/dev/null 2>&1; then printf \"%s: INSTALLED\\n\" \"$x\"; " +
-            "else printf \"%s: MISSING\\n\" \"$x\"; fi; done' 2>&1; " +
+            "if command -v \"$x\" >/dev/null 2>&1; then printf \"%s: INSTALLED\n\" \"$x\"; " +
+            "else printf \"%s: MISSING\n\" \"$x\"; fi; done' 2>&1; " +
             "else echo 'NetHunter command nh not found'; fi; " +
             "echo 'END=Read-only inventory; no packages installed'";
         line("Đang kiểm tra các tiện ích cơ bản, không cài đặt...", GREEN);
@@ -5077,8 +5077,8 @@ public class MainActivity extends Activity {
             "echo '=== KALI APT (IF AVAILABLE) ==='; " +
             "if command -v nh >/dev/null 2>&1; then nh bash -lc 'apt-get --version | head -n 1; " +
             "for x in git python3 curl wget jq ip ping dig; do " +
-            "if command -v \"$x\" >/dev/null 2>&1; then printf \"%s: INSTALLED\\n\" \"$x\"; " +
-            "else printf \"%s: MISSING\\n\" \"$x\"; fi; done' 2>&1; " +
+            "if command -v \"$x\" >/dev/null 2>&1; then printf \"%s: INSTALLED\n\" \"$x\"; " +
+            "else printf \"%s: MISSING\n\" \"$x\"; fi; done' 2>&1; " +
             "else echo 'NetHunter not installed'; fi; " +
             "echo 'END=Version check only; no package changes'";
         line("Đang kiểm tra phiên bản các công cụ...", GREEN);
@@ -5282,7 +5282,7 @@ public class MainActivity extends Activity {
             "echo '=== NETHUNTER LAUNCHER ==='; " +
             "if command -v nh >/dev/null 2>&1; then command -v nh; echo 'NETHUNTER_LAUNCHER=FOUND'; " +
             "echo '=== KALI ROOTFS ==='; " +
-            "if nh bash -lc 'if [ -r /etc/os-release ]; then . /etc/os-release; printf \"KALI_OS=%s\\n\" \"$PRETTY_NAME\"; else echo KALI_OS_FILE=MISSING; exit 2; fi; id; uname -m'; then " +
+            "if nh bash -lc 'if [ -r /etc/os-release ]; then . /etc/os-release; printf \"KALI_OS=%s\n\" \"$PRETTY_NAME\"; else echo KALI_OS_FILE=MISSING; exit 2; fi; id; uname -m'; then " +
             "echo 'KALI_ROOTFS=READY'; else echo 'KALI_ROOTFS=ERROR'; fi; " +
             "else echo 'NETHUNTER_LAUNCHER=MISSING'; echo 'Kali chưa được cài hoặc lệnh nh chưa có trong PATH.'; fi; " +
             "echo '=== TERMUX STORAGE ==='; df -h \"$HOME\" 2>&1 | tail -n 2; " +
@@ -5563,7 +5563,7 @@ public class MainActivity extends Activity {
                 handleAdbDevicesOutput(pending);
                 handleCodexPatchReviewResult(pending);
                 line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
-                for (String part : pending.split("\\n")) line(part, WHITE);
+                for (String part : pending.split("\n")) line(part, WHITE);
                 line("Nhấn GIẢI THÍCH KẾT QUẢ KALI BẰNG AI để phân tích.", 0xff79c9ff);
             }
             if (pendingScreenCapture) showDualWorkspace();
@@ -5701,7 +5701,7 @@ public class MainActivity extends Activity {
             handleAdbDevicesOutput(lastCommandOutput);
             handleCodexPatchReviewResult(lastCommandOutput);
             line("KẾT QUẢ TỪ KALI / TERMUX:", GREEN);
-            for (String part : lastCommandOutput.split("\\n")) line(part, WHITE);
+            for (String part : lastCommandOutput.split("\n")) line(part, WHITE);
             line("Nhấn GIẢI THÍCH KẾT QUẢ KALI BẰNG AI để phân tích.", 0xff79c9ff);
         }
     }
@@ -5764,13 +5764,13 @@ public class MainActivity extends Activity {
                     .append("\n");
                 AndroidDeviceCapabilityAssessment.Result capability =
                     AndroidDeviceCapabilityAssessment.assess(profile);
-                targetSummary.append("ĐÁNH GIÁ ROOT / UNLOCK / KERNEL (chỉ từ dữ liệu đọc được):\\n")
+                targetSummary.append("ĐÁNH GIÁ ROOT / UNLOCK / KERNEL (chỉ từ dữ liệu đọc được):\n")
                     .append("Root hiện tại: ").append(capability.rootStatus).append(" — ")
-                    .append(capability.rootReason).append("\\n")
+                    .append(capability.rootReason).append("\n")
                     .append("Bootloader: ").append(capability.bootloaderStatus).append(" — ")
-                    .append(capability.bootloaderReason).append("\\n")
+                    .append(capability.bootloaderReason).append("\n")
                     .append("Flash kernel: ").append(capability.kernelFlashStatus).append(" — ")
-                    .append(capability.kernelFlashReason).append("\\n");
+                    .append(capability.kernelFlashReason).append("\n");
                 appendTargetField(targetSummary, profile, "Hãng", "ro.product.manufacturer");
                 appendTargetField(targetSummary, profile, "Thương hiệu", "ro.product.brand");
                 appendTargetField(targetSummary, profile, "Model", "ro.product.model");
@@ -6104,8 +6104,8 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this)
             .setTitle("Tự động xác thực CarPlay")
             .setMessage("identity.pk8: " + (hasIdentity ? "Đã lưu an toàn" : "Chưa nhập")
-                + "\\ncertificate.p7b: " + (hasCertificate ? "Đã lưu an toàn" : "Chưa nhập")
-                + "\\n\\nNhập bộ xác thực được cấp phép một lần. BO lưu mã hóa trong vùng riêng và có thể đọc lại khi receiver khởi tạo phiên. Khóa riêng không được đóng gói vào APK/GitHub.")
+                + "\ncertificate.p7b: " + (hasCertificate ? "Đã lưu an toàn" : "Chưa nhập")
+                + "\n\nNhập bộ xác thực được cấp phép một lần. BO lưu mã hóa trong vùng riêng và có thể đọc lại khi receiver khởi tạo phiên. Khóa riêng không được đóng gói vào APK/GitHub.")
             .setPositiveButton("CHỌN identity.pk8", (d, w) -> chooseCarPlayAsset(true))
             .setNeutralButton("CHỌN certificate.p7b", (d, w) -> chooseCarPlayAsset(false))
             .setNegativeButton("ĐÓNG", null).show();
@@ -6298,7 +6298,7 @@ public class MainActivity extends Activity {
                 if (step == null) continue;
                 String directStep = step.optString("output_text", "").trim();
                 if (!directStep.isEmpty()) {
-                    if (answer.length() > 0) answer.append("\\n");
+                    if (answer.length() > 0) answer.append("\n");
                     answer.append(directStep);
                 }
                 JSONArray content = step.optJSONArray("content");
@@ -6310,7 +6310,7 @@ public class MainActivity extends Activity {
                         String type = item.optString("type", "");
                         String value = item.optString("text", "").trim();
                         if (("text".equals(type) || type.isEmpty()) && !value.isEmpty()) {
-                            if (answer.length() > 0) answer.append("\\n");
+                            if (answer.length() > 0) answer.append("\n");
                             answer.append(value);
                         }
                     }
@@ -7416,11 +7416,11 @@ public class MainActivity extends Activity {
 
     private void confirmAntigravityGithubResult(String title, String detail, String status, String resultText) {
         String preview = resultText == null ? "" : resultText;
-        if (preview.length() > 1400) preview = preview.substring(0, 1400) + "\\n[Phần còn lại sẽ được gửi sau khi bạn đồng ý.]";
+        if (preview.length() > 1400) preview = preview.substring(0, 1400) + "\n[Phần còn lại sẽ được gửi sau khi bạn đồng ý.]";
         final String safeResult = resultText == null ? "" : resultText;
         final String message = "Antigravity yêu cầu truy cập dữ liệu GitHub. BO đã dùng token cục bộ để đọc dữ liệu; token không được gửi đi. "
-            + "Nếu đồng ý, nội dung/kết quả dưới đây sẽ được chuyển đến Google Antigravity.\\n\\n"
-            + detail + "\\n\\n" + preview;
+            + "Nếu đồng ý, nội dung/kết quả dưới đây sẽ được chuyển đến Google Antigravity.\n\n"
+            + detail + "\n\n" + preview;
         runOnUiThread(() -> new AlertDialog.Builder(this)
             .setTitle(title + " • Xác nhận chia sẻ")
             .setMessage(message)
@@ -7475,7 +7475,7 @@ public class MainActivity extends Activity {
             });
         } else {
             String query = args.optString("query", "").trim();
-            if (query.isEmpty() || query.length() > 300 || query.matches("(?s).*[\\r\\n\\u0000].*")) {
+            if (query.isEmpty() || query.length() > 300 || query.matches("(?s).*[\\r\n\\u0000].*")) {
                 reportAntigravityToolOutcome("invalid_search_query", "Từ khóa tìm kiếm trống hoặc không hợp lệ.");
                 return;
             }
@@ -7649,7 +7649,7 @@ public class MainActivity extends Activity {
             .putString("antigravity_call_id", linkedToAntigravity ? waitingCallId : "")
             .putLong("created_at", System.currentTimeMillis()).commit();
         String script = "export PATH=\"$HOME/.codex/bin:$HOME/.local/bin:$PATH\"; "
-            + "printf '%s\\n' " + shellQuote("BO_CODEX_PATCH_REVIEW:" + reviewRequestId) + "; "
+            + "printf '%s\n' " + shellQuote("BO_CODEX_PATCH_REVIEW:" + reviewRequestId) + "; "
             + "if ! command -v codex >/dev/null 2>&1; then echo 'Codex CLI chưa cài. Mở OPENAI CODEX > CÀI / ĐĂNG NHẬP.'; exit 127; fi; "
             + "codex exec --cd \"$HOME\" --sandbox read-only --ask-for-approval never "
             + shellQuote(prompt);
@@ -8339,27 +8339,27 @@ public class MainActivity extends Activity {
                 prPayload.put("title", title);
                 prPayload.put("head", branchName);
                 prPayload.put("base", base);
-                prPayload.put("body", "Pull Request được tạo từ BO Kali AI.\\n\\nHãy kiểm tra toàn bộ diff, chạy build/test và chỉ merge sau khi xác minh.");
+                prPayload.put("body", "Pull Request được tạo từ BO Kali AI.\n\nHãy kiểm tra toàn bộ diff, chạy build/test và chỉ merge sau khi xác minh.");
                 JSONObject pr = githubApi("POST", "/repos/" + repository + "/pulls", prPayload);
                 pullRequestCreated = true;
                 String html = pr.optString("html_url");
                 int number = pr.optInt("number", 0);
-                String report = "Đã tạo Pull Request #" + number + "\\nNhánh: " + branchName
-                    + (commitSha.isEmpty() ? "" : "\\nCommit: " + commitSha)
-                    + (html.isEmpty() ? "" : "\\n" + html);
+                String report = "Đã tạo Pull Request #" + number + "\nNhánh: " + branchName
+                    + (commitSha.isEmpty() ? "" : "\nCommit: " + commitSha)
+                    + (html.isEmpty() ? "" : "\n" + html);
                 runOnUiThread(() -> line(report, GREEN));
             } catch (Exception e) {
                 String cleanupReport = "";
                 if (branchCreated && !pullRequestCreated) {
                     try {
                         githubApi("DELETE", "/repos/" + repository + "/git/refs/heads/" + branchName, null);
-                        cleanupReport = "\\nĐã xóa nhánh tạm " + branchName + " vì Pull Request chưa được tạo.";
+                        cleanupReport = "\nĐã xóa nhánh tạm " + branchName + " vì Pull Request chưa được tạo.";
                     } catch (Exception cleanupError) {
-                        cleanupReport = "\\nKhông xóa được nhánh tạm " + branchName
+                        cleanupReport = "\nKhông xóa được nhánh tạm " + branchName
                             + ". Hãy kiểm tra/xóa thủ công trên GitHub. Lỗi dọn dẹp: " + cleanupError.getMessage();
                     }
                 } else if (pullRequestCreated) {
-                    cleanupReport = "\\nGitHub đã xác nhận tạo Pull Request; giữ nguyên nhánh để không làm hỏng PR.";
+                    cleanupReport = "\nGitHub đã xác nhận tạo Pull Request; giữ nguyên nhánh để không làm hỏng PR.";
                 }
                 final String report = "Tạo nhánh/Pull Request thất bại: " + e.getMessage() + cleanupReport;
                 runOnUiThread(() -> line(report, 0xffff8080));
