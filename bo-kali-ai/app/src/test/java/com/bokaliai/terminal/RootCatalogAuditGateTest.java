@@ -9,32 +9,32 @@ public class RootCatalogAuditGateTest {
 
     @Test
     public void acceptsOnlyExactStandaloneStartAndEndMarkers() {
-        String output = "before\\n" + RootCatalogAuditGate.startMarker(TOKEN)
-            + "\\nprofile\\n" + RootCatalogAuditGate.startMarker(TOKEN)
-            + ":END\\nafter\\n";
+        String output = "before\n" + RootCatalogAuditGate.startMarker(TOKEN)
+            + "\nprofile\n" + RootCatalogAuditGate.startMarker(TOKEN)
+            + ":END\nafter\n";
         assertTrue(RootCatalogAuditGate.hasCompleteAudit(output, TOKEN));
     }
 
     @Test
     public void rejectsMissingStartOrEndMarker() {
         assertFalse(RootCatalogAuditGate.hasCompleteAudit(
-            RootCatalogAuditGate.startMarker(TOKEN) + "\\nprofile\\n", TOKEN));
+            RootCatalogAuditGate.startMarker(TOKEN) + "\nprofile\n", TOKEN));
         assertFalse(RootCatalogAuditGate.hasCompleteAudit(
-            "profile\\n" + RootCatalogAuditGate.startMarker(TOKEN) + ":END\\n", TOKEN));
+            "profile\n" + RootCatalogAuditGate.startMarker(TOKEN) + ":END\n", TOKEN));
     }
 
     @Test
     public void rejectsMarkersEmbeddedInOtherText() {
         String output = "prefix " + RootCatalogAuditGate.startMarker(TOKEN)
-            + "\\nprofile\\n" + RootCatalogAuditGate.startMarker(TOKEN) + ":END suffix\\n";
+            + "\nprofile\n" + RootCatalogAuditGate.startMarker(TOKEN) + ":END suffix\n";
         assertFalse(RootCatalogAuditGate.hasCompleteAudit(output, TOKEN));
     }
 
     @Test
     public void rejectsOutputFromAnotherAuditToken() {
         String other = "123e4567-e89b-12d3-a456-426614174001";
-        String output = RootCatalogAuditGate.startMarker(other) + "\\n"
-            + RootCatalogAuditGate.startMarker(other) + ":END\\n";
+        String output = RootCatalogAuditGate.startMarker(other) + "\n"
+            + RootCatalogAuditGate.startMarker(other) + ":END\n";
         assertFalse(RootCatalogAuditGate.hasCompleteAudit(output, TOKEN));
     }
 
