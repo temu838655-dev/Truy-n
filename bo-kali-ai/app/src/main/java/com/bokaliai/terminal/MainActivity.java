@@ -4804,6 +4804,16 @@ public class MainActivity extends Activity {
                             copyText(KALI_INSTALL_COMMAND, "Đã sao chép lệnh cài NetHunter Rootless. Dán vào Termux để bắt đầu.");
                             openTermux();
                         })
+                        .setNeutralButton("KIỂM TRA BỘ NHỚ TRƯỚC", (d, w) -> {
+                            String storageCheck =
+                                "echo '=== TERMUX STORAGE PREFLIGHT (READ ONLY) ==='; " +
+                                "echo 'HOME / PREFIX:'; printf 'HOME=%s\\nPREFIX=%s\\n' \"$HOME\" \"$PREFIX\"; " +
+                                "echo 'FREE SPACE:'; df -h \"$HOME\" 2>&1; " +
+                                "echo 'CURRENT TERMUX SIZE:'; du -sh \"$PREFIX\" 2>/dev/null || true; " +
+                                "echo '=== END: no files changed ==='";
+                            line("Đang kiểm tra dung lượng trống trong Termux. Đây chỉ là kiểm tra, chưa cài Kali.", GREEN);
+                            runTermuxCommand(storageCheck);
+                        })
                         .setNegativeButton("HỦY", null)
                         .show();
                 } else if (which == 3) confirmAndroidRootCheck();
