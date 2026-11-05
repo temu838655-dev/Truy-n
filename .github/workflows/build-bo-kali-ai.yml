@@ -112,3 +112,6 @@ jobs:
             echo "::error::Could not upload APK assets to GitHub Releases after 5 attempts."
             exit 1
           fi
+          # Remove legacy debug-named assets so users see one unambiguous APK.
+          gh release delete-asset "$TAG" "app-debug.apk" --yes || true
+          gh release delete-asset "$TAG" "app-debug.apk.sha256" --yes || true
