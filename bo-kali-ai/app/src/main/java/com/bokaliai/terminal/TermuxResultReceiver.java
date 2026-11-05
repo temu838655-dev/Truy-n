@@ -30,7 +30,7 @@ public class TermuxResultReceiver extends BroadcastReceiver {
             // bounded marker so the Activity can still validate request ID and command policy.
             String aiExecutionMarker = "";
             java.util.regex.Matcher aiExecutionMatcher = java.util.regex.Pattern
-                .compile("BO_AI_EXEC_RESULT:([0-9a-fA-F-]{36}):(-?[0-9]+)")
+                .compile("BO_AI_EXEC_RESULT:([0-9a-fA-F-]{36}):(-?[0-9]+):([A-Za-z_-]+)")
                 .matcher(stdout);
             if (aiExecutionMatcher.find()) aiExecutionMarker = aiExecutionMatcher.group();
             String aiPlanMarker = "";
