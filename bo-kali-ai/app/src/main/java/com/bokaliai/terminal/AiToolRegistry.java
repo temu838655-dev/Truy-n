@@ -95,15 +95,15 @@ public final class AiToolRegistry {
     private static boolean isCommandAllowedForScope(String scope, String command) {
         String c = command.toLowerCase(Locale.ROOT).trim();
         if (READ_INFO.equals(scope)) return c.matches(
-            "^(getprop( ro\\\\.(product\\\\.(model|manufacturer|device)|build\\\\.(version\\\\.(release|sdk)|fingerprint)))?|df|df -h|uptime|uname -a|dumpsys (battery|display)|ip addr show wlan0|cat /proc/(meminfo|uptime|cpuinfo))$");
+            "^(getprop( ro\\.(product\\.(model|manufacturer|device)|build\\.(version\\.(release|sdk)|fingerprint)))?|df|df -h|uptime|uname -a|dumpsys (battery|display)|ip addr show wlan0|cat /proc/(meminfo|uptime|cpuinfo))$");
         if (READ_LOGS.equals(scope)) return c.matches(
             "^(logcat -d -t ([1-9][0-9]{0,2}|1000)|dumpsys (battery|activity|meminfo|cpuinfo|window|display|package))$");
         if (APP_LIST.equals(scope)) return c.matches("^pm list packages( -3|-s)?$");
         if (APP_LAUNCH.equals(scope)) return c.matches(
             "^monkey -p [a-z][a-z0-9_]*([.][a-z0-9_]+)+ 1$");
         if (APP_INSTALL_REMOVE.equals(scope)) return c.matches(
-            "^pm uninstall [a-z][a-z0-9_]*(\\\\.[a-z0-9_]+)+$")
-            || c.matches("^cmd package install-existing [a-z][a-z0-9_]*(\\\\.[a-z0-9_]+)+$");
+            "^pm uninstall [a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$")
+            || c.matches("^cmd package install-existing [a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$");
         if (SCREEN_CONTROL.equals(scope)) return c.matches(
             "^input keyevent (3|4|19|20|21|22|23|24|25|66|82)$")
             || c.matches("^input tap [0-9]{1,4} [0-9]{1,4}$")
@@ -117,7 +117,7 @@ public final class AiToolRegistry {
             "^settings get system (screen_brightness|screen_off_timeout|font_scale|accelerometer_rotation)$")
             || c.matches("^settings put system screen_brightness ([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$")
             || c.matches("^settings put system screen_off_timeout ([1-9][0-9]{3,5})$")
-            || c.matches("^settings put system font_scale (0\\\\.[8-9]|1(\\\\.[0-5])?)$")
+            || c.matches("^settings put system font_scale (0\\.[8-9]|1(\\.[0-5])?)$")
             || c.matches("^settings put system accelerometer_rotation [01]$")
             || c.equals("wm size") || c.equals("wm density")
             || c.equals("cmd uimode night yes") || c.equals("cmd uimode night no");
@@ -487,7 +487,7 @@ public final class AiToolRegistry {
     public static boolean validRepoPath(String path) {
         if (path == null || path.trim().isEmpty() || path.length() > 500) return false;
         String p = path.trim();
-        if (p.startsWith("/") || p.startsWith("\\\\") || p.contains("..")
+        if (p.startsWith("/") || p.startsWith("\\") || p.contains("..")
                 || p.matches(".*[\\r\\n\\u0000].*")) return false;
         return !Arrays.asList(p.split("/")).contains("");
     }
