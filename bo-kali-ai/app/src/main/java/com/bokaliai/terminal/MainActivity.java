@@ -7279,6 +7279,7 @@ public class MainActivity extends Activity {
             String branchName = "";
             String commitSha = "";
             boolean branchCreated = false;
+            boolean pullRequestPostAttempted = false;
             boolean pullRequestCreated = false;
             try {
                 String encodedBase = java.net.URLEncoder.encode(base, "UTF-8");
@@ -7327,6 +7328,10 @@ public class MainActivity extends Activity {
                     .put("head", branchName)
                     .put("base", base)
                     .put("body", "Pull Request được tạo từ BO Kali AI • Antigravity.\n\nHãy kiểm tra toàn bộ diff, chạy build/test và chỉ merge sau khi xác minh.");
+                // Once the POST is sent, a network/response failure is ambiguous:
+                // GitHub may have created the PR even if this client never received its response.
+                // Preserve the branch in that case; deleting it could break a real PR.
+                pullRequestPostAttempted = true;
                 JSONObject pr = githubApi("POST", "/repos/" + repository + "/pulls", prPayload);
                 pullRequestCreated = true;
                 String html = pr.optString("html_url", "");
@@ -7341,10 +7346,14 @@ public class MainActivity extends Activity {
                     + (html.isEmpty() ? "" : "\n" + html), GREEN));
             } catch (Exception e) {
                 String partial = "";
-                if (branchCreated && !pullRequestCreated) {
+                if (branchCreated && !pullRequestCreated && pullRequestPostAttempted) {
+                    partial = " Yêu cầu tạo PR đã được gửi nhưng BO không nhận được xác nhận cuối cùng. "
+                        + "Giữ nguyên nhánh " + branchName + " để tránh làm hỏng PR có thể đã được GitHub tạo; "
+                        + "hãy kiểm tra tab Pull requests và nhánh này trước khi xóa hoặc thử lại.";
+                } else if (branchCreated && !pullRequestCreated) {
                     try {
                         githubApi("DELETE", "/repos/" + repository + "/git/refs/heads/" + branchName, null);
-                        partial = " Đã xóa nhánh tạm " + branchName + " vì Pull Request chưa được tạo.";
+                        partial = " Đã xóa nhánh tạm " + branchName + " vì Pull Request chưa được gửi tạo.";
                     } catch (Exception cleanupError) {
                         partial = " Không xóa được nhánh tạm " + branchName
                             + "; hãy kiểm tra thủ công trên GitHub. Lỗi dọn dẹp: " + cleanupError.getMessage();
