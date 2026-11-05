@@ -4581,9 +4581,10 @@ public class MainActivity extends Activity {
         final String remoteAudit =
             "echo '--- DEVICE IDENTITY ---'; " +
             "for p in ro.product.manufacturer ro.product.brand ro.product.model ro.product.device " +
-            "ro.product.vendor.device ro.product.odm.device ro.product.board ro.board.platform " +
-            "ro.hardware ro.soc.manufacturer ro.soc.model ro.build.fingerprint ro.vendor.build.fingerprint " +
-            "ro.build.id ro.build.version.release ro.build.version.sdk ro.build.version.security_patch " +
+            "ro.product.vendor.device ro.product.vendor.model ro.product.odm.device ro.product.odm.model " +
+            "ro.product.system.model ro.product.board ro.board.platform ro.hardware ro.soc.manufacturer ro.soc.model " +
+            "ro.build.fingerprint ro.vendor.build.fingerprint ro.build.id ro.build.display.id " +
+            "ro.build.version.incremental ro.build.version.release ro.build.version.sdk ro.build.version.security_patch " +
             "ro.product.first_api_level ro.product.cpu.abi ro.boot.hardware.sku " +
             "ro.boot.product.hardware.sku ro.boot.region ro.product.locale; do " +
             "v=$(getprop \"$p\"); [ -n \"$v\" ] && printf '%s=%s\\n' \"$p\" \"$v\"; done; " +
@@ -5401,6 +5402,10 @@ public class MainActivity extends Activity {
                 appendTargetField(targetSummary, profile, "Model", "ro.product.model");
                 appendTargetField(targetSummary, profile, "Codename", "ro.product.device");
                 appendTargetField(targetSummary, profile, "Vendor device", "ro.product.vendor.device");
+                appendTargetField(targetSummary, profile, "Vendor model", "ro.product.vendor.model");
+                appendTargetField(targetSummary, profile, "ODM device", "ro.product.odm.device");
+                appendTargetField(targetSummary, profile, "ODM model", "ro.product.odm.model");
+                appendTargetField(targetSummary, profile, "System model", "ro.product.system.model");
                 appendTargetField(targetSummary, profile, "Board", "ro.product.board");
                 appendTargetField(targetSummary, profile, "Platform", "ro.board.platform");
                 appendTargetField(targetSummary, profile, "SoC manufacturer", "ro.soc.manufacturer");
@@ -5409,6 +5414,11 @@ public class MainActivity extends Activity {
                 appendTargetField(targetSummary, profile, "API", "ro.build.version.sdk");
                 appendTargetField(targetSummary, profile, "Security patch", "ro.build.version.security_patch");
                 appendTargetField(targetSummary, profile, "Firmware fingerprint", "ro.build.fingerprint");
+                appendTargetField(targetSummary, profile, "Vendor fingerprint", "ro.vendor.build.fingerprint");
+                appendTargetField(targetSummary, profile, "Build ID", "ro.build.id");
+                appendTargetField(targetSummary, profile, "Display build", "ro.build.display.id");
+                appendTargetField(targetSummary, profile, "Incremental build", "ro.build.version.incremental");
+                appendTargetField(targetSummary, profile, "First API level", "ro.product.first_api_level");
                 appendTargetField(targetSummary, profile, "Bootloader", "ro.bootloader");
                 appendTargetField(targetSummary, profile, "Slot", "ro.boot.slot_suffix");
                 appendTargetField(targetSummary, profile, "Verified boot", "ro.boot.verifiedbootstate");
@@ -5418,6 +5428,10 @@ public class MainActivity extends Activity {
                 appendTargetField(targetSummary, profile, "Product hardware SKU", "ro.boot.product.hardware.sku");
                 appendTargetField(targetSummary, profile, "Region", "ro.boot.region");
                 appendTargetField(targetSummary, profile, "Product locale", "ro.product.locale");
+                targetSummary.append("Region/SKU identity key: ")
+                    .append(profile.getCatalogRegionSkuKey().isEmpty()
+                        ? "KHÔNG ĐỌC ĐƯỢC" : profile.getCatalogRegionSkuKey())
+                    .append("\n");
                 AndroidDeviceSupportCatalog.Result catalogResult =
                     AndroidDeviceSupportCatalog.lookupBuiltIn(
                         profile.get("ro.product.manufacturer"),
