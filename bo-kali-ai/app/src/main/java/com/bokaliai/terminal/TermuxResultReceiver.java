@@ -161,9 +161,9 @@ public class TermuxResultReceiver extends BroadcastReceiver {
             java.util.HashSet<String> seenMarkers = new java.util.HashSet<>();
             while (markers.find()) {
                 String marker = markers.group();
-                if (seenMarkers.add(marker)) preservedMarkers.append(marker).append("\\n");
+                if (seenMarkers.add(marker)) preservedMarkers.append(marker).append("\n");
             }
-            String prefix = "[Một số kết quả Termux cũ đã được lược bớt để giới hạn bộ nhớ.]\\n"
+            String prefix = "[Một số kết quả Termux cũ đã được lược bớt để giới hạn bộ nhớ.]\n"
                 + preservedMarkers;
             int tailLength = Math.max(0, maxPendingChars - prefix.length());
             String tail = combinedPending.substring(Math.max(0, combinedPending.length() - tailLength));
