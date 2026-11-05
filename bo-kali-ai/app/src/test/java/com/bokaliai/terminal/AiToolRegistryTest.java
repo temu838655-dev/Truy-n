@@ -19,7 +19,7 @@ public class AiToolRegistryTest {
     @Test
     public void acceptsSingleReadOnlyCommandWithMatchingGrant() {
         assertEquals("OK", AiToolRegistry.validateAdbPlan(
-            AiToolRegistry.READ_INFO, "device-01", "getprop", grant(AiToolRegistry.READ_INFO)));
+            AiToolRegistry.READ_INFO, "device-01", "getprop ro.product.model", grant(AiToolRegistry.READ_INFO)));
     }
 
     @Test
