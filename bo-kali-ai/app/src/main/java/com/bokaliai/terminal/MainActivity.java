@@ -5379,20 +5379,48 @@ public class MainActivity extends Activity {
         String abi = android.os.Build.SUPPORTED_ABIS != null && android.os.Build.SUPPORTED_ABIS.length > 0
             ? android.os.Build.SUPPORTED_ABIS[0] : "Unknown";
 
-        // Android Build values identify the phone running BO Kali AI (host), never assume it is the ADB target.
-        String targetProfile = lastCommandOutput == null ? "" : lastCommandOutput.trim();
-        boolean hasTargetProfile = targetProfile.contains("TARGET SERIAL:")
-            && targetProfile.contains("DEVICE IDENTITY")
-            && targetProfile.contains("END TARGET PROFILE: READ ONLY");
+        // Android Build values identify the host. The parser below extracts each ADB target separately.
+        String targetOutput = lastCommandOutput == null ? "" : lastCommandOutput;
+        java.util.List<AdbTargetProfileParser.DeviceProfile> profiles =
+            AdbTargetProfileParser.parse(targetOutput);
+        StringBuilder targetSummary = new StringBuilder();
+        if (profiles.isEmpty()) {
+            targetSummary.append("CHƯA CÓ HỒ SƠ ADB ĐÍCH HOÀN CHỈNH. Chạy 'PHÂN TÍCH BẢO MẬT THIẾT BỊ ADB (CHỈ ĐỌC)' sau khi kết nối đúng máy. HOST không thay thế TARGET.");
+        } else {
+            targetSummary.append("Số hồ sơ ADB nhận diện: ").append(profiles.size())
+                .append(". Mỗi hồ sơ gắn với serial riêng; chưa có model nào được xác nhận hỗ trợ root/unlock chỉ từ bước nhận diện.\n");
+            for (AdbTargetProfileParser.DeviceProfile profile : profiles) {
+                targetSummary.append("\n--- TARGET SERIAL: ").append(profile.getSerial()).append(" ---\n");
+                targetSummary.append("Tình trạng hồ sơ: ")
+                    .append(profile.isComplete() ? "ĐÃ THU THẬP ĐỦ PHẦN ĐỌC ĐƯỢC" : "CHƯA ĐẦY ĐỦ / ADB SHELL BỊ GIỚI HẠN")
+                    .append("\n");
+                appendTargetField(targetSummary, profile, "Hãng", "ro.product.manufacturer");
+                appendTargetField(targetSummary, profile, "Thương hiệu", "ro.product.brand");
+                appendTargetField(targetSummary, profile, "Model", "ro.product.model");
+                appendTargetField(targetSummary, profile, "Codename", "ro.product.device");
+                appendTargetField(targetSummary, profile, "Vendor device", "ro.product.vendor.device");
+                appendTargetField(targetSummary, profile, "Board", "ro.product.board");
+                appendTargetField(targetSummary, profile, "Platform", "ro.board.platform");
+                appendTargetField(targetSummary, profile, "SoC manufacturer", "ro.soc.manufacturer");
+                appendTargetField(targetSummary, profile, "SoC model", "ro.soc.model");
+                appendTargetField(targetSummary, profile, "Android", "ro.build.version.release");
+                appendTargetField(targetSummary, profile, "API", "ro.build.version.sdk");
+                appendTargetField(targetSummary, profile, "Security patch", "ro.build.version.security_patch");
+                appendTargetField(targetSummary, profile, "Firmware fingerprint", "ro.build.fingerprint");
+                appendTargetField(targetSummary, profile, "Bootloader", "ro.bootloader");
+                appendTargetField(targetSummary, profile, "Slot", "ro.boot.slot_suffix");
+                appendTargetField(targetSummary, profile, "Verified boot", "ro.boot.verifiedbootstate");
+                appendTargetField(targetSummary, profile, "Flash locked", "ro.boot.flash.locked");
+                appendTargetField(targetSummary, profile, "VBMeta state", "ro.boot.vbmeta.device_state");
+            }
+        }
+
         String report =
             "=== ĐIỆN THOẠI ĐANG CHẠY BO KALI AI (HOST) ===\n" +
             "Hãng: " + brand + "\nModel: " + model + "\nDevice codename: " + device +
             "\nAndroid: " + android.os.Build.VERSION.RELEASE + " (API " + android.os.Build.VERSION.SDK_INT + ")" +
             "\nABI: " + abi +
-            "\n\n=== THIẾT BỊ ĐÍCH ADB ===\n" +
-            (hasTargetProfile
-                ? "Đã tìm thấy kết quả hồ sơ ADB chỉ đọc gần nhất. Đối chiếu TARGET SERIAL và DEVICE IDENTITY bên dưới; nếu có nhiều thiết bị, xác minh đúng serial trước khi tra cứu.\n\n" + targetProfile
-                : "CHƯA CÓ HỒ SƠ ADB ĐÍCH ĐƯỢC XÁC NHẬN. Thoát màn hình này, chạy 'PHÂN TÍCH BẢO MẬT THIẾT BỊ ADB (CHỈ ĐỌC)', kết nối đúng thiết bị và chạy lại. Thông tin HOST ở trên không được dùng thay cho model/codename của máy đích.") +
+            "\n\n=== HỒ SƠ TỪ THIẾT BỊ ĐÍCH ADB ===\n" + targetSummary +
             "\n\n=== TRẠNG THÁI HỖ TRỢ ROOT / UNLOCK ===\n" +
             "Model profile: CHƯA ĐƯỢC XÁC MINH TRONG CƠ SỞ DỮ LIỆU THEO TỪNG MODEL/REGION/FIRMWARE." +
             "\nBootloader unlock: cần xác minh chính xác model, mã vùng, nhà mạng và chính sách OEM." +
@@ -5422,6 +5450,14 @@ public class MainActivity extends Activity {
                     Uri.parse("https://source.android.com/docs/core/architecture/bootloader/locking_unlocking"))))
             .setNegativeButton("ĐÓNG", null)
             .show();
+    }
+
+    private void appendTargetField(StringBuilder out,
+            AdbTargetProfileParser.DeviceProfile profile, String label, String property) {
+        String value = profile.get(property);
+        if (value != null && !value.isEmpty()) {
+            out.append(label).append(": ").append(value).append("\n");
+        }
     }
 
     /**
