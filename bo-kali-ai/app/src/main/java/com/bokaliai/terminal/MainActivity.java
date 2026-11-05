@@ -5426,6 +5426,9 @@ public class MainActivity extends Activity {
                         profile.get("ro.boot.hardware.sku"));
                 targetSummary.append("Danh mục root/unlock: ")
                     .append(catalogResult.getMessageVi()).append("\\n");
+                if (catalogResult.isVerifiedMatch()) {
+                    targetSummary.append(catalogResult.getEvidenceSummaryVi()).append("\\n");
+                }
             }
         }
 

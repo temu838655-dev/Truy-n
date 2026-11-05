@@ -13,7 +13,7 @@ import java.util.Locale;
  * is allowed for bootloader, root or flashing guidance.
  */
 public final class AndroidDeviceSupportCatalog {
-    public enum Status {
+    public enum EvidenceSource {\n        OEM_OFFICIAL,\n        PROJECT_DOCUMENTATION,\n        COMMUNITY_REFERENCE,\n        UNKNOWN\n    }\n\n    public enum Status {
         VERIFIED_UNLOCK_SUPPORTED,
         VERIFIED_UNLOCK_UNSUPPORTED,
         VERIFIED_ROOT_METHOD,
@@ -29,11 +29,22 @@ public final class AndroidDeviceSupportCatalog {
         public final Status status;
         public final String summary;
         public final String sourceUrl;
-        public final String verifiedDate;
+        public final String verifiedDate;\n        public final EvidenceSource evidenceSource;\n        public final boolean manuallyReviewed;\n        public final String reviewerNote;
 
+        /** Legacy constructor is deliberately unreviewed and cannot assert verified support. */
         public Entry(String manufacturer, String model, String codename,
                 String firmwareFingerprint, String regionOrSku, Status status,
                 String summary, String sourceUrl, String verifiedDate) {
+            this(manufacturer, model, codename, firmwareFingerprint, regionOrSku,
+                status, summary, sourceUrl, verifiedDate, EvidenceSource.UNKNOWN,
+                false, "");
+        }
+
+        public Entry(String manufacturer, String model, String codename,
+                String firmwareFingerprint, String regionOrSku, Status status,
+                String summary, String sourceUrl, String verifiedDate,
+                EvidenceSource evidenceSource, boolean manuallyReviewed,
+                String reviewerNote) {
             this.manufacturer = clean(manufacturer);
             this.model = clean(model);
             this.codename = clean(codename);
@@ -43,6 +54,9 @@ public final class AndroidDeviceSupportCatalog {
             this.summary = clean(summary);
             this.sourceUrl = clean(sourceUrl);
             this.verifiedDate = clean(verifiedDate);
+            this.evidenceSource = evidenceSource == null ? EvidenceSource.UNKNOWN : evidenceSource;
+            this.manuallyReviewed = manuallyReviewed;
+            this.reviewerNote = clean(reviewerNote);
         }
 
         public boolean hasRequiredEvidence() {
@@ -50,7 +64,10 @@ public final class AndroidDeviceSupportCatalog {
                 && !codename.isEmpty() && !firmwareFingerprint.isEmpty()
                 && !regionOrSku.isEmpty()
                 && sourceUrl.startsWith("https://")
-                && !verifiedDate.isEmpty() && !summary.isEmpty();
+                && !verifiedDate.isEmpty() && !summary.isEmpty()
+                && evidenceSource != EvidenceSource.UNKNOWN
+                && evidenceSource != EvidenceSource.COMMUNITY_REFERENCE
+                && manuallyReviewed && !reviewerNote.isEmpty();
         }
     }
 

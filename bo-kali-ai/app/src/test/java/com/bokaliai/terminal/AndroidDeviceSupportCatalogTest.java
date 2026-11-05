@@ -13,7 +13,9 @@ public class AndroidDeviceSupportCatalogTest {
             "Example", "Model X", "device_x", "example/device_x:14/BUILD/123:user/release-keys",
             "REGION_A", AndroidDeviceSupportCatalog.Status.VERIFIED_UNLOCK_SUPPORTED,
             "OEM documentation confirms unlock eligibility for this exact SKU.",
-            "https://example.com/device-x-unlock", "2026-11-05");
+            "https://example.com/device-x-unlock", "2026-11-05",
+            AndroidDeviceSupportCatalog.EvidenceSource.OEM_OFFICIAL, true,
+            "Unit-test fixture: evidence manually reviewed.");
     }
 
     @Test
@@ -48,7 +50,9 @@ public class AndroidDeviceSupportCatalogTest {
         AndroidDeviceSupportCatalog.Entry incomplete = new AndroidDeviceSupportCatalog.Entry(
             "Example", "Model X", "device_x", "", "REGION_A",
             AndroidDeviceSupportCatalog.Status.VERIFIED_UNLOCK_SUPPORTED,
-            "Claim without exact firmware evidence.", "", "2026-11-05");
+            "Claim without exact firmware evidence.", "", "2026-11-05",
+            AndroidDeviceSupportCatalog.EvidenceSource.OEM_OFFICIAL, true,
+            "Incomplete fixture.");
         AndroidDeviceSupportCatalog.Result result = AndroidDeviceSupportCatalog.lookup(
             Arrays.asList(incomplete), "Example", "Model X", "device_x", "", "REGION_A");
         assertFalse(result.isVerifiedMatch());
@@ -63,6 +67,37 @@ public class AndroidDeviceSupportCatalogTest {
         assertTrue(result.getEvidenceSummaryVi().contains("2026-11-05"));
         assertTrue(result.getEvidenceSummaryVi().contains("https://example.com/device-x-unlock"));
         assertTrue(result.getEvidenceSummaryVi().contains("REGION_A"));
+    }
+
+    @Test
+    public void legacyEntryCannotClaimVerifiedStatusWithoutManualReview() {
+        AndroidDeviceSupportCatalog.Entry legacy = new AndroidDeviceSupportCatalog.Entry(
+            "Example", "Model X", "device_x", "fingerprint", "REGION_A",
+            AndroidDeviceSupportCatalog.Status.VERIFIED_UNLOCK_SUPPORTED,
+            "Claim from an unreviewed record.", "https://example.com/source", "2026-11-05");
+        assertFalse(legacy.hasRequiredEvidence());
+        assertFalse(AndroidDeviceSupportCatalog.lookup(
+            Collections.singletonList(legacy), "Example", "Model X", "device_x",
+            "fingerprint", "REGION_A").isVerifiedMatch());
+    }
+
+    @Test
+    public void communityReferenceAloneDoesNotCountAsVerifiedEvidence() {
+        AndroidDeviceSupportCatalog.Entry community = new AndroidDeviceSupportCatalog.Entry(
+            "Example", "Model X", "device_x", "fingerprint", "REGION_A",
+            AndroidDeviceSupportCatalog.Status.VERIFIED_UNLOCK_SUPPORTED,
+            "Community report only.", "https://example.com/community", "2026-11-05",
+            AndroidDeviceSupportCatalog.EvidenceSource.COMMUNITY_REFERENCE, true,
+            "Reviewed but not corroborated by OEM documentation.");
+        assertFalse(community.hasRequiredEvidence());
+    }
+
+    @Test
+    public void reviewedOfficialEvidenceCanPassTheTrustGate() {
+        AndroidDeviceSupportCatalog.Entry entry = verifiedEntry();
+        assertTrue(entry.manuallyReviewed);
+        assertEquals(AndroidDeviceSupportCatalog.EvidenceSource.OEM_OFFICIAL, entry.evidenceSource);
+        assertTrue(entry.hasRequiredEvidence());
     }
 
     @Test
