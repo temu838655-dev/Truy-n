@@ -55,7 +55,7 @@ public class MainActivity extends Activity {
     private final int GREEN = Color.rgb(87, 225, 157), WHITE = Color.rgb(232, 240, 248);
     private LinearLayout root, log;
     private ScrollView scroll;
-    private EditText commandInput, questionInput;
+    private EditText commandInput, questionInput, translationInput;
     private String geminiKey = "", claudeKey = "", openAiKey = "", githubToken = "", lastCommandOutput = "";
     // A root/unlock catalog view must be backed by the exact ADB audit it requested.
     private String pendingRootCatalogAuditToken = "";
@@ -182,6 +182,22 @@ public class MainActivity extends Activity {
         root.addView(questionInput, new LinearLayout.LayoutParams(-1, dp(50)));
         Button ask = button("GỬI YÊU CẦU CHO AI"); ask.setOnClickListener(v -> askAi());
         root.addView(ask, new LinearLayout.LayoutParams(-1, dp(46)));
+
+        root.addView(text("DỊCH VĂN BẢN / OCR ẢNH / GIẢI THÍCH LỖI CODE", GREEN, 12, true));
+        translationInput = input("Nhập hoặc dán văn bản cần dịch...");
+        root.addView(translationInput, new LinearLayout.LayoutParams(-1, dp(52)));
+        LinearLayout translateRow = new LinearLayout(this);
+        translateRow.setOrientation(LinearLayout.HORIZONTAL);
+        Button pickTranslateImage = button("CHỌN ẢNH OCR");
+        pickTranslateImage.setOnClickListener(v -> pickAiImage());
+        translateRow.addView(pickTranslateImage, new LinearLayout.LayoutParams(0, dp(44), 1));
+        Button translate = button("DỊCH SANG TIẾNG VIỆT");
+        translate.setOnClickListener(v -> translateWorkspaceContent());
+        translateRow.addView(translate, new LinearLayout.LayoutParams(0, dp(44), 1));
+        root.addView(translateRow);
+        Button explainCodeError = button("GIẢI THÍCH LỖI CODE / BUILD GẦN NHẤT");
+        explainCodeError.setOnClickListener(v -> explainLastOutput());
+        root.addView(explainCodeError, new LinearLayout.LayoutParams(-1, dp(42)));
 
         LinearLayout agentRow = new LinearLayout(this); agentRow.setOrientation(LinearLayout.HORIZONTAL);
         Button antigravity = button("GOOGLE ANTIGRAVITY"); antigravity.setOnClickListener(v -> showAntigravityMenu());
@@ -2486,6 +2502,44 @@ public class MainActivity extends Activity {
     private static final int REQ_RESULT_EXPORT = 4103;
     private static final int REQ_AI_TEXT_FILE = 4104;
     private static final int REQ_AI_IMAGE = 4105;
+
+    /**
+     * Sends only the text the user entered and/or the image they explicitly selected
+     * to the currently selected vision-capable provider for translation/OCR.
+     */
+    private void translateWorkspaceContent() {
+        String sourceText = translationInput == null ? "" : translationInput.getText().toString().trim();
+        boolean hasImage = selectedAiImageBase64 != null && !selectedAiImageBase64.isEmpty();
+        if (sourceText.isEmpty() && !hasImage) {
+            line("Hãy nhập văn bản hoặc chọn ảnh trước khi dịch.", 0xffffca70);
+            return;
+        }
+        int selected = aiProviderPicker == null ? 0 : aiProviderPicker.getSelectedItemPosition();
+        if (hasImage && selected == 3) {
+            line("Google Antigravity hiện không nhận ảnh trong luồng này. Chọn Gemini, Claude hoặc OpenAI để OCR ảnh.", 0xffffca70);
+            return;
+        }
+        StringBuilder request = new StringBuilder(
+            "Hãy dịch nội dung sau sang tiếng Việt tự nhiên, giữ nguyên ý nghĩa và thuật ngữ kỹ thuật. ");
+        request.append("Nếu có ảnh, hãy đọc chữ trong ảnh (OCR), giữ nguyên bố cục theo từng dòng khi hợp lý, ")
+            .append("sau đó dịch toàn bộ chữ đọc được. Nếu ảnh mờ hoặc không đọc chắc chắn, đánh dấu [không rõ], ")
+            .append("không tự đoán. Chỉ trả về bản dịch và ghi chú ngắn về phần không đọc được.");
+        if (!sourceText.isEmpty()) request.append("\n\nVĂN BẢN NGUỒN:\n").append(sourceText);
+        questionInput.setText(request.toString());
+        boolean oldGemini = shareImageGemini, oldClaude = shareImageClaude, oldOpenAi = shareImageOpenAi;
+        if (hasImage) {
+            if (selected == 0) shareImageGemini = true;
+            else if (selected == 1) shareImageClaude = true;
+            else if (selected == 2) shareImageOpenAi = true;
+            line("Ảnh đã chọn sẽ được gửi cho nhà cung cấp AI đang chọn để đọc chữ và dịch theo yêu cầu.", 0xff91a9bd);
+        }
+        askAi();
+        // askAi snapshots the consent and image into its request before returning.
+        shareImageGemini = oldGemini;
+        shareImageClaude = oldClaude;
+        shareImageOpenAi = oldOpenAi;
+        if (translationInput != null) translationInput.setText("");
+    }
 
     private void pickAiImage() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
