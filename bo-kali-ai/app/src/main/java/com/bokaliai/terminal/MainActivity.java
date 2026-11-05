@@ -6873,13 +6873,125 @@ public class MainActivity extends Activity {
             return;
         }
         new AlertDialog.Builder(this).setTitle("GitHub • Workspace")
-            .setItems(new String[]{"Liệt kê repository", "Đọc tệp trong repository", "Tạo / cập nhật tệp (có xác nhận)", "Xem nhánh và lịch sử commit", "Tạo nhánh riêng + Pull Request"}, (d, which) -> {
+            .setItems(new String[]{"Liệt kê repository", "Đọc tệp trong repository", "Tạo / cập nhật tệp (có xác nhận)", "Xem nhánh và lịch sử commit", "Tạo nhánh riêng + Pull Request", "Xem GitHub Actions / phân tích lỗi build"}, (d, which) -> {
                 if (which == 0) githubListRepos();
                 else if (which == 1) showGithubFileDialog(false);
                 else if (which == 2) showGithubFileDialog(true);
                 else if (which == 3) showGithubRepoHistoryDialog();
-                else showGithubPullRequestDialog();
+                else if (which == 4) showGithubPullRequestDialog();
+                else showGithubActionsRunsDialog();
             }).setNegativeButton("ĐÓNG", null).show();
+    }
+
+    // Read-only GitHub Actions inspector. Only run/job metadata is fetched here;
+    // raw logs are not downloaded or shared automatically.
+    private void showGithubActionsRunsDialog() {
+        EditText repoInput = input("owner/repository");
+        repoInput.setText("temu838655-dev/Truy-n");
+        new AlertDialog.Builder(this).setTitle("GitHub Actions · Build APK")
+            .setMessage("Nhập repository để xem tối đa 10 workflow run gần nhất. Token cần quyền Actions: Read (fine-grained) hoặc quyền repo phù hợp. Chỉ đọc metadata, không sửa workflow hay repository.")
+            .setView(repoInput)
+            .setPositiveButton("TẢI DANH SÁCH", (d, w) -> {
+                String repository = repoInput.getText().toString().trim();
+                if (!isValidGithubRepository(repository)) {
+                    line("Tên repository phải có dạng owner/repository hợp lệ.", 0xffffca70);
+                    return;
+                }
+                loadGithubActionsRuns(repository);
+            }).setNegativeButton("HỦY", null).show();
+    }
+
+    private boolean isValidGithubRepository(String repository) {
+        if (repository == null) return false;
+        String[] parts = repository.trim().split("/");
+        return parts.length == 2 && parts[0].matches("[A-Za-z0-9_.-]+")
+            && parts[1].matches("[A-Za-z0-9_.-]+");
+    }
+
+    private void loadGithubActionsRuns(String repository) {
+        line("Đang đọc GitHub Actions của " + repository + "...", GREEN);
+        worker.execute(() -> {
+            try {
+                JSONObject response = githubApi("GET", "/repos/" + repository + "/actions/runs?per_page=10", null);
+                JSONArray runs = response.optJSONArray("workflow_runs");
+                if (runs == null || runs.length() == 0) {
+                    runOnUiThread(() -> line("Repository chưa có workflow run hoặc token không đọc được Actions.", 0xffffca70));
+                    return;
+                }
+                final ArrayList<JSONObject> entries = new ArrayList<>();
+                final String[] labels = new String[runs.length()];
+                for (int i = 0; i < runs.length(); i++) {
+                    JSONObject run = runs.getJSONObject(i);
+                    entries.add(run);
+                    String status = run.optString("status", "unknown");
+                    String conclusion = run.optString("conclusion", "đang chạy");
+                    if (conclusion == null || conclusion.isEmpty() || "null".equals(conclusion)) conclusion = "đang chạy";
+                    String sha = run.optString("head_sha", "");
+                    labels[i] = run.optString("name", "Workflow") + " · #" + run.optInt("run_number")
+                        + " · " + status + "/" + conclusion + " · " + sha.substring(0, Math.min(7, sha.length()));
+                }
+                runOnUiThread(() -> new AlertDialog.Builder(this)
+                    .setTitle("10 workflow run gần nhất · " + repository)
+                    .setItems(labels, (dialog, which) -> loadGithubActionsRunDetails(repository, entries.get(which)))
+                    .setNegativeButton("ĐÓNG", null).show());
+            } catch (Exception e) {
+                runOnUiThread(() -> line("Không đọc được GitHub Actions: " + e.getMessage()
+                    + " · Kiểm tra token có Actions: Read.", 0xffff8080));
+            }
+        });
+    }
+
+    private void loadGithubActionsRunDetails(String repository, JSONObject run) {
+        long runId = run.optLong("id", 0L);
+        if (runId <= 0L) { line("Workflow run không có ID hợp lệ.", 0xffff8080); return; }
+        line("Đang đọc jobs và các bước build của run #" + run.optInt("run_number") + "...", GREEN);
+        worker.execute(() -> {
+            try {
+                JSONObject response = githubApi("GET", "/repos/" + repository + "/actions/runs/" + runId + "/jobs?per_page=100", null);
+                JSONArray jobs = response.optJSONArray("jobs");
+                StringBuilder report = new StringBuilder();
+                report.append("REPOSITORY: ").append(repository)
+                    .append("\\nWORKFLOW: ").append(run.optString("name"))
+                    .append("\\nRUN: #").append(run.optInt("run_number"))
+                    .append("\\nSTATUS: ").append(run.optString("status"))
+                    .append("\\nCONCLUSION: ").append(run.optString("conclusion"))
+                    .append("\\nCOMMIT: ").append(run.optString("head_sha"))
+                    .append("\\nBRANCH: ").append(run.optString("head_branch"))
+                    .append("\\nURL: ").append(run.optString("html_url"));
+                boolean failed = false;
+                if (jobs != null) for (int i = 0; i < jobs.length(); i++) {
+                    JSONObject job = jobs.getJSONObject(i);
+                    report.append("\\n\\nJOB: ").append(job.optString("name"))
+                        .append(" · ").append(job.optString("status"))
+                        .append("/").append(job.optString("conclusion"));
+                    JSONArray steps = job.optJSONArray("steps");
+                    if (steps != null) for (int j = 0; j < steps.length(); j++) {
+                        JSONObject step = steps.getJSONObject(j);
+                        String conclusion = step.optString("conclusion", "");
+                        if ("failure".equalsIgnoreCase(conclusion)) failed = true;
+                        if ("failure".equalsIgnoreCase(conclusion) || "cancelled".equalsIgnoreCase(conclusion)) {
+                            report.append("\\n  STEP ").append(step.optInt("number"))
+                                .append(": ").append(step.optString("name"))
+                                .append(" · ").append(conclusion);
+                        }
+                    }
+                }
+                if (jobs == null || jobs.length() == 0) report.append("\\nChưa có job hoặc workflow đang chờ runner.");
+                final String summary = report.toString();
+                final boolean hasFailure = failed;
+                runOnUiThread(() -> new AlertDialog.Builder(this)
+                    .setTitle(hasFailure ? "Phát hiện bước build thất bại" : "Chi tiết GitHub Actions")
+                    .setMessage(summary + "\\n\\nBO chỉ lấy metadata job/step, chưa tải raw log. Muốn gửi phần tóm tắt này cho AI phân tích, hãy xác nhận bên dưới.")
+                    .setPositiveButton("GỬI TÓM TẮT CHO AI", (dialog, which) -> {
+                        questionInput.setText("Phân tích workflow GitHub Actions dưới đây bằng tiếng Việt. Xác định bước lỗi, giải thích những gì có thể kết luận từ metadata, nêu thông tin còn thiếu vì chưa có raw log, và đề xuất cách lấy log/chẩn đoán an toàn. Không bịa nguyên nhân khi chưa có log:\\n\\n" + summary);
+                        askAi();
+                    })
+                    .setNegativeButton("ĐÓNG", null).show());
+            } catch (Exception e) {
+                runOnUiThread(() -> line("Không đọc được chi tiết workflow: " + e.getMessage()
+                    + " · Token cần Actions: Read.", 0xffff8080));
+            }
+        });
     }
 
     private void confirmAntigravityGithubResult(String title, String detail, String status, String resultText) {
