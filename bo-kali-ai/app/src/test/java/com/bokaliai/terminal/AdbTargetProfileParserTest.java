@@ -131,6 +131,40 @@ public class AdbTargetProfileParserTest {
     }
 
     @Test
+    public void localeAloneCannotSatisfyHardwareSkuOrRegionIdentity() {
+        String output =
+            "=== TARGET SERIAL: device-locale-only ===\\n" +
+            "ro.product.manufacturer=Maker\\n" +
+            "ro.product.model=Phone Locale\\n" +
+            "ro.product.device=phone_locale\\n" +
+            "ro.build.fingerprint=maker/phone_locale:14/BUILD/1:user/release-keys\\n" +
+            "ro.product.locale=en-US\\n" +
+            "--- END TARGET PROFILE: READ ONLY ---\\n";
+        AdbTargetProfileParser.DeviceProfile profile =
+            AdbTargetProfileParser.parse(output).get(0);
+        assertEquals("ro.product.locale=en-US", profile.getCatalogRegionSkuKey());
+        assertFalse(profile.hasMinimumIdentity());
+        assertTrue(profile.getMissingMinimumIdentityFields().contains(
+            "hardware SKU/region (ro.boot.*.sku or ro.boot.region)"));
+    }
+
+    @Test
+    public void bootRegionCanSatisfyHardwareVariantIdentityWithoutLocale() {
+        String output =
+            "=== TARGET SERIAL: device-region-only ===\\n" +
+            "ro.product.manufacturer=Maker\\n" +
+            "ro.product.model=Phone Region\\n" +
+            "ro.product.device=phone_region\\n" +
+            "ro.build.fingerprint=maker/phone_region:14/BUILD/1:user/release-keys\\n" +
+            "ro.boot.region=REGION_A\\n" +
+            "--- END TARGET PROFILE: READ ONLY ---\\n";
+        AdbTargetProfileParser.DeviceProfile profile =
+            AdbTargetProfileParser.parse(output).get(0);
+        assertTrue(profile.hasMinimumIdentity());
+        assertTrue(profile.getMissingMinimumIdentityFields().isEmpty());
+    }
+
+    @Test
     public void ignoresNonAndroidPropertiesAndEmptyValues() {
         String output =
             "=== TARGET SERIAL: device-02 ===\n" +
