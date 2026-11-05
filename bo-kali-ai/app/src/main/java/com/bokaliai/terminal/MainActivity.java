@@ -3110,7 +3110,9 @@ public class MainActivity extends Activity {
             line("Không lưu quyền: thiết bị không còn trực tuyến. Hãy quét ADB lại.", 0xffffca70);
             return;
         }
-        cancelPendingAiDevicePlanFor(serial);
+        android.content.SharedPreferences pendingPlan = getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE);
+        if (serial.equals(pendingPlan.getString("serial", ""))) pendingPlan.edit().clear().commit();
+        // Keep the reviewed queue. Each step rechecks its own scope and cannot run until re-granted.
         if (updated.isEmpty()) aiDevicePermissions.remove(serial);
         else aiDevicePermissions.put(serial, updated);
         line("Đã cập nhật quyền AI cho " + serial + ": "
