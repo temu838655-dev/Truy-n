@@ -6754,7 +6754,7 @@ public class MainActivity extends Activity {
                     out.append("\\n[Phản hồi API đã bị cắt do quá dài.]");
                     break;
                 }
-                out.append(row).append('\\n');
+                out.append(row).append('\n');
             }
         }
         return out.toString().trim();
