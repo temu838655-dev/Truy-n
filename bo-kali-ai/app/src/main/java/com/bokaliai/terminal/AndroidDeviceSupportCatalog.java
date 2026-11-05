@@ -13,7 +13,14 @@ import java.util.Locale;
  * is allowed for bootloader, root or flashing guidance.
  */
 public final class AndroidDeviceSupportCatalog {
-    public enum EvidenceSource {\n        OEM_OFFICIAL,\n        PROJECT_DOCUMENTATION,\n        COMMUNITY_REFERENCE,\n        UNKNOWN\n    }\n\n    public enum Status {
+    public enum EvidenceSource {
+        OEM_OFFICIAL,
+        PROJECT_DOCUMENTATION,
+        COMMUNITY_REFERENCE,
+        UNKNOWN
+    }
+
+    public enum Status {
         VERIFIED_UNLOCK_SUPPORTED,
         VERIFIED_UNLOCK_UNSUPPORTED,
         VERIFIED_ROOT_METHOD,
@@ -29,7 +36,10 @@ public final class AndroidDeviceSupportCatalog {
         public final Status status;
         public final String summary;
         public final String sourceUrl;
-        public final String verifiedDate;\n        public final EvidenceSource evidenceSource;\n        public final boolean manuallyReviewed;\n        public final String reviewerNote;
+        public final String verifiedDate;
+        public final EvidenceSource evidenceSource;
+        public final boolean manuallyReviewed;
+        public final String reviewerNote;
 
         /** Legacy constructor is deliberately unreviewed and cannot assert verified support. */
         public Entry(String manufacturer, String model, String codename,
