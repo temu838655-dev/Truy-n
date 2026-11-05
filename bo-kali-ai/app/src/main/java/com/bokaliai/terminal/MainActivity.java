@@ -7582,12 +7582,13 @@ public class MainActivity extends Activity {
                 String ref = branch.getText().toString().trim();
                 String path = filePath.getText().toString().trim();
                 String body = content.getText().toString();
-                String[] repoParts = repository.split("/");
-                if (repoParts.length != 2 || !repoParts[0].matches("[A-Za-z0-9_.-]+") || !repoParts[1].matches("[A-Za-z0-9_.-]+") || !ref.matches("[A-Za-z0-9_.\\-/]+") || path.isEmpty() || (write && body.isEmpty())) {
-                    line("Thiếu owner/repo, nhánh, đường dẫn hoặc nội dung tệp.", 0xffffca70); return;
-                }
-                if (repository.contains("..") || path.startsWith("/") || path.contains("..")) {
-                    line("Đường dẫn repository/tệp không hợp lệ.", 0xffffca70); return;
+                if (!AiToolRegistry.validRepositoryName(repository)
+                    || !AiToolRegistry.validGitRef(ref) || !AiToolRegistry.validRepoPath(path)
+                    || (write && body.trim().isEmpty())
+                    || (write && body.getBytes(StandardCharsets.UTF_8).length > AiToolRegistry.MAX_PATCH_CHARS)) {
+                    line("Repository, nhánh, đường dẫn hoặc nội dung không hợp lệ/quá lớn (tối đa "
+                        + AiToolRegistry.MAX_PATCH_CHARS + " bytes).", 0xffffca70);
+                    return;
                 }
                 if (write) confirmGithubWrite(repository, ref, path, body);
                 else githubReadFile(repository, ref, path);
@@ -7615,12 +7616,12 @@ public class MainActivity extends Activity {
                 String file = path.getText().toString().trim();
                 String prTitle = title.getText().toString().trim();
                 String source = content.getText().toString();
-                String[] parts = repo.split("/");
-                if (parts.length != 2 || !parts[0].matches("[A-Za-z0-9_.-]+")
-                    || !parts[1].matches("[A-Za-z0-9_.-]+") || target.isEmpty()
-                    || file.isEmpty() || file.startsWith("/") || file.contains("..")
-                    || prTitle.isEmpty() || source.trim().isEmpty()) {
-                    line("Thiếu hoặc sai repository, nhánh đích, đường dẫn, tiêu đề hay nội dung.", 0xffffca70);
+                if (!AiToolRegistry.validRepositoryName(repo) || !AiToolRegistry.validGitRef(target)
+                    || !AiToolRegistry.validRepoPath(file) || prTitle.trim().isEmpty()
+                    || source.trim().isEmpty()
+                    || source.getBytes(StandardCharsets.UTF_8).length > AiToolRegistry.MAX_PATCH_CHARS) {
+                    line("Repository, nhánh đích, đường dẫn, tiêu đề hoặc nội dung không hợp lệ/quá lớn (tối đa "
+                        + AiToolRegistry.MAX_PATCH_CHARS + " bytes).", 0xffffca70);
                     return;
                 }
                 new AlertDialog.Builder(this).setTitle("Xác nhận tạo Pull Request")
@@ -7635,6 +7636,13 @@ public class MainActivity extends Activity {
 
     private void githubCreateBranchAndPullRequest(String repository, String base, String path,
                                                    String title, String content) {
+        if (!AiToolRegistry.validRepositoryName(repository) || !AiToolRegistry.validGitRef(base)
+            || !AiToolRegistry.validRepoPath(path) || title == null || title.trim().isEmpty()
+            || content == null || content.trim().isEmpty()
+            || content.getBytes(StandardCharsets.UTF_8).length > AiToolRegistry.MAX_PATCH_CHARS) {
+            line("Đã chặn tạo Pull Request: repository/nhánh/đường dẫn/tiêu đề/nội dung không hợp lệ hoặc vượt giới hạn.", 0xffffca70);
+            return;
+        }
         line("Đang tạo nhánh riêng trên GitHub...", GREEN);
         worker.execute(() -> {
             String branchName = "";
@@ -7731,6 +7739,12 @@ public class MainActivity extends Activity {
     }
 
     private void confirmGithubWrite(String repository, String branch, String path, String content) {
+        if (!AiToolRegistry.validRepositoryName(repository) || !AiToolRegistry.validGitRef(branch)
+            || !AiToolRegistry.validRepoPath(path) || content == null || content.trim().isEmpty()
+            || content.getBytes(StandardCharsets.UTF_8).length > AiToolRegistry.MAX_PATCH_CHARS) {
+            line("Đã chặn thao tác GitHub: repository/nhánh/đường dẫn/nội dung không hợp lệ hoặc vượt giới hạn.", 0xffffca70);
+            return;
+        }
         new AlertDialog.Builder(this).setTitle("Xác nhận ghi lên GitHub")
             .setMessage("Repository: " + repository + "\nNhánh: " + branch + "\nTệp: " + path
                 + "\nKích thước: " + content.getBytes(StandardCharsets.UTF_8).length + " bytes"
@@ -7740,6 +7754,12 @@ public class MainActivity extends Activity {
     }
 
     private void githubWriteFile(String repository, String branch, String path, String content) {
+        if (!AiToolRegistry.validRepositoryName(repository) || !AiToolRegistry.validGitRef(branch)
+            || !AiToolRegistry.validRepoPath(path) || content == null || content.trim().isEmpty()
+            || content.getBytes(StandardCharsets.UTF_8).length > AiToolRegistry.MAX_PATCH_CHARS) {
+            line("Đã chặn ghi GitHub do dữ liệu đầu vào không hợp lệ hoặc vượt giới hạn.", 0xffffca70);
+            return;
+        }
         line("Đang kiểm tra phiên bản tệp trước khi ghi GitHub...", GREEN);
         worker.execute(() -> {
             try {
