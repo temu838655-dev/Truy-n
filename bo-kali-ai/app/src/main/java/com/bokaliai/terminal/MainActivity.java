@@ -7637,6 +7637,9 @@ public class MainActivity extends Activity {
                                                    String title, String content) {
         line("Đang tạo nhánh riêng trên GitHub...", GREEN);
         worker.execute(() -> {
+            String branchName = "";
+            boolean branchCreated = false;
+            boolean pullRequestCreated = false;
             try {
                 String encodedBase = java.net.URLEncoder.encode(base, "UTF-8");
                 JSONObject baseRef = githubApi("GET", "/repos/" + repository + "/git/ref/heads/" + encodedBase, null);
@@ -7645,11 +7648,12 @@ public class MainActivity extends Activity {
                     throw new IllegalStateException("Không lấy được SHA của nhánh đích.");
                 String baseSha = baseObject.optString("sha");
                 String suffix = Long.toString(System.currentTimeMillis(), 36);
-                String branchName = "bo-kali-ai/review-" + suffix;
+                branchName = "bo-kali-ai/review-" + suffix;
                 JSONObject refPayload = new JSONObject();
                 refPayload.put("ref", "refs/heads/" + branchName);
                 refPayload.put("sha", baseSha);
                 githubApi("POST", "/repos/" + repository + "/git/refs", refPayload);
+                branchCreated = true;
 
                 String apiPath = "/repos/" + repository + "/contents/" + githubEncodedPath(path);
                 String existingSha = null;
@@ -7673,17 +7677,30 @@ public class MainActivity extends Activity {
                 prPayload.put("title", title);
                 prPayload.put("head", branchName);
                 prPayload.put("base", base);
-                prPayload.put("body", "Pull Request được tạo từ BO Kali AI.\n\nHãy kiểm tra toàn bộ diff, chạy build/test và chỉ merge sau khi xác minh.");
+                prPayload.put("body", "Pull Request được tạo từ BO Kali AI.\\n\\nHãy kiểm tra toàn bộ diff, chạy build/test và chỉ merge sau khi xác minh.");
                 JSONObject pr = githubApi("POST", "/repos/" + repository + "/pulls", prPayload);
+                pullRequestCreated = true;
                 String html = pr.optString("html_url");
                 int number = pr.optInt("number", 0);
-                String report = "Đã tạo Pull Request #" + number + "\nNhánh: " + branchName
-                    + (commitSha.isEmpty() ? "" : "\nCommit: " + commitSha)
-                    + (html.isEmpty() ? "" : "\n" + html);
+                String report = "Đã tạo Pull Request #" + number + "\\nNhánh: " + branchName
+                    + (commitSha.isEmpty() ? "" : "\\nCommit: " + commitSha)
+                    + (html.isEmpty() ? "" : "\\n" + html);
                 runOnUiThread(() -> line(report, GREEN));
             } catch (Exception e) {
-                runOnUiThread(() -> line("Tạo nhánh/Pull Request thất bại: " + e.getMessage()
-                    + "\nNếu nhánh đã được tạo trước khi lỗi xảy ra, hãy kiểm tra GitHub để tránh tạo trùng.", 0xffff8080));
+                String cleanupReport = "";
+                if (branchCreated && !pullRequestCreated) {
+                    try {
+                        githubApi("DELETE", "/repos/" + repository + "/git/refs/heads/" + branchName, null);
+                        cleanupReport = "\\nĐã xóa nhánh tạm " + branchName + " vì Pull Request chưa được tạo.";
+                    } catch (Exception cleanupError) {
+                        cleanupReport = "\\nKhông xóa được nhánh tạm " + branchName
+                            + ". Hãy kiểm tra/xóa thủ công trên GitHub. Lỗi dọn dẹp: " + cleanupError.getMessage();
+                    }
+                } else if (pullRequestCreated) {
+                    cleanupReport = "\\nGitHub đã xác nhận tạo Pull Request; giữ nguyên nhánh để không làm hỏng PR.";
+                }
+                final String report = "Tạo nhánh/Pull Request thất bại: " + e.getMessage() + cleanupReport;
+                runOnUiThread(() -> line(report, 0xffff8080));
             }
         });
     }
