@@ -7094,7 +7094,7 @@ public class MainActivity extends Activity {
         String summary = args.optString("summary", "Update multiple files").trim();
         JSONArray requested = args.optJSONArray("files");
         if (!AiToolRegistry.validRepositoryName(repository)
-                || base.isEmpty() || base.length() > 200 || base.matches(".*[\\r\\n\\u0000].*")
+                || !AiToolRegistry.validGitRef(base)
                 || summary.isEmpty() || summary.length() > 120
                 || requested == null || requested.length() < 2 || requested.length() > 6) {
             reportAntigravityToolOutcome("invalid_multi_file_update",
