@@ -504,9 +504,16 @@ public final class AiToolRegistry {
     public static boolean validRepoPath(String path) {
         if (path == null || path.trim().isEmpty() || path.length() > 500) return false;
         String p = path.trim();
-        if (p.startsWith("/") || p.startsWith("\\") || p.contains("..")
-                || p.matches(".*[\\r\\n\\u0000].*")) return false;
-        return !Arrays.asList(p.split("/")).contains("");
+        if (p.startsWith("/") || p.indexOf('\\\\') >= 0) return false;
+        for (int i = 0; i < p.length(); i++) {
+            char ch = p.charAt(i);
+            if (ch <= 0x1f || ch == 0x7f) return false;
+        }
+        String[] segments = p.split("/", -1);
+        for (String segment : segments) {
+            if (segment.isEmpty() || ".".equals(segment) || "..".equals(segment)) return false;
+        }
+        return true;
     }
 
     private static boolean containsBlockedOperation(String command) {

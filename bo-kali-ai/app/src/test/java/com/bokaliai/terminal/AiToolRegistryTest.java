@@ -136,6 +136,11 @@ public class AiToolRegistryTest {
         assertFalse(AiToolRegistry.validRepoPath("../secrets.txt"));
         assertFalse(AiToolRegistry.validRepoPath("/etc/passwd"));
         assertFalse(AiToolRegistry.validRepoPath("app//MainActivity.java"));
+        assertFalse(AiToolRegistry.validRepoPath("app/./MainActivity.java"));
+        assertFalse(AiToolRegistry.validRepoPath("app/../secrets.txt"));
+        assertFalse(AiToolRegistry.validRepoPath("app\\\\..\\\\secrets.txt"));
+        assertFalse(AiToolRegistry.validRepoPath("app/ma\nMainActivity.java"));
+        assertTrue(AiToolRegistry.validRepoPath("app/version..backup/MainActivity.java"));
     }
 
     @Test
