@@ -58,6 +58,7 @@ public class MainActivity extends Activity {
     private ScrollView scroll;
     private EditText commandInput, questionInput, translationInput;
     private TextView aiImageStatusLabel;
+    private TextView translationResultView;
     private String geminiKey = "", claudeKey = "", openAiKey = "", githubToken = "", lastCommandOutput = "";
     // A root/unlock catalog view must be backed by the exact ADB audit it requested.
     private String pendingRootCatalogAuditToken = "";
@@ -202,6 +203,17 @@ public class MainActivity extends Activity {
         Button clearOcrImage = button("XÓA ẢNH OCR ĐÃ CHỌN");
         clearOcrImage.setOnClickListener(v -> clearSelectedAiImage());
         root.addView(clearOcrImage, new LinearLayout.LayoutParams(-1, dp(38)));
+        translationResultView = text("Bản dịch sẽ hiển thị tại đây sau khi AI phản hồi.", 0xffc8d7e6, 13, false);
+        translationResultView.setTextIsSelectable(true);
+        translationResultView.setPadding(12, 12, 12, 12);
+        translationResultView.setBackgroundColor(0xff142334);
+        root.addView(text("KẾT QUẢ DỊCH / OCR", 0xff79c9ff, 12, true));
+        root.addView(translationResultView, new LinearLayout.LayoutParams(-1, dp(150)));
+        Button clearTranslation = button("XÓA KẾT QUẢ DỊCH");
+        clearTranslation.setOnClickListener(v -> {
+            if (translationResultView != null) translationResultView.setText("Bản dịch sẽ hiển thị tại đây sau khi AI phản hồi.");
+        });
+        root.addView(clearTranslation, new LinearLayout.LayoutParams(-1, dp(38)));
         Button explainCodeError = button("GIẢI THÍCH LỖI CODE / BUILD GẦN NHẤT");
         explainCodeError.setOnClickListener(v -> explainLastOutput());
         root.addView(explainCodeError, new LinearLayout.LayoutParams(-1, dp(42)));
@@ -5990,7 +6002,7 @@ public class MainActivity extends Activity {
                 final String out = answer.isEmpty()
                     ? "Đã gửi trạng thái duyệt cho Antigravity. Không có phản hồi văn bản bổ sung."
                     : answer;
-                runOnUiThread(() -> line("Antigravity Agent: " + out, WHITE));
+                runOnUiThread(() -> showAiAnswer("Antigravity Agent", out, isTranslationRequest));
             } catch (Exception e) {
                 android.content.SharedPreferences pendingTool =
                     getSharedPreferences("bo_kali_antigravity_pending_tool", MODE_PRIVATE);
@@ -6036,9 +6048,19 @@ public class MainActivity extends Activity {
         return answer.toString().trim();
     }
 
+    private void showAiAnswer(String provider, String answer, boolean translationRequest) {
+        if (translationRequest && translationResultView != null) {
+            translationResultView.setText(answer == null || answer.trim().isEmpty()
+                ? "AI không trả về nội dung bản dịch." : answer);
+        }
+        line(provider + ": " + answer, WHITE);
+    }
+
     private void askAi() {
         String q = questionInput.getText().toString().trim();
         if (q.isEmpty()) return;
+        final boolean isTranslationRequest =
+            q.startsWith("Hãy dịch nội dung sau sang tiếng Việt tự nhiên");
         int selected = aiProviderPicker == null ? 0 : aiProviderPicker.getSelectedItemPosition();
         final String provider = selected == 1 ? "Claude" : (selected == 2 ? "OpenAI" : (selected == 3 ? "Antigravity" : "Gemini"));
         // Antigravity Agent is accessed through the Gemini API key, but uses its own Interactions API.
@@ -6235,7 +6257,7 @@ public class MainActivity extends Activity {
                     } else {
                         String answer = extractAntigravityAnswer(result);
                         final String out = answer.isEmpty() ? "Agent đã phản hồi nhưng không tìm thấy nội dung văn bản. Mã tương tác: " + interactionId : answer;
-                        runOnUiThread(() -> line("Antigravity Agent: " + out, WHITE));
+                        runOnUiThread(() -> showAiAnswer("Antigravity Agent", out, isTranslationRequest));
                     }
                 } else if ("Claude".equals(provider) && code >= 200 && code < 300) {
                     JSONArray calls = AiToolRegistry.extractClaudeToolUses(result);
@@ -6261,7 +6283,7 @@ public class MainActivity extends Activity {
                     } else {
                         String answer = extractAiAnswer(provider, result, code);
                         final String out = answer;
-                        runOnUiThread(() -> line(provider + ": " + out, WHITE));
+                        runOnUiThread(() -> showAiAnswer(provider, out, isTranslationRequest));
                     }
                 } else if ("Gemini".equals(provider) && code >= 200 && code < 300) {
                     JSONArray calls = AiToolRegistry.extractGeminiFunctionCalls(result);
@@ -6289,7 +6311,7 @@ public class MainActivity extends Activity {
                     } else {
                         String answer = extractAiAnswer(provider, result, code);
                         final String out = answer;
-                        runOnUiThread(() -> line(provider + ": " + out, WHITE));
+                        runOnUiThread(() -> showAiAnswer(provider, out, isTranslationRequest));
                     }
                 } else if ("OpenAI".equals(provider) && code >= 200 && code < 300) {
                     JSONArray calls = AiToolRegistry.extractOpenAiFunctionCalls(result);
@@ -6314,12 +6336,12 @@ public class MainActivity extends Activity {
                     } else {
                         String answer = extractAiAnswer(provider, result, code);
                         final String out = answer;
-                        runOnUiThread(() -> line(provider + ": " + out, WHITE));
+                        runOnUiThread(() -> showAiAnswer(provider, out, isTranslationRequest));
                     }
                 } else {
                     String answer = extractAiAnswer(provider, result, code);
                     final String out = answer;
-                    runOnUiThread(() -> line(provider + ": " + out, WHITE));
+                    runOnUiThread(() -> showAiAnswer(provider, out, isTranslationRequest));
                 }
             } catch (Exception e) {
                 final String error = "Lỗi kết nối " + provider + ": " + e.getMessage();
