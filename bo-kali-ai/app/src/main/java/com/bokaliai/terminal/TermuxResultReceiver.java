@@ -60,8 +60,9 @@ public class TermuxResultReceiver extends BroadcastReceiver {
             int err = result.getInt("err", -1);
             String errmsg = result.getString("errmsg", "");
             output.append("Mã thoát: ").append(exitCode);
-            // Put the validated AI plan marker near the beginning so the Activity's
-            // bounded transcript truncation cannot discard it at the end of stdout.
+            // Keep machine-readable markers at the beginning of the bounded transcript.
+            // Otherwise the final 24k display cap could cut off a marker after long stdout.
+            if (!aiExecutionMarker.isEmpty()) output.append("\n").append(aiExecutionMarker).append("\n");
             if (!aiPlanMarker.isEmpty()) output.append("\n").append(aiPlanMarker).append("\n");
             if (exitCode == 0) output.append(" (thành công)");
             else if (exitCode > 0) output.append(" (lệnh kết thúc với lỗi)");
@@ -73,10 +74,6 @@ public class TermuxResultReceiver extends BroadcastReceiver {
             }
             if (stdout.isEmpty() && stderr.isEmpty() && errmsg.isEmpty()) {
                 output.append("Lệnh không tạo đầu ra. Kiểm tra mã thoát và thử lệnh khác nếu cần.\n");
-            }
-            // Preserve the execution marker even if the original stdout exceeded the display limit.
-            if (!aiExecutionMarker.isEmpty() && output.indexOf(aiExecutionMarker) < 0) {
-                output.append("\n").append(aiExecutionMarker).append("\n");
             }
         }
 
@@ -154,8 +151,23 @@ public class TermuxResultReceiver extends BroadcastReceiver {
             : previousPending + "\n\n--- KẾT QUẢ TERMUX TIẾP THEO ---\n" + output;
         final int maxPendingChars = 48000;
         if (combinedPending.length() > maxPendingChars) {
-            combinedPending = "[Một số kết quả Termux cũ đã được lược bớt để giới hạn bộ nhớ.]\n"
-                + combinedPending.substring(combinedPending.length() - maxPendingChars);
+            // Preserve every ADB execution result marker before trimming human-readable output.
+            // The Activity needs these UUID/exit/device-state tuples to release its single-flight
+            // guard and advance or stop a queued plan; losing one could leave the queue ambiguous.
+            java.util.regex.Matcher markers = java.util.regex.Pattern
+                .compile("BO_AI_EXEC_RESULT:([0-9a-fA-F-]{36}):(-?[0-9]+):([A-Za-z_-]+)")
+                .matcher(combinedPending);
+            StringBuilder preservedMarkers = new StringBuilder();
+            java.util.HashSet<String> seenMarkers = new java.util.HashSet<>();
+            while (markers.find()) {
+                String marker = markers.group();
+                if (seenMarkers.add(marker)) preservedMarkers.append(marker).append("\\n");
+            }
+            String prefix = "[Một số kết quả Termux cũ đã được lược bớt để giới hạn bộ nhớ.]\\n"
+                + preservedMarkers;
+            int tailLength = Math.max(0, maxPendingChars - prefix.length());
+            String tail = combinedPending.substring(Math.max(0, combinedPending.length() - tailLength));
+            combinedPending = prefix + tail;
         }
         boolean previousScreenCapture = resultPrefs.getBoolean("pending_screen_capture", false);
         boolean previousScrcpyReady = resultPrefs.getBoolean("pending_scrcpy_ready", false);
