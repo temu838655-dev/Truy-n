@@ -121,7 +121,7 @@ public final class AdbTargetProfileParser {
             if (separator <= 0) continue;
             String key = line.substring(0, separator).trim();
             String value = line.substring(separator + 1).trim();
-            if (key.matches("ro\\.[A-Za-z0-9_.]+") && !value.isEmpty()) {
+            if ((key.matches("ro\\.[A-Za-z0-9_.]+") || "ANDROID_UID".equals(key)) && !value.isEmpty()) {
                 current.properties.put(key, value);
             }
         }
