@@ -57,11 +57,11 @@ public class AdbTargetProfileParserTest {
     @Test
     public void exactCatalogIdentityRequiresManufacturerFingerprintAndRegionSku() {
         String output =
-            "=== TARGET SERIAL: device-identity ===\\n" +
-            "ro.product.model=Phone Identity\\n" +
-            "ro.product.device=phone_identity\\n" +
-            "ro.build.fingerprint=maker/phone_identity:14/BUILD/1:user/release-keys\\n" +
-            "--- END TARGET PROFILE: READ ONLY ---\\n";
+            "=== TARGET SERIAL: device-identity ===\n" +
+            "ro.product.model=Phone Identity\n" +
+            "ro.product.device=phone_identity\n" +
+            "ro.build.fingerprint=maker/phone_identity:14/BUILD/1:user/release-keys\n" +
+            "--- END TARGET PROFILE: READ ONLY ---\n";
         AdbTargetProfileParser.DeviceProfile profile =
             AdbTargetProfileParser.parse(output).get(0);
         assertFalse(profile.hasMinimumIdentity());
@@ -73,13 +73,13 @@ public class AdbTargetProfileParserTest {
     @Test
     public void completeExactIdentityIsEligibleForCatalogLookup() {
         String output =
-            "=== TARGET SERIAL: device-exact ===\\n" +
-            "ro.product.manufacturer=Maker\\n" +
-            "ro.product.model=Phone Exact\\n" +
-            "ro.product.device=phone_exact\\n" +
-            "ro.build.fingerprint=maker/phone_exact:14/BUILD/1:user/release-keys\\n" +
-            "ro.boot.hardware.sku=SKU_EXACT\\n" +
-            "--- END TARGET PROFILE: READ ONLY ---\\n";
+            "=== TARGET SERIAL: device-exact ===\n" +
+            "ro.product.manufacturer=Maker\n" +
+            "ro.product.model=Phone Exact\n" +
+            "ro.product.device=phone_exact\n" +
+            "ro.build.fingerprint=maker/phone_exact:14/BUILD/1:user/release-keys\n" +
+            "ro.boot.hardware.sku=SKU_EXACT\n" +
+            "--- END TARGET PROFILE: READ ONLY ---\n";
         AdbTargetProfileParser.DeviceProfile profile =
             AdbTargetProfileParser.parse(output).get(0);
         assertTrue(profile.hasMinimumIdentity());
