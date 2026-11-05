@@ -73,12 +73,20 @@ public final class AdbTargetProfileParser {
             if (!hasText(get("ro.product.model"))) missing.add("model (ro.product.model)");
             if (!hasText(get("ro.product.device"))) missing.add("codename (ro.product.device)");
             if (!hasText(get("ro.build.fingerprint"))) missing.add("firmware fingerprint (ro.build.fingerprint)");
-            if (!hasText(getCatalogRegionSkuKey())) missing.add("SKU/region/locale");
+            // Locale alone is not a hardware variant identifier. Require an actual
+            // boot SKU or boot region before a profile can match root/unlock guidance.
+            if (!hasHardwareSkuOrRegion()) missing.add("hardware SKU/region (ro.boot.*.sku or ro.boot.region)");
             return Collections.unmodifiableList(missing);
         }
 
         public boolean hasMinimumIdentity() {
             return getMissingMinimumIdentityFields().isEmpty();
+        }
+
+        private boolean hasHardwareSkuOrRegion() {
+            return hasText(get("ro.boot.hardware.sku"))
+                || hasText(get("ro.boot.product.hardware.sku"))
+                || hasText(get("ro.boot.region"));
         }
 
         private static boolean hasText(String value) {
