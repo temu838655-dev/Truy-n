@@ -5432,18 +5432,22 @@ public class MainActivity extends Activity {
                     .append(profile.getCatalogRegionSkuKey().isEmpty()
                         ? "KHÔNG ĐỌC ĐƯỢC" : profile.getCatalogRegionSkuKey())
                     .append("\n");
-                AndroidDeviceSupportCatalog.Result catalogResult =
-                    AndroidDeviceSupportCatalog.lookupBuiltIn(
-                        profile.get("ro.product.manufacturer"),
-                        profile.get("ro.product.model"),
-                        profile.get("ro.product.device"),
-                        profile.get("ro.build.fingerprint"),
-                        profile.getCatalogRegionSkuKey());
-                targetSummary.append("Danh mục root/unlock: ")
-                    .append(catalogResult.getMessageVi()).append("\n");
-                if (catalogResult.isVerifiedMatch()) {
-                    verifiedCatalogMatches++;
-                    targetSummary.append(catalogResult.getEvidenceSummaryVi()).append("\n");
+                if (!profile.hasMinimumIdentity()) {
+                    targetSummary.append("Danh mục root/unlock: KHÔNG TRA CỨU XÁC MINH — hồ sơ ADB chưa có đủ model, codename và dấu kết thúc đọc thành công.\n");
+                } else {
+                    AndroidDeviceSupportCatalog.Result catalogResult =
+                        AndroidDeviceSupportCatalog.lookupBuiltIn(
+                            profile.get("ro.product.manufacturer"),
+                            profile.get("ro.product.model"),
+                            profile.get("ro.product.device"),
+                            profile.get("ro.build.fingerprint"),
+                            profile.getCatalogRegionSkuKey());
+                    targetSummary.append("Danh mục root/unlock: ")
+                        .append(catalogResult.getMessageVi()).append("\n");
+                    if (catalogResult.isVerifiedMatch()) {
+                        verifiedCatalogMatches++;
+                        targetSummary.append(catalogResult.getEvidenceSummaryVi()).append("\n");
+                    }
                 }
             }
         }
