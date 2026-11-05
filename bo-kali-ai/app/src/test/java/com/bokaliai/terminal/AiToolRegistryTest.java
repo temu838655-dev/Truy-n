@@ -44,6 +44,36 @@ public class AiToolRegistryTest {
     }
 
     @Test
+    public void rejectsCommandThatDoesNotMatchGrantedScope() {
+        assertEquals("COMMAND_NOT_ALLOWED_FOR_SCOPE", AiToolRegistry.validateAdbPlan(
+            AiToolRegistry.READ_INFO, "device-01", "pm list packages",
+            grant(AiToolRegistry.READ_INFO)));
+        assertEquals("COMMAND_NOT_ALLOWED_FOR_SCOPE", AiToolRegistry.validateAdbPlan(
+            AiToolRegistry.APP_LIST, "device-01", "pm uninstall com.example.app",
+            grant(AiToolRegistry.APP_LIST)));
+    }
+
+    @Test
+    public void acceptsOnlyAllowlistedCommandForAppListAndRemovalScopes() {
+        assertEquals("OK", AiToolRegistry.validateAdbPlan(
+            AiToolRegistry.APP_LIST, "device-01", "pm list packages -3",
+            grant(AiToolRegistry.APP_LIST)));
+        assertEquals("OK", AiToolRegistry.validateAdbPlan(
+            AiToolRegistry.APP_INSTALL_REMOVE, "device-01", "pm uninstall com.example.app",
+            grant(AiToolRegistry.APP_INSTALL_REMOVE)));
+    }
+
+    @Test
+    public void rawShellGrantDoesNotAllowArbitraryShellCommands() {
+        assertEquals("COMMAND_NOT_ALLOWED_FOR_SCOPE", AiToolRegistry.validateAdbPlan(
+            AiToolRegistry.RAW_ADB_SHELL, "device-01", "echo hello",
+            grant(AiToolRegistry.RAW_ADB_SHELL)));
+        assertEquals("COMMAND_NOT_ALLOWED_FOR_SCOPE", AiToolRegistry.validateAdbPlan(
+            AiToolRegistry.RAW_ADB_SHELL, "device-01", "pm disable com.example.app",
+            grant(AiToolRegistry.RAW_ADB_SHELL)));
+    }
+
+    @Test
     public void rejectsMalformedDeviceSerial() {
         assertEquals("INVALID_DEVICE_SERIAL", AiToolRegistry.validateAdbPlan(
             AiToolRegistry.READ_INFO, "device-01\nother", "getprop", grant(AiToolRegistry.READ_INFO)));
