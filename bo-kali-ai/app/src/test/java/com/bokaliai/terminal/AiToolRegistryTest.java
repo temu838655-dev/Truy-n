@@ -110,6 +110,12 @@ public class AiToolRegistryTest {
                 AiToolRegistry.RAW_ADB_SHELL, "device-01", command,
                 grant(AiToolRegistry.RAW_ADB_SHELL))));
         }
+        assertEquals("COMMAND_NOT_ALLOWED_FOR_SCOPE", AiToolRegistry.validateAdbPlan(
+            AiToolRegistry.RAW_ADB_SHELL, "device-01", "getprop",
+            grant(AiToolRegistry.RAW_ADB_SHELL)));
+        assertEquals("COMMAND_NOT_ALLOWED_FOR_SCOPE", AiToolRegistry.validateAdbPlan(
+            AiToolRegistry.RAW_ADB_SHELL, "device-01", "getprop ro.serialno",
+            grant(AiToolRegistry.RAW_ADB_SHELL)));
     }
 
     @Test
@@ -163,12 +169,17 @@ public class AiToolRegistryTest {
         assertEquals("BLOCKED_COMMAND", AiToolRegistry.validateAdbPlan(
             AiToolRegistry.READ_INFO, "device-01", "curl https://example.com",
             grant(AiToolRegistry.READ_INFO)));
+        assertEquals("COMMAND_NOT_ALLOWED_FOR_SCOPE", AiToolRegistry.validateAdbPlan(
+            AiToolRegistry.READ_INFO, "device-01", "getprop",
+            grant(AiToolRegistry.READ_INFO)));
+        assertEquals("COMMAND_NOT_ALLOWED_FOR_SCOPE", AiToolRegistry.validateAdbPlan(
+            AiToolRegistry.READ_INFO, "device-01", "getprop ro.serialno",
+            grant(AiToolRegistry.READ_INFO)));
     }
 
     @Test
     public void readInfoScopeAcceptsOnlyDocumentedReadOnlyCommands() {
         String[] commands = {
-            "getprop",
             "getprop ro.product.model",
             "getprop ro.build.version.release",
             "df -h",
