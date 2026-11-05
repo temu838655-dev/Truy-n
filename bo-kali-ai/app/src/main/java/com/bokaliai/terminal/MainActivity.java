@@ -5423,7 +5423,7 @@ public class MainActivity extends Activity {
                         profile.get("ro.product.model"),
                         profile.get("ro.product.device"),
                         profile.get("ro.build.fingerprint"),
-                        profile.get("ro.boot.hardware.sku"));
+                        profile.getCatalogRegionSkuKey());
                 targetSummary.append("Danh mục root/unlock: ")
                     .append(catalogResult.getMessageVi()).append("\n");
                 if (catalogResult.isVerifiedMatch()) {

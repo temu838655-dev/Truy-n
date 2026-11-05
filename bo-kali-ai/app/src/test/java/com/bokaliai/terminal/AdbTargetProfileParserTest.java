@@ -60,6 +60,40 @@ public class AdbTargetProfileParserTest {
         assertTrue(AdbTargetProfileParser.parse(output).isEmpty());
     }
 
+
+    @Test
+    public void keepsSkuRegionAndLocaleDistinctInCatalogIdentity() {
+        String output =
+            "=== TARGET SERIAL: device-03 ===\\n" +
+            "ro.product.model=Phone C\\n" +
+            "ro.product.device=phone_c\\n" +
+            "ro.boot.hardware.sku=SKU_A\\n" +
+            "ro.boot.product.hardware.sku=PRODUCT_SKU_B\\n" +
+            "ro.boot.region=REGION_C\\n" +
+            "ro.product.locale=en-US\\n" +
+            "--- END TARGET PROFILE: READ ONLY ---\\n";
+        AdbTargetProfileParser.DeviceProfile profile =
+            AdbTargetProfileParser.parse(output).get(0);
+        assertEquals(
+            "ro.boot.hardware.sku=SKU_A|ro.boot.product.hardware.sku=PRODUCT_SKU_B|" +
+            "ro.boot.region=REGION_C|ro.product.locale=en-US",
+            profile.getCatalogRegionSkuKey());
+    }
+
+    @Test
+    public void missingSkuDoesNotFallBackToRegionOrLocaleAsSku() {
+        String output =
+            "=== TARGET SERIAL: device-04 ===\\n" +
+            "ro.boot.region=REGION_D\\n" +
+            "ro.product.locale=fr-FR\\n" +
+            "--- END TARGET PROFILE: READ ONLY ---\\n";
+        AdbTargetProfileParser.DeviceProfile profile =
+            AdbTargetProfileParser.parse(output).get(0);
+        assertEquals("ro.boot.region=REGION_D|ro.product.locale=fr-FR",
+            profile.getCatalogRegionSkuKey());
+        assertFalse(profile.getCatalogRegionSkuKey().contains("ro.boot.hardware.sku="));
+    }
+
     @Test
     public void ignoresNonAndroidPropertiesAndEmptyValues() {
         String output =

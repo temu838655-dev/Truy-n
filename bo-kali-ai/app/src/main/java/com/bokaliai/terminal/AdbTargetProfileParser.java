@@ -34,6 +34,29 @@ public final class AdbTargetProfileParser {
             return Collections.unmodifiableMap(properties);
         }
 
+
+        /**
+         * Stable, labeled identity for catalog matching. SKU, region and locale
+         * remain separate values; none is silently substituted for another.
+         */
+        public String getCatalogRegionSkuKey() {
+            String[] keys = {
+                "ro.boot.hardware.sku",
+                "ro.boot.product.hardware.sku",
+                "ro.boot.region",
+                "ro.product.locale"
+            };
+            StringBuilder key = new StringBuilder();
+            for (String property : keys) {
+                String value = get(property);
+                if (hasText(value)) {
+                    if (key.length() > 0) key.append("|");
+                    key.append(property).append("=").append(value);
+                }
+            }
+            return key.toString();
+        }
+
         public boolean isComplete() {
             return complete;
         }
