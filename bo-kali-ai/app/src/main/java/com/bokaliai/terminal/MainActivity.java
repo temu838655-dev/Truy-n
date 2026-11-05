@@ -3534,7 +3534,7 @@ public class MainActivity extends Activity {
                 line("Kế hoạch vẫn được lưu. Hãy cấp lại quyền " + scope + " cho đúng thiết bị trong mục quản lý quyền AI, rồi chọn TIẾP TỤC DUYỆT.", 0xffffca70);
                 return;
             }
-            if (!"OK".equals(AiToolRegistry.validateAdbPlan(scope, serial, command, aiDevicePermissions.get(serial))
+            if (!"OK".equals(AiToolRegistry.validateAdbPlan(scope, serial, command, aiDevicePermissions.get(serial)))
                 || !isAiCommandAllowedForScope(scope, command)) {
                 queue.edit().clear().commit();
                 line("Dừng kế hoạch: quyền hoặc chính sách của bước " + (index + 1) + " không còn hợp lệ.", 0xffff8080);
