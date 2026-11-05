@@ -188,7 +188,16 @@ public class MainActivity extends Activity {
 
         root.addView(text("DỊCH VĂN BẢN / OCR ẢNH / GIẢI THÍCH LỖI CODE", GREEN, 12, true));
         translationInput = input("Nhập hoặc dán văn bản cần dịch...");
-        root.addView(translationInput, new LinearLayout.LayoutParams(-1, dp(52)));
+        // Translation input must accept paragraphs and line breaks, unlike the compact single-line prompts.
+        translationInput.setSingleLine(false);
+        translationInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+            | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            | android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        translationInput.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
+        translationInput.setMinLines(3);
+        translationInput.setMaxLines(6);
+        translationInput.setHorizontallyScrolling(false);
+        root.addView(translationInput, new LinearLayout.LayoutParams(-1, dp(112)));
         LinearLayout translateRow = new LinearLayout(this);
         translateRow.setOrientation(LinearLayout.HORIZONTAL);
         Button pickTranslateImage = button("CHỌN ẢNH OCR");
