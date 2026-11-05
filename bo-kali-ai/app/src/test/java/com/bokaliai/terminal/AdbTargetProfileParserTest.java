@@ -64,14 +64,14 @@ public class AdbTargetProfileParserTest {
     @Test
     public void keepsSkuRegionAndLocaleDistinctInCatalogIdentity() {
         String output =
-            "=== TARGET SERIAL: device-03 ===\\n" +
-            "ro.product.model=Phone C\\n" +
-            "ro.product.device=phone_c\\n" +
-            "ro.boot.hardware.sku=SKU_A\\n" +
-            "ro.boot.product.hardware.sku=PRODUCT_SKU_B\\n" +
-            "ro.boot.region=REGION_C\\n" +
-            "ro.product.locale=en-US\\n" +
-            "--- END TARGET PROFILE: READ ONLY ---\\n";
+            "=== TARGET SERIAL: device-03 ===\n" +
+            "ro.product.model=Phone C\n" +
+            "ro.product.device=phone_c\n" +
+            "ro.boot.hardware.sku=SKU_A\n" +
+            "ro.boot.product.hardware.sku=PRODUCT_SKU_B\n" +
+            "ro.boot.region=REGION_C\n" +
+            "ro.product.locale=en-US\n" +
+            "--- END TARGET PROFILE: READ ONLY ---\n";
         AdbTargetProfileParser.DeviceProfile profile =
             AdbTargetProfileParser.parse(output).get(0);
         assertEquals(
@@ -83,10 +83,10 @@ public class AdbTargetProfileParserTest {
     @Test
     public void missingSkuDoesNotFallBackToRegionOrLocaleAsSku() {
         String output =
-            "=== TARGET SERIAL: device-04 ===\\n" +
-            "ro.boot.region=REGION_D\\n" +
-            "ro.product.locale=fr-FR\\n" +
-            "--- END TARGET PROFILE: READ ONLY ---\\n";
+            "=== TARGET SERIAL: device-04 ===\n" +
+            "ro.boot.region=REGION_D\n" +
+            "ro.product.locale=fr-FR\n" +
+            "--- END TARGET PROFILE: READ ONLY ---\n";
         AdbTargetProfileParser.DeviceProfile profile =
             AdbTargetProfileParser.parse(output).get(0);
         assertEquals("ro.boot.region=REGION_D|ro.product.locale=fr-FR",
