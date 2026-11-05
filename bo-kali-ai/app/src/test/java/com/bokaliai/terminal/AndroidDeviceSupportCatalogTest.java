@@ -215,6 +215,24 @@ public class AndroidDeviceSupportCatalogTest {
     }
 
     @Test
+    public void rejectsAmbiguousDuplicateExactProfilesInsteadOfChoosingFirst() {
+        AndroidDeviceSupportCatalog.Entry first = verifiedEntry();
+        AndroidDeviceSupportCatalog.Entry conflicting = new AndroidDeviceSupportCatalog.Entry(
+            "Example", "Model X", "device_x",
+            "example/device_x:14/BUILD/123:user/release-keys", "REGION_A",
+            AndroidDeviceSupportCatalog.Status.VERIFIED_UNLOCK_UNSUPPORTED,
+            "Conflicting reviewed claim for the same exact identity.",
+            "https://example.com/conflicting-policy", "2026-11-05",
+            AndroidDeviceSupportCatalog.EvidenceSource.OEM_OFFICIAL, true,
+            "Conflict fixture for ambiguity test.");
+        AndroidDeviceSupportCatalog.Result result = AndroidDeviceSupportCatalog.lookup(
+            Arrays.asList(first, conflicting), "Example", "Model X", "device_x",
+            "example/device_x:14/BUILD/123:user/release-keys", "REGION_A");
+        assertFalse(result.isVerifiedMatch());
+        assertNull(result.getEntry());
+    }
+
+    @Test
     public void doesNotUseFuzzyModelMatching() {
         AndroidDeviceSupportCatalog.Result result = AndroidDeviceSupportCatalog.lookup(
             Collections.singletonList(verifiedEntry()), "Example", "Model X Pro", "device_x",
