@@ -2133,7 +2133,8 @@ public class MainActivity extends Activity {
                     long apkSize = 0;
                     if (assets != null) for (int i=0;i<assets.length();i++) {
                         JSONObject a = assets.getJSONObject(i);
-                        if ("app-debug.apk".equals(a.optString("name"))) {
+                        String assetName = a.optString("name", "");
+                        if ("BO-Kali-AI.apk".equals(assetName) || "app-debug.apk".equals(assetName)) {
                             hasApk = true; apkSize = a.optLong("size"); break;
                         }
                     }
