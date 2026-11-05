@@ -4797,8 +4797,15 @@ public class MainActivity extends Activity {
                 if (which == 0) checkKaliEnvironment();
                 else if (which == 1) runKaliDirectly();
                 else if (which == 2) {
-                    copyText(KALI_INSTALL_COMMAND, "Đã sao chép lệnh cài NetHunter Rootless. Dán vào Termux để bắt đầu.");
-                    openTermux();
+                    new AlertDialog.Builder(this)
+                        .setTitle("Cài Kali Rootless qua Termux?")
+                        .setMessage("Kali không nằm sẵn trong APK BO Kali AI. Termux sẽ tải trình cài đặt và các gói hệ thống Kali từ Internet; dung lượng tải về có thể lớn và cần thêm bộ nhớ trống. Hãy dùng Wi-Fi ổn định, kiểm tra nguồn tải và chỉ tiếp tục khi bạn đồng ý.\n\nĐây là môi trường Rootless/PRoot, không cấp quyền root Android hoặc quyền kernel.")
+                        .setPositiveButton("SAO CHÉP LỆNH & MỞ TERMUX", (d, w) -> {
+                            copyText(KALI_INSTALL_COMMAND, "Đã sao chép lệnh cài NetHunter Rootless. Dán vào Termux để bắt đầu.");
+                            openTermux();
+                        })
+                        .setNegativeButton("HỦY", null)
+                        .show();
                 } else if (which == 3) confirmAndroidRootCheck();
                 else if (which == 4) checkDeviceHardwareProfile();
                 else if (which == 5) checkConnectivityHardware();
