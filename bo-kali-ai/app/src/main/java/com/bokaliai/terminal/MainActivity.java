@@ -5522,23 +5522,10 @@ public class MainActivity extends Activity {
 
     private boolean consumeRootCatalogAuditOutput(String output) {
         String token = pendingRootCatalogAuditToken;
-        if (token == null || token.isEmpty() || output == null) return false;
-        String marker = "BO_ROOT_CATALOG_AUDIT:" + token;
-        // Require standalone lines so partial text, echoed fragments, or unrelated output
-        // cannot accidentally satisfy the fresh-audit gate.
-        if (!hasExactOutputLine(output, marker)
-                || !hasExactOutputLine(output, marker + ":END")) return false;
+        if (!RootCatalogAuditGate.hasCompleteAudit(output, token)) return false;
         pendingRootCatalogAuditToken = "";
         showRootUnlockCatalogReport();
         return true;
-    }
-
-    private boolean hasExactOutputLine(String output, String expected) {
-        if (output == null || expected == null) return false;
-        for (String line : output.split("\\r?\\n")) {
-            if (expected.equals(line)) return true;
-        }
-        return false;
     }
 
     private void appendTargetField(StringBuilder out,
