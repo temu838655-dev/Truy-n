@@ -101,6 +101,28 @@ public class AndroidDeviceSupportCatalogTest {
     }
 
     @Test
+    public void reviewedProjectDocumentationCanPassEvidenceGate() {
+        AndroidDeviceSupportCatalog.Entry projectDoc = new AndroidDeviceSupportCatalog.Entry(
+            "Example", "Model X", "device_x", "fingerprint", "REGION_A",
+            AndroidDeviceSupportCatalog.Status.VERIFIED_ROOT_METHOD,
+            "Project documentation for the exact firmware.", "https://example.com/project-doc",
+            "2026-11-05", AndroidDeviceSupportCatalog.EvidenceSource.PROJECT_DOCUMENTATION,
+            true, "Reviewed against the exact device and firmware.");
+        assertTrue(projectDoc.hasRequiredEvidence());
+    }
+
+    @Test
+    public void projectDocumentationWithoutManualReviewIsRejected() {
+        AndroidDeviceSupportCatalog.Entry unreviewed = new AndroidDeviceSupportCatalog.Entry(
+            "Example", "Model X", "device_x", "fingerprint", "REGION_A",
+            AndroidDeviceSupportCatalog.Status.VERIFIED_ROOT_METHOD,
+            "Unreviewed project documentation.", "https://example.com/project-doc",
+            "2026-11-05", AndroidDeviceSupportCatalog.EvidenceSource.PROJECT_DOCUMENTATION,
+            false, "");
+        assertFalse(unreviewed.hasRequiredEvidence());
+    }
+
+    @Test
     public void builtInCatalogDoesNotPretendToSupportUnverifiedDevices() {
         assertTrue(AndroidDeviceSupportCatalog.builtInEntries().isEmpty());
         assertFalse(AndroidDeviceSupportCatalog.lookupBuiltIn(
