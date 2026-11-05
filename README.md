@@ -14,6 +14,7 @@
 - Terminal hỗ trợ Termux và Kali NetHunter Rootless qua Termux/PRoot.
 - Kiểm tra thông tin thiết bị, phần cứng, kernel, bootloader và tương thích Kali.
 - Tra cứu hướng dẫn root, unlock bootloader và flash theo đúng model/firmware.
+- Danh mục thiết bị đã xác minh tích hợp sẵn hiện đang trống; app chưa có cơ sở để tuyên bố hỗ trợ root/unlock/flash đã xác minh cho model cụ thể nếu chưa có hồ sơ và nguồn bằng chứng khớp chính xác.
 - Trợ lý AI hỗ trợ phân tích code, giải thích lệnh và tích hợp GitHub theo quyền người dùng cấp.
 - Đọc repository, đề xuất bản vá và tạo Pull Request sau khi người dùng xem trước, xác nhận.
 
