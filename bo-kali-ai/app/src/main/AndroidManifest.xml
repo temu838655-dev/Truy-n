@@ -30,7 +30,7 @@
         <activity
             android:name=".AndroidUnlockRecoveryActivity"
             android:exported="true"
-            android:label="Android Unlock & Recovery">
+            android:label="Android Unlock &amp; Recovery">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
