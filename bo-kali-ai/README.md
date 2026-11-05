@@ -53,7 +53,7 @@
 
 ## Build và phát hành
 
-GitHub Actions của BO Kali AI chạy kiểm thử unit test, Android Lint, build APK, tạo SHA-256 và báo cáo kiểm tra, sau đó tải artifact và cập nhật GitHub Release cố định `bo-kali-ai-latest`.
+GitHub Actions của BO Kali AI chạy unit test, Android Lint, build APK, tạo SHA-256 và cập nhật GitHub Release cố định `bo-kali-ai-latest`. APK phát hành hiện có tên `BO-Kali-AI.apk`; đây vẫn là bản ký bằng debug key để thử nghiệm, chưa phải bản ký phát hành chính thức dành cho Google Play.
 
 - [GitHub Releases](https://github.com/temu838655-dev/Truy-n/releases/tag/bo-kali-ai-latest)
 - [GitHub Actions](https://github.com/temu838655-dev/Truy-n/actions)
