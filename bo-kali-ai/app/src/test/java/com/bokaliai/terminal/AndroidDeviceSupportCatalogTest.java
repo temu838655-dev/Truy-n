@@ -144,6 +144,36 @@ public class AndroidDeviceSupportCatalogTest {
         assertFalse(entry.hasRequiredEvidence());
     }
 
+
+    @Test
+    public void rejectsImpossibleCalendarDates() {
+        AndroidDeviceSupportCatalog.Entry entry = new AndroidDeviceSupportCatalog.Entry(
+            "Example", "Model X", "device_x", "fingerprint", "REGION_A",
+            AndroidDeviceSupportCatalog.Status.VERIFIED_ROOT_METHOD,
+            "Claim with an impossible calendar date.", "https://example.com/device", "2026-02-30",
+            AndroidDeviceSupportCatalog.EvidenceSource.PROJECT_DOCUMENTATION, true,
+            "Reviewed note.");
+        assertFalse(entry.hasRequiredEvidence());
+    }
+
+    @Test
+    public void acceptsLeapDayOnlyInLeapYears() {
+        AndroidDeviceSupportCatalog.Entry valid = new AndroidDeviceSupportCatalog.Entry(
+            "Example", "Model X", "device_x", "fingerprint", "REGION_A",
+            AndroidDeviceSupportCatalog.Status.VERIFIED_ROOT_METHOD,
+            "Claim with a valid leap date.", "https://example.com/device", "2024-02-29",
+            AndroidDeviceSupportCatalog.EvidenceSource.PROJECT_DOCUMENTATION, true,
+            "Reviewed note.");
+        AndroidDeviceSupportCatalog.Entry invalid = new AndroidDeviceSupportCatalog.Entry(
+            "Example", "Model X", "device_x", "fingerprint", "REGION_A",
+            AndroidDeviceSupportCatalog.Status.VERIFIED_ROOT_METHOD,
+            "Claim with an invalid leap date.", "https://example.com/device", "2025-02-29",
+            AndroidDeviceSupportCatalog.EvidenceSource.PROJECT_DOCUMENTATION, true,
+            "Reviewed note.");
+        assertTrue(valid.hasRequiredEvidence());
+        assertFalse(invalid.hasRequiredEvidence());
+    }
+
     @Test
     public void builtInCatalogDoesNotPretendToSupportUnverifiedDevices() {
         assertTrue(AndroidDeviceSupportCatalog.builtInEntries().isEmpty());

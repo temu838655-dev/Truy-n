@@ -6,6 +6,9 @@ import java.util.List;
 import java.util.Locale;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.text.ParsePosition;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 /**
  * Strict, evidence-backed Android support catalog.
@@ -76,7 +79,7 @@ public final class AndroidDeviceSupportCatalog {
                 && !codename.isEmpty() && !firmwareFingerprint.isEmpty()
                 && !regionOrSku.isEmpty()
                 && isHttpsSource(sourceUrl)
-                && verifiedDate.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")
+                && isValidVerificationDate(verifiedDate)
                 && !summary.isEmpty()
                 && evidenceSource != EvidenceSource.UNKNOWN
                 && evidenceSource != EvidenceSource.COMMUNITY_REFERENCE
@@ -158,6 +161,17 @@ public final class AndroidDeviceSupportCatalog {
             }
         }
         return new Result(null);
+    }
+
+
+    /** Accept only a real calendar date in the documented ISO format. */
+    private static boolean isValidVerificationDate(String value) {
+        if (value == null || !value.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")) return false;
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT);
+        format.setLenient(false);
+        ParsePosition position = new ParsePosition(0);
+        Date parsed = format.parse(value, position);
+        return parsed != null && position.getIndex() == value.length();
     }
 
     private static boolean isHttpsSource(String value) {
