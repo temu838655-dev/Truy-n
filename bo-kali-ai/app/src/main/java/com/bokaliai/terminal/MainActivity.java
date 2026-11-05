@@ -107,6 +107,7 @@ public class MainActivity extends Activity {
         // Clear only an unfinished AI planning request. Preserve queued steps for explicit review;
         // device permissions remain session-only and must be granted again after process recreation.
         getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE).edit().clear().commit();
+        loadImportedDeviceProfiles();
         buildUi();
         registerAdbNetworkCallback();
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -3022,6 +3023,57 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void persistImportedDeviceProfiles() {
+        try {
+            org.json.JSONArray profiles = new org.json.JSONArray();
+            for (AndroidDeviceSupportCatalog.Entry entry : importedDeviceProfiles) {
+                org.json.JSONObject item = new org.json.JSONObject();
+                item.put("manufacturer", entry.manufacturer);
+                item.put("model", entry.model);
+                item.put("codename", entry.codename);
+                item.put("firmwareFingerprint", entry.firmwareFingerprint);
+                item.put("regionOrSku", entry.regionOrSku);
+                item.put("status", AndroidDeviceSupportCatalog.Status.RESEARCH_REQUIRED.name());
+                item.put("summary", entry.summary);
+                item.put("sourceUrl", entry.sourceUrl);
+                item.put("verifiedDate", entry.verifiedDate);
+                item.put("evidenceSource", entry.evidenceSource.name());
+                item.put("manuallyReviewed", false);
+                item.put("reviewerNote", "Imported metadata; not verified.");
+                profiles.put(item);
+            }
+            org.json.JSONObject rootJson = new org.json.JSONObject();
+            rootJson.put("schemaVersion", DeviceSupportProfileImporter.SUPPORTED_SCHEMA_VERSION);
+            rootJson.put("profiles", profiles);
+            String serialized = rootJson.toString();
+            if (serialized.getBytes(StandardCharsets.UTF_8).length > 512 * 1024) {
+                line("Không lưu được: dữ liệu hồ sơ vượt giới hạn 512 KB.", 0xffffca70);
+                return;
+            }
+            getSharedPreferences("bo_device_support_profiles", MODE_PRIVATE)
+                .edit().putString("profiles_json", serialized).apply();
+        } catch (Exception e) {
+            line("Lỗi lưu hồ sơ thiết bị: " + e.getMessage(), 0xffff8080);
+        }
+    }
+
+    private void loadImportedDeviceProfiles() {
+        String saved = getSharedPreferences("bo_device_support_profiles", MODE_PRIVATE)
+            .getString("profiles_json", "");
+        if (saved == null || saved.trim().isEmpty()) return;
+        DeviceSupportProfileImporter.ImportResult restored = DeviceSupportProfileImporter.parse(saved);
+        if (restored.isSuccess()) {
+            importedDeviceProfiles.clear();
+            importedDeviceProfiles.addAll(restored.getEntries());
+            if (importedDeviceProfiles.size() > 200) {
+                while (importedDeviceProfiles.size() > 200) importedDeviceProfiles.remove(0);
+            }
+        } else {
+            getSharedPreferences("bo_device_support_profiles", MODE_PRIVATE).edit()
+                .remove("profiles_json").apply();
+        }
+    }
+
     private void chooseDeviceSupportProfiles() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -3085,6 +3137,10 @@ public class MainActivity extends Activity {
             .setMessage(preview.toString())
             .setPositiveButton("XÁC NHẬN NHẬP BẢN GHI", (d, w) -> {
                 importedDeviceProfiles.addAll(result.getEntries());
+                if (importedDeviceProfiles.size() > 200) {
+                    while (importedDeviceProfiles.size() > 200) importedDeviceProfiles.remove(0);
+                }
+                persistImportedDeviceProfiles();
                 line("Đã nhập " + result.getEntries().size()
                     + " hồ sơ nghiên cứu. Chúng chưa được xác minh và không cấp quyền thao tác.", GREEN);
             })
@@ -3114,7 +3170,8 @@ public class MainActivity extends Activity {
             .setPositiveButton("ĐÓNG", null)
             .setNeutralButton("XÓA HỒ SƠ PHIÊN", (d, w) -> {
                 importedDeviceProfiles.clear();
-                line("Đã xóa các hồ sơ JSON được nhập trong phiên này.", GREEN);
+                getSharedPreferences("bo_device_support_profiles", MODE_PRIVATE).edit().remove("profiles_json").apply();
+                line("Đã xóa toàn bộ hồ sơ JSON đã lưu trên thiết bị.", GREEN);
             }).show();
     }
 
