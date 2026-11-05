@@ -5762,6 +5762,15 @@ public class MainActivity extends Activity {
                 targetSummary.append("Tình trạng hồ sơ: ")
                     .append(profile.isComplete() ? "ĐÃ THU THẬP ĐỦ PHẦN ĐỌC ĐƯỢC" : "CHƯA ĐẦY ĐỦ / ADB SHELL BỊ GIỚI HẠN")
                     .append("\n");
+                AndroidDeviceCapabilityAssessment.Result capability =
+                    AndroidDeviceCapabilityAssessment.assess(profile);
+                targetSummary.append("ĐÁNH GIÁ ROOT / UNLOCK / KERNEL (chỉ từ dữ liệu đọc được):\\n")
+                    .append("Root hiện tại: ").append(capability.rootStatus).append(" — ")
+                    .append(capability.rootReason).append("\\n")
+                    .append("Bootloader: ").append(capability.bootloaderStatus).append(" — ")
+                    .append(capability.bootloaderReason).append("\\n")
+                    .append("Flash kernel: ").append(capability.kernelFlashStatus).append(" — ")
+                    .append(capability.kernelFlashReason).append("\\n");
                 appendTargetField(targetSummary, profile, "Hãng", "ro.product.manufacturer");
                 appendTargetField(targetSummary, profile, "Thương hiệu", "ro.product.brand");
                 appendTargetField(targetSummary, profile, "Model", "ro.product.model");
