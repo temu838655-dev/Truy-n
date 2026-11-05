@@ -5435,7 +5435,7 @@ public class MainActivity extends Activity {
                 if (!profile.hasMinimumIdentity()) {
                     targetSummary.append("Danh mục root/unlock: KHÔNG TRA CỨU XÁC MINH — thiếu dữ liệu định danh bắt buộc: ")
                         .append(profile.getMissingMinimumIdentityFields())
-                        .append(". Không coi trường thiếu là wildcard.\\n");
+                        .append(". Không coi trường thiếu là wildcard.\n");
                 } else {
                     AndroidDeviceSupportCatalog.Result catalogResult =
                         AndroidDeviceSupportCatalog.lookupBuiltIn(
