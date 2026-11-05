@@ -2812,6 +2812,30 @@ public class MainActivity extends Activity {
         return entries;
     }
 
+    private boolean shouldAddAiSourceLineNumbers(String lowerName) {
+        String[] extensions = {".java", ".kt", ".kts", ".gradle", ".dart", ".py", ".js", ".jsx",
+            ".ts", ".tsx", ".xml", ".html", ".css", ".sh", ".bash", ".yml", ".yaml",
+            ".json", ".log", ".txt", ".md", ".properties", ".toml", ".sql", ".c", ".h",
+            ".cpp", ".hpp", ".rs", ".go", ".rb", ".php"};
+        for (String extension : extensions) if (lowerName.endsWith(extension)) return true;
+        return false;
+    }
+
+    private String addAiSourceLineNumbers(String content) {
+        String[] lines = content.split("\\r?\\n", -1);
+        StringBuilder numbered = new StringBuilder(Math.min(content.length() + lines.length * 8, 140000));
+        for (int i = 0; i < lines.length; i++) {
+            if (numbered.length() > 0) numbered.append('\n');
+            numbered.append(i + 1).append(" | ").append(lines[i]);
+            if (numbered.length() > 120000) {
+                numbered.setLength(120000);
+                numbered.append("\\n[Đã cắt phần còn lại sau giới hạn 120.000 ký tự.]");
+                break;
+            }
+        }
+        return numbered.toString();
+    }
+
     private void readAiTextFile(Uri uri) {
         worker.execute(() -> {
             try {
@@ -2853,6 +2877,9 @@ public class MainActivity extends Activity {
                     if (fileContent.indexOf(0) >= 0) throw new IllegalArgumentException("Tệp có dữ liệu nhị phân, không phải văn bản UTF-8.");
                 }
                 if (fileContent.length() > 120000) fileContent = fileContent.substring(0, 120000);
+                if (shouldAddAiSourceLineNumbers(lowerName)) {
+                    fileContent = addAiSourceLineNumbers(fileContent);
+                }
                 final String name = fileName;
                 final String content = fileContent;
                 runOnUiThread(() -> {
