@@ -3525,6 +3525,14 @@ public class MainActivity extends Activity {
         int index = queue.getInt("index", 0);
         long createdAt = queue.getLong("created_at", 0L);
         if (raw.isEmpty() || serial.isEmpty()) return;
+        String unresolvedStepId = queue.getString("active_step_execution_id", "");
+        if (!unresolvedStepId.isEmpty()) {
+            appendAiDeviceAudit("CHẶN MỞ LẠI BƯỚC ĐANG CHỜ KẾT QUẢ | tác vụ=" + unresolvedStepId
+                + " | thiết bị=" + serial);
+            line("Bước trước đã được gửi nhưng chưa có kết quả xác minh. BO không mở lại hoặc gửi lại bước này để tránh chạy trùng.", 0xffffca70);
+            showAiQueuedPlanStatus();
+            return;
+        }
         if (createdAt <= 0L || System.currentTimeMillis() - createdAt > 86400000L) {
             queue.edit().clear().commit();
             appendAiDeviceAudit("TỰ HỦY KẾ HOẠCH AI HẾT HẠN 24 GIỜ | thiết bị=" + serial);
@@ -3783,7 +3791,13 @@ public class MainActivity extends Activity {
             android.content.SharedPreferences stepQueue = getSharedPreferences("bo_kali_ai_step_queue", MODE_PRIVATE);
             if (id.equals(stepQueue.getString("active_step_execution_id", ""))) {
                 if ("0".equals(status) && "device".equals(deviceState)) {
-                    int next = stepQueue.getInt("index", 0) + 1;
+                    int completedIndex = stepQueue.getInt("index", 0);
+                    int totalSteps = 0;
+                    try { totalSteps = new org.json.JSONArray(stepQueue.getString("steps", "[]")).length(); }
+                    catch (Exception ignored) { }
+                    int next = completedIndex + 1;
+                    appendAiDeviceAudit("HOÀN TẤT BƯỚC " + (completedIndex + 1) + "/" + totalSteps
+                        + " | tác vụ=" + id + " | thiết bị=" + stepQueue.getString("serial", ""));
                     stepQueue.edit().remove("active_step_execution_id").putInt("index", next).commit();
                     showNextAiQueuedStep();
                 } else {
