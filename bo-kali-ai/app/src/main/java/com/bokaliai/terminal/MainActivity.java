@@ -2564,7 +2564,7 @@ public class MainActivity extends Activity {
         shareImageGemini = oldGemini;
         shareImageClaude = oldClaude;
         shareImageOpenAi = oldOpenAi;
-        if (translationInput != null) translationInput.setText("");
+        // Giữ nguyên văn bản nguồn để người dùng có thể sửa hoặc thử dịch lại nếu API lỗi.
     }
 
     private void pickAiImage() {
