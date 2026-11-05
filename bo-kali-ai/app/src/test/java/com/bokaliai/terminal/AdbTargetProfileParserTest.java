@@ -67,7 +67,7 @@ public class AdbTargetProfileParserTest {
         assertFalse(profile.hasMinimumIdentity());
         assertEquals(2, profile.getMissingMinimumIdentityFields().size());
         assertTrue(profile.getMissingMinimumIdentityFields().contains("hãng (ro.product.manufacturer)"));
-        assertTrue(profile.getMissingMinimumIdentityFields().contains(\n            "hardware SKU/region (ro.boot.*.sku or ro.boot.region)"));
+        assertTrue(profile.getMissingMinimumIdentityFields().contains("hardware SKU/region (ro.boot.*.sku or ro.boot.region)"));
     }
 
     @Test
