@@ -1,86 +1,45 @@
-# MANGA WORLD
+# BO Kali AI
 
-Ứng dụng thư viện truyện tranh responsive cho web/PWA và Android/iOS qua Capacitor.
+Ứng dụng Android tiếng Việt tập trung vào ADB, terminal, chẩn đoán Android và Kali Rootless, cùng trợ lý AI hỗ trợ lệnh ADB và code.
 
-## Tính năng hiện có
-- Giao diện premium, responsive desktop/mobile; chuyển sáng/tối.
-- Tìm kiếm theo tên, tác giả, thể loại.
-- Bộ lọc truyện màu, đen trắng, dài tập, truyện ngắn.
-- Tủ truyện, yêu thích, lịch sử đọc.
-- Nhập file CBZ/ZIP chứa ảnh PNG/JPG/WEBP/GIF hoặc nhập từng ảnh.
-- Lưu dữ liệu truyện trong IndexedDB; đọc offline sau khi đã nhập.
-- Service worker cache app shell để hỗ trợ mở lại ứng dụng khi offline sau lần truy cập đầu.
-- Trình đọc cuộn dọc, lưu thư viện trên thiết bị.
+## Tải APK mới nhất
 
-Các tựa Conan, Doraemon, Naruto và những truyện khác trên trang chủ là thẻ giới thiệu mẫu, không chứa trang truyện có bản quyền. Muốn đọc nội dung, hãy nhập bản CBZ/ZIP/ảnh mà bạn có quyền sử dụng hoặc tích hợp API/nguồn phân phối được cấp phép.
+- [GitHub Release — BO Kali AI](https://github.com/temu838655-dev/Truy-n/releases/tag/bo-kali-ai-latest)
+- [Build và kiểm thử GitHub Actions](https://github.com/temu838655-dev/Truy-n/actions)
 
-## Yêu cầu
-- Node.js 20 LTS trở lên (khuyến nghị).
-- npm.
-- Android Studio để build Android; Xcode trên macOS để build iOS.
+## Tính năng
 
-## Chạy thử trên Windows 11 / macOS / Linux
-1. Giải nén project.
-2. Mở Terminal/PowerShell tại thư mục `manga-world`.
-3. Cài thư viện:
-   ```bash
-   npm install
-   ```
-4. Chạy môi trường phát triển:
-   ```bash
-   npm run dev
-   ```
-5. Mở URL Vite in ra, thường là `http://localhost:5173`.
-6. Build bản web:
-   ```bash
-   npm run build
-   npm run preview
-   ```
+- Kết nối và chẩn đoán thiết bị Android / Android TV qua ADB khi người dùng bật và cấp quyền.
+- Đề xuất lệnh ADB có kiểm tra phạm vi, quyền và xác nhận riêng trước khi thực thi.
+- Terminal hỗ trợ Termux và Kali NetHunter Rootless qua Termux/PRoot.
+- Kiểm tra thông tin thiết bị, phần cứng, kernel, bootloader và tương thích Kali.
+- Tra cứu hướng dẫn root, unlock bootloader và flash theo đúng model/firmware.
+- Trợ lý AI hỗ trợ phân tích code, giải thích lệnh và tích hợp GitHub theo quyền người dùng cấp.
+- Đọc repository, đề xuất bản vá và tạo Pull Request sau khi người dùng xem trước, xác nhận.
 
-## Cài như ứng dụng PWA
-- Deploy thư mục `dist` lên hosting có HTTPS (hoặc chạy localhost).
-- Trên Android: mở website bằng Chrome → menu → Install app / Add to Home screen.
-- Trên iPhone: mở bằng Safari → Share → Add to Home Screen.
-- Trên desktop: dùng biểu tượng Install trên thanh địa chỉ trình duyệt hỗ trợ.
+## Giới hạn an toàn
 
-## Tạo ứng dụng Android
+- Đây không phải Kali NetHunter Full; Kali Rootless chạy bằng Termux/PRoot và không có quyền kernel.
+- Không có phương pháp root, unlock bootloader hoặc flash phổ quát cho mọi thiết bị Android.
+- Tính năng flash cần đúng model, biến thể, firmware, phân vùng, slot và image đã xác minh. Thao tác sai có thể làm thiết bị không khởi động.
+- ADB chỉ hoạt động khi thiết bị đích cho phép kết nối và cấp quyền.
+- AI không tự ý thực thi lệnh hoặc ghi repository khi chưa được người dùng xác nhận.
+- Chỉ sử dụng trên thiết bị và hệ thống mà bạn sở hữu hoặc được ủy quyền.
+
+## Cấu trúc
+
+- `bo-kali-ai/`: mã nguồn Android, cấu hình Gradle, tài liệu và kiểm thử.
+- `.github/workflows/build-bo-kali-ai.yml`: kiểm thử, lint, build APK, checksum và cập nhật GitHub Release.
+
+## Build cục bộ
+
+Yêu cầu Java 17, Android SDK và Gradle 8.13.
+
 ```bash
-npm install
-npm run build
-npx cap add android
-npx cap sync android
-npx cap open android
+cd bo-kali-ai
+gradle --no-daemon testDebugUnitTest lintDebug assembleDebug
 ```
-Trong Android Studio, chọn thiết bị hoặc emulator rồi nhấn Run. Lần đầu cần Android SDK phù hợp.
 
-## Tạo ứng dụng iOS (cần máy Mac)
-```bash
-npm install
-npm run build
-npx cap add ios
-npx cap sync ios
-npx cap open ios
-```
-Trong Xcode, chọn Team / Signing và chạy trên iPhone hoặc Simulator. Không thể build iOS native bằng Windows; trên Windows có thể chạy PWA hoặc build Android.
+APK debug được tạo tại:
 
-## Nhập truyện
-- CBZ: file ZIP đổi đuôi `.cbz`, bên trong chứa ảnh trang truyện.
-- ZIP: chứa ảnh trang truyện.
-- Có thể chọn nhiều ảnh cùng lúc; mỗi ảnh sẽ được tạo thành một mục truyện riêng.
-- Tên file được dùng làm tên truyện; các trang trong CBZ sắp xếp theo tên tự nhiên.
-
-## Lưu ý kỹ thuật / giới hạn bản 1
-- Dữ liệu được lưu cục bộ trong IndexedDB của trình duyệt/WebView; xóa dữ liệu ứng dụng có thể xóa thư viện. Hãy giữ bản sao file gốc.
-- Chưa có tài khoản, đồng bộ cloud, backend catalog, DRM, thanh toán hoặc nguồn truyện có bản quyền. Đây là các module cần triển khai riêng.
-- Trên iOS, để phân phối App Store cần tài khoản Apple Developer và hoàn tất quy trình ký/phát hành.
-
-## Build APK tự động bằng GitHub Actions
-
-1. Tạo repository GitHub mới, ví dụ `manga-world`.
-2. Upload toàn bộ mã nguồn dự án lên repository (không upload `node_modules`).
-3. Đảm bảo workflow `.github/workflows/android-apk.yml` có trong nhánh `main`.
-4. Mở tab **Actions** → **Build MANGA WORLD Android APK** → **Run workflow**.
-5. Chờ workflow chạy xong. Mở lần chạy thành công và tải artifact `manga-world-debug-apk` ở cuối trang.
-6. Giải nén artifact, chép `app-debug.apk` sang điện thoại Android và cài đặt. Có thể cần cho phép cài ứng dụng từ nguồn này.
-
-Workflow dùng GitHub-hosted Ubuntu runner để cài Node.js, Java và Android SDK; sau đó chạy Vite build, tạo Android project bằng Capacitor và chạy Gradle `assembleDebug`. APK này là bản debug để thử nghiệm, chưa phải bản release đã ký để phát hành Google Play.
+`bo-kali-ai/app/build/outputs/apk/debug/app-debug.apk`
