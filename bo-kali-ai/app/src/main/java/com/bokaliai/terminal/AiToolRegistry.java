@@ -87,7 +87,49 @@ public final class AiToolRegistry {
         if (!Arrays.asList(READ_INFO, READ_LOGS, APP_LIST, APP_LAUNCH, APP_INSTALL_REMOVE,
                 SCREEN_CONTROL, DEVICE_SETTINGS, NETWORK_DIAGNOSTICS, RAW_ADB_SHELL).contains(scope))
             return "UNKNOWN_ADB_SCOPE";
+        if (!isCommandAllowedForScope(scope, command)) return "COMMAND_NOT_ALLOWED_FOR_SCOPE";
         return "OK";
+    }
+
+    /** Enforce command-to-scope matching centrally, even when called outside MainActivity. */
+    private static boolean isCommandAllowedForScope(String scope, String command) {
+        String c = command.toLowerCase(Locale.ROOT).trim();
+        if (READ_INFO.equals(scope)) return c.matches(
+            "^(getprop( ro\\\\.(product\\\\.(model|manufacturer|device)|build\\\\.(version\\\\.(release|sdk)|fingerprint)))?|df|df -h|uptime|uname -a|dumpsys (battery|display)|ip addr show wlan0|cat /proc/(meminfo|uptime|cpuinfo))$");
+        if (READ_LOGS.equals(scope)) return c.matches(
+            "^(logcat -d -t ([1-9][0-9]{0,2}|1000)|dumpsys (battery|activity|meminfo|cpuinfo|window|display|package))$");
+        if (APP_LIST.equals(scope)) return c.matches("^pm list packages( -3|-s)?$");
+        if (APP_LAUNCH.equals(scope)) return c.matches(
+            "^monkey -p [a-z][a-z0-9_]*([.][a-z0-9_]+)+ 1$");
+        if (APP_INSTALL_REMOVE.equals(scope)) return c.matches(
+            "^pm uninstall [a-z][a-z0-9_]*(\\\\.[a-z0-9_]+)+$")
+            || c.matches("^cmd package install-existing [a-z][a-z0-9_]*(\\\\.[a-z0-9_]+)+$");
+        if (SCREEN_CONTROL.equals(scope)) return c.matches(
+            "^input keyevent (3|4|19|20|21|22|23|24|25|66|82)$")
+            || c.matches("^input tap [0-9]{1,4} [0-9]{1,4}$")
+            || c.matches("^input swipe [0-9]{1,4} [0-9]{1,4} [0-9]{1,4} [0-9]{1,4} ([1-9][0-9]{0,2}|[1-4][0-9]{3}|5000)$")
+            || c.matches("^input text [a-z0-9._%-]{1,80}$");
+        if (NETWORK_DIAGNOSTICS.equals(scope)) return c.equals("ip route")
+            || c.equals("ip addr show wlan0") || c.equals("dumpsys wifi")
+            || c.equals("dumpsys connectivity") || c.equals("ping -c 4 1.1.1.1")
+            || c.equals("ping -c 4 8.8.8.8") || c.equals("ping -c 4 google.com");
+        if (DEVICE_SETTINGS.equals(scope)) return c.matches(
+            "^settings get system (screen_brightness|screen_off_timeout|font_scale|accelerometer_rotation)$")
+            || c.matches("^settings put system screen_brightness ([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$")
+            || c.matches("^settings put system screen_off_timeout ([1-9][0-9]{3,5})$")
+            || c.matches("^settings put system font_scale (0\\\\.[8-9]|1(\\\\.[0-5])?)$")
+            || c.matches("^settings put system accelerometer_rotation [01]$")
+            || c.equals("wm size") || c.equals("wm density")
+            || c.equals("cmd uimode night yes") || c.equals("cmd uimode night no");
+        if (RAW_ADB_SHELL.equals(scope)) return c.matches("^getprop( [a-z0-9._]+)?$")
+            || c.matches("^dumpsys (battery|activity|meminfo|cpuinfo|window|display|package|wifi|connectivity)$")
+            || c.matches("^logcat -d -t ([1-9][0-9]{0,2}|1000)$")
+            || c.matches("^cat /proc/(meminfo|uptime|cpuinfo|version|cmdline)$")
+            || c.matches("^ip (addr|route)( show wlan0)?$")
+            || c.matches("^pm list packages( -3|-s)?$")
+            || c.matches("^df( -h)?$") || c.equals("uptime")
+            || c.equals("uname -a") || c.equals("id") || c.equals("whoami") || c.equals("date");
+        return false;
     }
 
     /** Antigravity Interactions API tools: built-in web/code tools plus one guarded BO ADB proposal. */
