@@ -3141,6 +3141,16 @@ public class MainActivity extends Activity {
     private void showAiQueuedPlanStatus() {
         android.content.SharedPreferences queue = getSharedPreferences("bo_kali_ai_step_queue", MODE_PRIVATE);
         String raw = queue.getString("steps", "");
+        long createdAt = queue.getLong("created_at", 0L);
+        if (!raw.isEmpty() && (createdAt <= 0L || System.currentTimeMillis() - createdAt > 86400000L)) {
+            String expiredSerial = queue.getString("serial", "");
+            queue.edit().clear().commit();
+            appendAiDeviceAudit("TỰ HỦY KẾ HOẠCH AI HẾT HẠN 24 GIỜ | thiết bị=" + expiredSerial);
+            new AlertDialog.Builder(this).setTitle("Kế hoạch đã hết hạn")
+                .setMessage("Kế hoạch đã quá 24 giờ hoặc thiếu dấu thời gian hợp lệ. BO đã xóa kế hoạch cũ. Hãy tạo kế hoạch mới.")
+                .setPositiveButton("ĐÓNG", null).show();
+            return;
+        }
         if (raw.isEmpty()) {
             new AlertDialog.Builder(this).setTitle("Kế hoạch AI đang chờ")
                 .setMessage("Không có kế hoạch nhiều bước nào đang chờ.")
@@ -3513,7 +3523,15 @@ public class MainActivity extends Activity {
         String serial = queue.getString("serial", "");
         String provider = queue.getString("provider", "");
         int index = queue.getInt("index", 0);
+        long createdAt = queue.getLong("created_at", 0L);
         if (raw.isEmpty() || serial.isEmpty()) return;
+        if (createdAt <= 0L || System.currentTimeMillis() - createdAt > 86400000L) {
+            queue.edit().clear().commit();
+            appendAiDeviceAudit("TỰ HỦY KẾ HOẠCH AI HẾT HẠN 24 GIỜ | thiết bị=" + serial);
+            line("Kế hoạch AI đã quá 24 giờ hoặc thiếu thời gian tạo. BO đã xóa kế hoạch cũ; hãy lập kế hoạch mới.", 0xffffca70);
+            reportAiProposalOutcome(provider, "plan_expired", "Kế hoạch đã quá 24 giờ hoặc không có dấu thời gian hợp lệ.");
+            return;
+        }
         try {
             org.json.JSONArray steps = new org.json.JSONArray(raw);
             if (index < 0 || index >= steps.length()) {
