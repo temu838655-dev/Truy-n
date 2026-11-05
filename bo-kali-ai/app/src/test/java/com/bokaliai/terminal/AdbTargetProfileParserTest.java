@@ -176,7 +176,7 @@ public class AdbTargetProfileParserTest {
             AdbTargetProfileParser.parse(output).get(0);
         assertNull(profile.get("ro.product.model"));
         assertEquals("u0_a123", profile.get("ANDROID_UID"));
-        assertEquals(AndroidDeviceCapabilityAssessment.State.BLOCKED,
+        assertEquals(AndroidDeviceCapabilityAssessment.State.UNKNOWN,
             AndroidDeviceCapabilityAssessment.assess(profile).rootStatus);
         assertEquals("phone_c", profile.get("ro.product.device"));
         assertFalse(profile.hasMinimumIdentity());
