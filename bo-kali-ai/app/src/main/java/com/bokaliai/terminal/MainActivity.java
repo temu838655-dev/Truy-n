@@ -2534,6 +2534,13 @@ public class MainActivity extends Activity {
             return;
         }
         int selected = aiProviderPicker == null ? 0 : aiProviderPicker.getSelectedItemPosition();
+        String selectedApiKey = selected == 1 ? claudeKey
+            : selected == 2 ? openAiKey
+            : selected == 3 ? geminiKey : geminiKey;
+        if (selectedApiKey == null || selectedApiKey.trim().isEmpty()) {
+            line("Chưa cấu hình API key cho nhà cung cấp AI đang chọn. Nội dung dịch được giữ nguyên; hãy cấu hình khóa rồi thử lại.", 0xffffca70);
+            return;
+        }
         if (hasImage && selected == 3) {
             line("Google Antigravity hiện không nhận ảnh trong luồng này. Chọn Gemini, Claude hoặc OpenAI để OCR ảnh.", 0xffffca70);
             return;
@@ -6345,7 +6352,7 @@ public class MainActivity extends Activity {
                 }
             } catch (Exception e) {
                 final String error = "Lỗi kết nối " + provider + ": " + e.getMessage();
-                runOnUiThread(() -> line(error, 0xffff8080));
+                runOnUiThread(() -> showAiAnswer(provider, error, isTranslationRequest));
             } finally {
                 if (conn != null) conn.disconnect();
             }
