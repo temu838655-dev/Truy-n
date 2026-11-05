@@ -3794,7 +3794,10 @@ public class MainActivity extends Activity {
             android.content.SharedPreferences executionGuard =
                 getSharedPreferences("bo_kali_ai_execution_guard", MODE_PRIVATE);
             if (id.equals(executionGuard.getString("active_execution_id", ""))) {
-                executionGuard.edit().clear().commit();
+                boolean guardCleared = executionGuard.edit().clear().commit();
+                if (!guardCleared) {
+                    line("CẢNH BÁO: Không xác nhận được việc lưu trạng thái kết thúc tác vụ; không tự gửi lại lệnh.", 0xffffca70);
+                }
             }
             appendAiDeviceAudit("KẾT QUẢ exit=" + status + " | trạng thái ADB sau lệnh=" + deviceState
                 + " | " + detail);
@@ -3812,11 +3815,19 @@ public class MainActivity extends Activity {
                     int next = completedIndex + 1;
                     appendAiDeviceAudit("HOÀN TẤT BƯỚC " + (completedIndex + 1) + "/" + totalSteps
                         + " | tác vụ=" + id + " | thiết bị=" + stepQueue.getString("serial", ""));
-                    stepQueue.edit().remove("active_step_execution_id").putInt("index", next).commit();
-                    showNextAiQueuedStep();
+                    boolean queueAdvanced = stepQueue.edit().remove("active_step_execution_id")
+                        .putInt("index", next).commit();
+                    if (queueAdvanced) {
+                        showNextAiQueuedStep();
+                    } else {
+                        line("CẢNH BÁO: Không xác nhận được việc lưu bước kế tiếp. Kế hoạch sẽ không tự chạy tiếp; hãy mở trạng thái kế hoạch để kiểm tra.", 0xffffca70);
+                    }
                 } else {
                     String queueProvider = stepQueue.getString("provider", "");
-                    stepQueue.edit().clear().commit();
+                    boolean queueStopped = stepQueue.edit().clear().commit();
+                    if (!queueStopped) {
+                        line("CẢNH BÁO: Không xác nhận được việc lưu trạng thái dừng kế hoạch; hãy kiểm tra lại hàng đợi trước khi tiếp tục.", 0xffffca70);
+                    }
                     appendAiDeviceAudit("DỪNG KẾ HOẠCH NHIỀU BƯỚC DO BƯỚC THẤT BẠI / MẤT ADB | tác vụ=" + id);
                     reportAiProposalOutcome(queueProvider, "plan_stopped_step_failed",
                         "Bước hiện tại không trả exit 0 cùng trạng thái ADB device; các bước còn lại đã bị hủy.");
