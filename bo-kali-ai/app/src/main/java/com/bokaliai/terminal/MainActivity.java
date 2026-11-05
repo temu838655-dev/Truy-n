@@ -5412,6 +5412,15 @@ public class MainActivity extends Activity {
                 appendTargetField(targetSummary, profile, "Verified boot", "ro.boot.verifiedbootstate");
                 appendTargetField(targetSummary, profile, "Flash locked", "ro.boot.flash.locked");
                 appendTargetField(targetSummary, profile, "VBMeta state", "ro.boot.vbmeta.device_state");
+                AndroidDeviceSupportCatalog.Result catalogResult =
+                    AndroidDeviceSupportCatalog.lookupBuiltIn(
+                        profile.get("ro.product.manufacturer"),
+                        profile.get("ro.product.model"),
+                        profile.get("ro.product.device"),
+                        profile.get("ro.build.fingerprint"),
+                        profile.get("ro.boot.hardware.sku"));
+                targetSummary.append("Danh mục root/unlock: ")
+                    .append(catalogResult.getMessageVi()).append("\\n");
             }
         }
 

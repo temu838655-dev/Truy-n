@@ -1,0 +1,134 @@
+package com.bokaliai.terminal;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+
+/**
+ * Strict, evidence-backed Android support catalog.
+ *
+ * An entry is usable only when manufacturer, retail model, device codename,
+ * full firmware fingerprint and region/SKU all match exactly. No fuzzy matching
+ * is allowed for bootloader, root or flashing guidance.
+ */
+public final class AndroidDeviceSupportCatalog {
+    public enum Status {
+        VERIFIED_UNLOCK_SUPPORTED,
+        VERIFIED_UNLOCK_UNSUPPORTED,
+        VERIFIED_ROOT_METHOD,
+        RESEARCH_REQUIRED
+    }
+
+    public static final class Entry {
+        public final String manufacturer;
+        public final String model;
+        public final String codename;
+        public final String firmwareFingerprint;
+        public final String regionOrSku;
+        public final Status status;
+        public final String summary;
+        public final String sourceUrl;
+        public final String verifiedDate;
+
+        public Entry(String manufacturer, String model, String codename,
+                String firmwareFingerprint, String regionOrSku, Status status,
+                String summary, String sourceUrl, String verifiedDate) {
+            this.manufacturer = clean(manufacturer);
+            this.model = clean(model);
+            this.codename = clean(codename);
+            this.firmwareFingerprint = clean(firmwareFingerprint);
+            this.regionOrSku = clean(regionOrSku);
+            this.status = status == null ? Status.RESEARCH_REQUIRED : status;
+            this.summary = clean(summary);
+            this.sourceUrl = clean(sourceUrl);
+            this.verifiedDate = clean(verifiedDate);
+        }
+
+        public boolean hasRequiredEvidence() {
+            return !manufacturer.isEmpty() && !model.isEmpty()
+                && !codename.isEmpty() && !firmwareFingerprint.isEmpty()
+                && !regionOrSku.isEmpty()
+                && sourceUrl.startsWith("https://")
+                && !verifiedDate.isEmpty() && !summary.isEmpty();
+        }
+    }
+
+    public static final class Result {
+        private final Entry entry;
+
+        private Result(Entry entry) {
+            this.entry = entry;
+        }
+
+        public boolean isVerifiedMatch() {
+            return entry != null && entry.status != Status.RESEARCH_REQUIRED
+                && entry.hasRequiredEvidence();
+        }
+
+        public Entry getEntry() {
+            return entry;
+        }
+
+        public String getMessageVi() {
+            if (entry == null) {
+                return "CHƯA CÓ HỒ SƠ XÁC MINH KHỚP CHÍNH XÁC model + codename + firmware + SKU/region. Không suy đoán lệnh root/unlock/flash.";
+            }
+            if (!entry.hasRequiredEvidence() || entry.status == Status.RESEARCH_REQUIRED) {
+                return "CÓ BẢN GHI NHƯNG BẰNG CHỨNG CHƯA ĐỦ. Chỉ tiếp tục nghiên cứu, không dùng làm hướng dẫn thao tác.";
+            }
+            switch (entry.status) {
+                case VERIFIED_UNLOCK_SUPPORTED:
+                    return "ĐÃ XÁC MINH: OEM có chính sách unlock cho đúng biến thể này. Vẫn phải đọc hướng dẫn và cảnh báo xóa dữ liệu.";
+                case VERIFIED_UNLOCK_UNSUPPORTED:
+                    return "ĐÃ XÁC MINH: biến thể này không hỗ trợ unlock theo nguồn dẫn. Không thử lệnh mở khóa.";
+                case VERIFIED_ROOT_METHOD:
+                    return "ĐÃ XÁC MINH phương pháp root cho đúng fingerprint/biến thể; phải kiểm tra image và checksum trước khi thao tác.";
+                default:
+                    return "CHƯA ĐỦ BẰNG CHỨNG.";
+            }
+        }
+    }
+
+    private AndroidDeviceSupportCatalog() {}
+
+    /** Empty until exact-model evidence has been reviewed and added. */
+    public static List<Entry> builtInEntries() {
+        return Collections.emptyList();
+    }
+
+    public static Result lookupBuiltIn(String manufacturer, String model,
+            String codename, String firmwareFingerprint, String regionOrSku) {
+        return lookup(builtInEntries(), manufacturer, model, codename,
+            firmwareFingerprint, regionOrSku);
+    }
+
+    public static Result lookup(List<Entry> entries, String manufacturer,
+            String model, String codename, String firmwareFingerprint, String regionOrSku) {
+        if (entries == null || entries.isEmpty()) return new Result(null);
+        for (Entry entry : entries) {
+            if (entry == null || !entry.hasRequiredEvidence()) continue;
+            if (same(entry.manufacturer, manufacturer)
+                    && same(entry.model, model)
+                    && same(entry.codename, codename)
+                    && same(entry.firmwareFingerprint, firmwareFingerprint)
+                    && same(entry.regionOrSku, regionOrSku)) {
+                return new Result(entry);
+            }
+        }
+        return new Result(null);
+    }
+
+    private static boolean same(String expected, String actual) {
+        return expected != null && actual != null
+            && normalize(expected).equals(normalize(actual));
+    }
+
+    private static String normalize(String value) {
+        return clean(value).toLowerCase(Locale.ROOT);
+    }
+
+    private static String clean(String value) {
+        return value == null ? "" : value.trim();
+    }
+}
