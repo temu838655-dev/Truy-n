@@ -148,12 +148,12 @@ public class AdbTargetProfileParserTest {
     @Test
     public void completeLookingIdentityWithoutEndMarkerIsRejected() {
         String output =
-            "=== TARGET SERIAL: device-truncated ===\\n" +
-            "ro.product.manufacturer=Maker\\n" +
-            "ro.product.model=Phone Exact\\n" +
-            "ro.product.device=phone_exact\\n" +
-            "ro.build.fingerprint=maker/phone_exact:14/BUILD/1:user/release-keys\\n" +
-            "ro.boot.hardware.sku=SKU_EXACT\\n";
+            "=== TARGET SERIAL: device-truncated ===\n" +
+            "ro.product.manufacturer=Maker\n" +
+            "ro.product.model=Phone Exact\n" +
+            "ro.product.device=phone_exact\n" +
+            "ro.build.fingerprint=maker/phone_exact:14/BUILD/1:user/release-keys\n" +
+            "ro.boot.hardware.sku=SKU_EXACT\n";
         AdbTargetProfileParser.DeviceProfile profile =
             AdbTargetProfileParser.parse(output).get(0);
         assertFalse(profile.isComplete());
@@ -164,8 +164,8 @@ public class AdbTargetProfileParserTest {
     @Test
     public void missingIdentityFieldsCannotBeModifiedByCaller() {
         String output =
-            "=== TARGET SERIAL: device-immutable ===\\n" +
-            "ro.product.model=Partial Phone\\n";
+            "=== TARGET SERIAL: device-immutable ===\n" +
+            "ro.product.model=Partial Phone\n";
         AdbTargetProfileParser.DeviceProfile profile =
             AdbTargetProfileParser.parse(output).get(0);
         try {
