@@ -7,11 +7,21 @@ public class AdbEndpointValidatorTest {
     @Test public void acceptsIpv4AndHostnameEndpoints() {
         assertTrue(AdbEndpointValidator.isValid("192.168.1.20:5555"));
         assertTrue(AdbEndpointValidator.isValid("android-box.local:5555"));
+        assertTrue(AdbEndpointValidator.isValid("android-box:5555"));
     }
 
     @Test public void acceptsBracketedIpv6Endpoints() {
         assertTrue(AdbEndpointValidator.isValid("[2001:db8::10]:5555"));
         assertTrue(AdbEndpointValidator.isValid("[fe80::1%wlan0]:37123"));
+        assertTrue(AdbEndpointValidator.isValid("[::1]:5555"));
+    }
+
+    @Test public void rejectsMalformedIpv6Literals() {
+        assertFalse(AdbEndpointValidator.isValid("[::::]:5555"));
+        assertFalse(AdbEndpointValidator.isValid("[not:ipv6]:5555"));
+        assertFalse(AdbEndpointValidator.isValid("[2001:db8::gg]:5555"));
+        assertFalse(AdbEndpointValidator.isValid("[::1%]:5555"));
+        assertFalse(AdbEndpointValidator.isValid("[::1%wlan0%2]:5555"));
     }
 
     @Test public void rejectsUnbracketedIpv6AndMalformedBrackets() {
@@ -19,6 +29,14 @@ public class AdbEndpointValidatorTest {
         assertFalse(AdbEndpointValidator.isValid("[2001:db8::10:5555"));
         assertFalse(AdbEndpointValidator.isValid("2001:db8::10]:5555"));
         assertFalse(AdbEndpointValidator.isValid("[2001:db8::10]5555"));
+        assertFalse(AdbEndpointValidator.isValid("[::1]]:5555"));
+    }
+
+    @Test public void rejectsMalformedHostnames() {
+        assertFalse(AdbEndpointValidator.isValid(".local:5555"));
+        assertFalse(AdbEndpointValidator.isValid("host..local:5555"));
+        assertFalse(AdbEndpointValidator.isValid("-host.local:5555"));
+        assertFalse(AdbEndpointValidator.isValid("host-.local:5555"));
     }
 
     @Test public void rejectsMissingHostOrPort() {
