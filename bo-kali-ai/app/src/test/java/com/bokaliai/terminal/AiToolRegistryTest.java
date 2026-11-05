@@ -115,13 +115,15 @@ public class AiToolRegistryTest {
             "cat /data/system/packages.xml",
             "pm list packages",
             "settings get system screen_brightness",
-            "curl https://example.com",
             "getprop ro.serialno"
         };
         for (String command : commands) {
             assertEquals("COMMAND_NOT_ALLOWED_FOR_SCOPE", AiToolRegistry.validateAdbPlan(
                 AiToolRegistry.READ_INFO, "device-01", command, grant(AiToolRegistry.READ_INFO)));
         }
+        assertEquals("BLOCKED_COMMAND", AiToolRegistry.validateAdbPlan(
+            AiToolRegistry.READ_INFO, "device-01", "curl https://example.com",
+            grant(AiToolRegistry.READ_INFO)));
     }
 
     @Test
