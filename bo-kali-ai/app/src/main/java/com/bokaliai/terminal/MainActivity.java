@@ -5378,35 +5378,45 @@ public class MainActivity extends Activity {
         String device = android.os.Build.DEVICE == null ? "Unknown" : android.os.Build.DEVICE;
         String abi = android.os.Build.SUPPORTED_ABIS != null && android.os.Build.SUPPORTED_ABIS.length > 0
             ? android.os.Build.SUPPORTED_ABIS[0] : "Unknown";
+
+        // Android Build values identify the phone running BO Kali AI (host), never assume it is the ADB target.
+        String targetProfile = lastCommandOutput == null ? "" : lastCommandOutput.trim();
+        boolean hasTargetProfile = targetProfile.contains("TARGET SERIAL:")
+            && targetProfile.contains("DEVICE IDENTITY")
+            && targetProfile.contains("END TARGET PROFILE: READ ONLY");
         String report =
-            "=== THIẾT BỊ HIỆN TẠI ===\n" +
+            "=== ĐIỆN THOẠI ĐANG CHẠY BO KALI AI (HOST) ===\n" +
             "Hãng: " + brand + "\nModel: " + model + "\nDevice codename: " + device +
             "\nAndroid: " + android.os.Build.VERSION.RELEASE + " (API " + android.os.Build.VERSION.SDK_INT + ")" +
             "\nABI: " + abi +
-            "\n\n=== TRẠNG THÁI HỖ TRỢ ===\n" +
-            "Model profile: CHƯA ĐƯỢC XÁC MINH TRONG CƠ SỞ DỮ LIỆU" +
-            "\nBootloader unlock: cần xác minh chính xác model / mã vùng / nhà mạng" +
-            "\nRoot: cần xác minh boot.img hoặc init_boot.img, firmware đúng bản và kernel" +
+            "\n\n=== THIẾT BỊ ĐÍCH ADB ===\n" +
+            (hasTargetProfile
+                ? "Đã tìm thấy kết quả hồ sơ ADB chỉ đọc gần nhất. Đối chiếu TARGET SERIAL và DEVICE IDENTITY bên dưới; nếu có nhiều thiết bị, xác minh đúng serial trước khi tra cứu.\n\n" + targetProfile
+                : "CHƯA CÓ HỒ SƠ ADB ĐÍCH ĐƯỢC XÁC NHẬN. Thoát màn hình này, chạy 'PHÂN TÍCH BẢO MẬT THIẾT BỊ ADB (CHỈ ĐỌC)', kết nối đúng thiết bị và chạy lại. Thông tin HOST ở trên không được dùng thay cho model/codename của máy đích.") +
+            "\n\n=== TRẠNG THÁI HỖ TRỢ ROOT / UNLOCK ===\n" +
+            "Model profile: CHƯA ĐƯỢC XÁC MINH TRONG CƠ SỞ DỮ LIỆU THEO TỪNG MODEL/REGION/FIRMWARE." +
+            "\nBootloader unlock: cần xác minh chính xác model, mã vùng, nhà mạng và chính sách OEM." +
+            "\nRoot: cần xác minh firmware đúng bản, boot.img/init_boot.img và khả năng tương thích kernel." +
             "\n\n=== LỆNH FASTBOOT THAM KHẢO (KHÔNG TỰ CHẠY) ===\n" +
             "fastboot devices                 # chỉ liệt kê thiết bị" +
             "\nfastboot getvar unlocked        # đọc trạng thái nếu bootloader hỗ trợ" +
-            "\nfastboot flashing unlock        # LỆNH MỞ KHÓA CÓ THỂ XÓA TOÀN BỘ DỮ LIỆU" +
+            "\nfastboot flashing unlock        # có thể xóa toàn bộ dữ liệu; không chạy khi chưa xác minh" +
             "\nfastboot oem unlock             # biến thể cũ; không dùng nếu chưa xác minh model" +
             "\n\n=== QUY TRÌNH ROOT THAM KHẢO ===\n" +
-            "1. Xác định đúng model/codename, chipset, khu vực, phiên bản firmware và bản vá." +
-            "\n2. Kiểm tra chính sách OEM unlock và yêu cầu mã mở khóa / tài khoản / nhà mạng." +
+            "1. Xác định đúng model/codename, chipset, khu vực, firmware build và bản vá từ THIẾT BỊ ĐÍCH." +
+            "\n2. Kiểm tra chính sách OEM unlock và yêu cầu mã mở khóa/tài khoản/nhà mạng." +
             "\n3. Tải firmware chính thức đúng phiên bản; xác minh checksum và trích boot.img hoặc init_boot.img." +
             "\n4. Chỉ dùng Magisk / KernelSU / APatch nếu thiết bị và kernel tương thích; patch đúng image." +
-            "\n5. Chỉ flash image sau khi đã sao lưu và xác minh hướng dẫn riêng của đúng model." +
+            "\n5. Chỉ flash sau khi đã sao lưu và xác minh hướng dẫn riêng của đúng model." +
             "\n6. Chuẩn bị image gốc và quy trình khôi phục trước khi thay đổi." +
             "\n\n=== GIỚI HẠN QUAN TRỌNG ===\n" +
-            "Không có một lệnh unlock/root dùng an toàn cho mọi Android. Samsung thường dùng Download Mode/Odin thay vì fastboot; nhiều máy nhà mạng hoặc một số hãng/model không cho mở khóa. Unlock thường factory reset. Anti-rollback, AVB và firmware sai có thể làm máy không khởi động." +
-            "\nBO không giả lập root bằng proot và không thực hiện unlock / flash từ màn hình này.";
+            "Không có một lệnh unlock/root an toàn cho mọi Android. Samsung thường dùng Download Mode/Odin; nhiều máy nhà mạng hoặc một số model không cho mở khóa. Unlock thường factory reset. Anti-rollback, AVB và firmware sai có thể làm máy không khởi động." +
+            "\nBO không giả lập root bằng proot và không tự thực hiện unlock/flash từ màn hình này.";
         new AlertDialog.Builder(this)
             .setTitle("Android Root & Bootloader • Device-aware")
             .setMessage(report)
             .setPositiveButton("SAO CHÉP BÁO CÁO", (d, w) ->
-                copyText(report, "Đã sao chép hồ sơ thiết bị và hướng dẫn tham khảo."))
+                copyText(report, "Đã sao chép báo cáo Root/Unlock. Hãy kiểm tra và che serial/IP trước khi chia sẻ."))
             .setNeutralButton("HƯỚNG DẪN ANDROID", (d, w) ->
                 startActivity(new Intent(Intent.ACTION_VIEW,
                     Uri.parse("https://source.android.com/docs/core/architecture/bootloader/locking_unlocking"))))
