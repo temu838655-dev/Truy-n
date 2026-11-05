@@ -7187,6 +7187,8 @@ public class MainActivity extends Activity {
         worker.execute(() -> {
             String branchName = "";
             String lastCommitSha = "";
+            boolean branchCreated = false;
+            boolean pullRequestCreated = false;
             try {
                 String encodedBase = java.net.URLEncoder.encode(base, "UTF-8");
                 JSONObject latestBase = githubApi("GET",
@@ -7221,6 +7223,7 @@ public class MainActivity extends Activity {
                 JSONObject refPayload = new JSONObject()
                     .put("ref", "refs/heads/" + branchName).put("sha", expectedBaseSha);
                 githubApi("POST", "/repos/" + repository + "/git/refs", refPayload);
+                branchCreated = true;
                 for (int i = 0; i < reviewed.length(); i++) {
                     JSONObject item = reviewed.getJSONObject(i);
                     String filePath = item.getString("path");
@@ -7240,6 +7243,7 @@ public class MainActivity extends Activity {
                         + "Số tệp: " + reviewed.length()
                         + "\nHãy kiểm tra toàn bộ diff, chạy build/test và chỉ merge sau khi xác minh.");
                 JSONObject pr = githubApi("POST", "/repos/" + repository + "/pulls", prPayload);
+                pullRequestCreated = true;
                 int number = pr.optInt("number", 0);
                 String html = pr.optString("html_url", "");
                 final String createdBranch = branchName;
@@ -7250,8 +7254,17 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> line("Đã tạo PR #" + number + " cho " + reviewed.length()
                     + " tệp • " + createdBranch + (html.isEmpty() ? "" : "\n" + html), GREEN));
             } catch (Exception e) {
-                String partial = branchName.isEmpty() ? "" : " Nhánh riêng có thể đã có một phần commit: "
-                    + branchName + ". Không tạo PR tự động sau lỗi; hãy kiểm tra nhánh trước khi thử lại.";
+                String cleanup = "";
+                if (branchCreated && !pullRequestCreated) {
+                    try {
+                        githubApi("DELETE", "/repos/" + repository + "/git/refs/heads/" + branchName, null);
+                        cleanup = " Đã xóa nhánh tạm " + branchName + " vì PR chưa được tạo.";
+                    } catch (Exception cleanupError) {
+                        cleanup = " Không thể tự xóa nhánh tạm " + branchName
+                            + "; hãy kiểm tra thủ công trên GitHub. Lỗi dọn dẹp: " + cleanupError.getMessage();
+                    }
+                }
+                String partial = branchName.isEmpty() || !branchCreated ? "" : cleanup;
                 reportAntigravityToolOutcome("github_multi_pull_request_failed",
                     "Không hoàn tất PR nhiều tệp: " + e.getMessage() + partial);
                 runOnUiThread(() -> line("PR nhiều tệp thất bại: " + e.getMessage() + partial, 0xffff8080));
