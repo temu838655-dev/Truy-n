@@ -4623,7 +4623,8 @@ public class MainActivity extends Activity {
             "CHẨN ĐOÁN MẠNG / DNS / KẾT NỐI",
             "PHÂN TÍCH BẢO MẬT THIẾT BỊ ADB (CHỈ ĐỌC)",
             "HƯỚNG DẪN KALI ROOT / ROOTLESS",
-            "CƠ SỞ DỮ LIỆU ROOT / UNLOCK BOOTLOADER"
+            "CƠ SỞ DỮ LIỆU ROOT / UNLOCK BOOTLOADER",
+            "FLASH KERNEL / BOOT IMAGE / RECOVERY"
         };
         new AlertDialog.Builder(this)
             .setTitle("Kali Shell • Rootless + Full Root")
@@ -4642,7 +4643,8 @@ public class MainActivity extends Activity {
                 else if (which == 8) runNetworkDiagnostics();
                 else if (which == 9) runAdbDeviceSecurityAudit();
                 else if (which == 10) showKaliInstructions();
-                else showUniversalRootUnlockCatalog();
+                else if (which == 11) showUniversalRootUnlockCatalog();
+                else showKernelFlashGuide();
             })
             .setNegativeButton("ĐÓNG", null)
             .show();
@@ -5367,29 +5369,29 @@ public class MainActivity extends Activity {
         String abi = android.os.Build.SUPPORTED_ABIS != null && android.os.Build.SUPPORTED_ABIS.length > 0
             ? android.os.Build.SUPPORTED_ABIS[0] : "Unknown";
         String report =
-            "=== THIẾT BỊ HIỆN TẠI ===\\n" +
-            "Hãng: " + brand + "\\nModel: " + model + "\\nDevice codename: " + device +
-            "\\nAndroid: " + android.os.Build.VERSION.RELEASE + " (API " + android.os.Build.VERSION.SDK_INT + ")" +
-            "\\nABI: " + abi +
-            "\\n\\n=== TRẠNG THÁI HỖ TRỢ ===\\n" +
+            "=== THIẾT BỊ HIỆN TẠI ===\n" +
+            "Hãng: " + brand + "\nModel: " + model + "\nDevice codename: " + device +
+            "\nAndroid: " + android.os.Build.VERSION.RELEASE + " (API " + android.os.Build.VERSION.SDK_INT + ")" +
+            "\nABI: " + abi +
+            "\n\n=== TRẠNG THÁI HỖ TRỢ ===\n" +
             "Model profile: CHƯA ĐƯỢC XÁC MINH TRONG CƠ SỞ DỮ LIỆU" +
-            "\\nBootloader unlock: cần xác minh chính xác model / mã vùng / nhà mạng" +
-            "\\nRoot: cần xác minh boot.img hoặc init_boot.img, firmware đúng bản và kernel" +
-            "\\n\\n=== LỆNH FASTBOOT THAM KHẢO (KHÔNG TỰ CHẠY) ===\\n" +
+            "\nBootloader unlock: cần xác minh chính xác model / mã vùng / nhà mạng" +
+            "\nRoot: cần xác minh boot.img hoặc init_boot.img, firmware đúng bản và kernel" +
+            "\n\n=== LỆNH FASTBOOT THAM KHẢO (KHÔNG TỰ CHẠY) ===\n" +
             "fastboot devices                 # chỉ liệt kê thiết bị" +
-            "\\nfastboot getvar unlocked        # đọc trạng thái nếu bootloader hỗ trợ" +
-            "\\nfastboot flashing unlock        # LỆNH MỞ KHÓA CÓ THỂ XÓA TOÀN BỘ DỮ LIỆU" +
-            "\\nfastboot oem unlock             # biến thể cũ; không dùng nếu chưa xác minh model" +
-            "\\n\\n=== QUY TRÌNH ROOT THAM KHẢO ===\\n" +
+            "\nfastboot getvar unlocked        # đọc trạng thái nếu bootloader hỗ trợ" +
+            "\nfastboot flashing unlock        # LỆNH MỞ KHÓA CÓ THỂ XÓA TOÀN BỘ DỮ LIỆU" +
+            "\nfastboot oem unlock             # biến thể cũ; không dùng nếu chưa xác minh model" +
+            "\n\n=== QUY TRÌNH ROOT THAM KHẢO ===\n" +
             "1. Xác định đúng model/codename, chipset, khu vực, phiên bản firmware và bản vá." +
-            "\\n2. Kiểm tra chính sách OEM unlock và yêu cầu mã mở khóa / tài khoản / nhà mạng." +
-            "\\n3. Tải firmware chính thức đúng phiên bản; xác minh checksum và trích boot.img hoặc init_boot.img." +
-            "\\n4. Chỉ dùng Magisk / KernelSU / APatch nếu thiết bị và kernel tương thích; patch đúng image." +
-            "\\n5. Chỉ flash image sau khi đã sao lưu và xác minh hướng dẫn riêng của đúng model." +
-            "\\n6. Chuẩn bị image gốc và quy trình khôi phục trước khi thay đổi." +
-            "\\n\\n=== GIỚI HẠN QUAN TRỌNG ===\\n" +
+            "\n2. Kiểm tra chính sách OEM unlock và yêu cầu mã mở khóa / tài khoản / nhà mạng." +
+            "\n3. Tải firmware chính thức đúng phiên bản; xác minh checksum và trích boot.img hoặc init_boot.img." +
+            "\n4. Chỉ dùng Magisk / KernelSU / APatch nếu thiết bị và kernel tương thích; patch đúng image." +
+            "\n5. Chỉ flash image sau khi đã sao lưu và xác minh hướng dẫn riêng của đúng model." +
+            "\n6. Chuẩn bị image gốc và quy trình khôi phục trước khi thay đổi." +
+            "\n\n=== GIỚI HẠN QUAN TRỌNG ===\n" +
             "Không có một lệnh unlock/root dùng an toàn cho mọi Android. Samsung thường dùng Download Mode/Odin thay vì fastboot; nhiều máy nhà mạng hoặc một số hãng/model không cho mở khóa. Unlock thường factory reset. Anti-rollback, AVB và firmware sai có thể làm máy không khởi động." +
-            "\\nBO không giả lập root bằng proot và không thực hiện unlock / flash từ màn hình này.";
+            "\nBO không giả lập root bằng proot và không thực hiện unlock / flash từ màn hình này.";
         new AlertDialog.Builder(this)
             .setTitle("Android Root & Bootloader • Device-aware")
             .setMessage(report)
@@ -5398,6 +5400,48 @@ public class MainActivity extends Activity {
             .setNeutralButton("HƯỚNG DẪN ANDROID", (d, w) ->
                 startActivity(new Intent(Intent.ACTION_VIEW,
                     Uri.parse("https://source.android.com/docs/core/architecture/bootloader/locking_unlocking"))))
+            .setNegativeButton("ĐÓNG", null)
+            .show();
+    }
+
+    /**
+     * Kernel / boot image flashing reference. Intentionally informational only:
+     * no fastboot, Odin, recovery or partition write is launched from this dialog.
+     */
+    private void showKernelFlashGuide() {
+        String brand = android.os.Build.MANUFACTURER == null ? "Unknown" : android.os.Build.MANUFACTURER;
+        String model = android.os.Build.MODEL == null ? "Unknown" : android.os.Build.MODEL;
+        String device = android.os.Build.DEVICE == null ? "Unknown" : android.os.Build.DEVICE;
+        String guide =
+            "THIẾT BỊ: " + brand + " " + model + " (" + device + ")\n" +
+            "Kernel/boot flashing phải đúng codename, chipset, firmware, slot và layout phân vùng.\n\n" +
+            "CÁC IMAGE CÓ THỂ GẶP\n" +
+            "boot.img: có thể chứa kernel và ramdisk; thường là nơi Magisk patch trên nhiều máy.\n" +
+            "init_boot.img: ramdisk khởi động trên một số thiết bị Android mới.\n" +
+            "vendor_boot.img: vendor ramdisk; không phải kernel thay thế phổ thông.\n" +
+            "dtbo.img: device tree overlay; sai image có thể làm máy không khởi động.\n" +
+            "vendor_kernel_boot.img / Image / AnyKernel ZIP: tùy nhà sản xuất và phương thức cài.\n\n" +
+            "FASTBOOT THAM KHẢO - KHÔNG TỰ CHẠY\n" +
+            "fastboot devices\n" +
+            "fastboot getvar current-slot\n" +
+            "fastboot getvar all\n" +
+            "fastboot flash boot patched_boot.img\n" +
+            "fastboot flash init_boot patched_init_boot.img\n" +
+            "fastboot reboot\n\n" +
+            "CẢNH BÁO: các lệnh flash ở trên chỉ là ví dụ. Không chạy cả hai; chỉ chọn đúng phân vùng theo hướng dẫn của đúng model. Máy A/B, A-only, dynamic partitions, recovery/Odin và fastbootd có quy trình khác nhau. Một số hãng không hỗ trợ flash qua fastboot.\n\n" +
+            "CHECKLIST BẮT BUỘC TRƯỚC KHI FLASH\n" +
+            "1. Xác minh model/codename, SoC, bootloader unlock, firmware build và anti-rollback.\n" +
+            "2. Lấy image từ firmware chính thức đúng bản; kiểm tra checksum và nguồn.\n" +
+            "3. Xác định chính xác partition, slot hiện tại và phương thức flash của hãng.\n" +
+            "4. Sao lưu dữ liệu và chuẩn bị firmware gốc, công cụ/driver khôi phục.\n" +
+            "5. Không flash image của model gần giống hoặc kernel không rõ nguồn.\n" +
+            "6. Chỉ tiếp tục sau khi người dùng xem lệnh, xác nhận rủi ro và đúng thiết bị.\n\n" +
+            "BO KALI AI hiện chỉ cung cấp hướng dẫn tham khảo tại màn hình này; chưa thực hiện flash kernel, recovery, boot, vbmeta hay phân vùng nào.";
+        new AlertDialog.Builder(this)
+            .setTitle("Kernel / Boot Image Flash • Device-aware")
+            .setMessage(guide)
+            .setPositiveButton("SAO CHÉP HƯỚNG DẪN", (d, w) ->
+                copyText(guide, "Đã sao chép hướng dẫn kernel/boot image."))
             .setNegativeButton("ĐÓNG", null)
             .show();
     }
