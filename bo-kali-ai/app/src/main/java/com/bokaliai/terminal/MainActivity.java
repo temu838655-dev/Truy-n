@@ -5413,35 +5413,40 @@ public class MainActivity extends Activity {
         String model = android.os.Build.MODEL == null ? "Unknown" : android.os.Build.MODEL;
         String device = android.os.Build.DEVICE == null ? "Unknown" : android.os.Build.DEVICE;
         String guide =
-            "THIẾT BỊ: " + brand + " " + model + " (" + device + ")\n" +
-            "Kernel/boot flashing phải đúng codename, chipset, firmware, slot và layout phân vùng.\n\n" +
-            "CÁC IMAGE CÓ THỂ GẶP\n" +
-            "boot.img: có thể chứa kernel và ramdisk; thường là nơi Magisk patch trên nhiều máy.\n" +
-            "init_boot.img: ramdisk khởi động trên một số thiết bị Android mới.\n" +
-            "vendor_boot.img: vendor ramdisk; không phải kernel thay thế phổ thông.\n" +
-            "dtbo.img: device tree overlay; sai image có thể làm máy không khởi động.\n" +
-            "vendor_kernel_boot.img / Image / AnyKernel ZIP: tùy nhà sản xuất và phương thức cài.\n\n" +
-            "FASTBOOT THAM KHẢO - KHÔNG TỰ CHẠY\n" +
-            "fastboot devices\n" +
-            "fastboot getvar current-slot\n" +
-            "fastboot getvar all\n" +
-            "fastboot flash boot patched_boot.img\n" +
-            "fastboot flash init_boot patched_init_boot.img\n" +
-            "fastboot reboot\n\n" +
-            "CẢNH BÁO: các lệnh flash ở trên chỉ là ví dụ. Không chạy cả hai; chỉ chọn đúng phân vùng theo hướng dẫn của đúng model. Máy A/B, A-only, dynamic partitions, recovery/Odin và fastbootd có quy trình khác nhau. Một số hãng không hỗ trợ flash qua fastboot.\n\n" +
-            "CHECKLIST BẮT BUỘC TRƯỚC KHI FLASH\n" +
-            "1. Xác minh model/codename, SoC, bootloader unlock, firmware build và anti-rollback.\n" +
-            "2. Lấy image từ firmware chính thức đúng bản; kiểm tra checksum và nguồn.\n" +
-            "3. Xác định chính xác partition, slot hiện tại và phương thức flash của hãng.\n" +
-            "4. Sao lưu dữ liệu và chuẩn bị firmware gốc, công cụ/driver khôi phục.\n" +
-            "5. Không flash image của model gần giống hoặc kernel không rõ nguồn.\n" +
-            "6. Chỉ tiếp tục sau khi người dùng xem lệnh, xác nhận rủi ro và đúng thiết bị.\n\n" +
-            "BO KALI AI hiện chỉ cung cấp hướng dẫn tham khảo tại màn hình này; chưa thực hiện flash kernel, recovery, boot, vbmeta hay phân vùng nào.";
+            "THÔNG TIN MÁY ĐANG CHẠY ỨNG DỤNG (HOST)\\n" +
+            brand + " " + model + " (" + device + ")\\n" +
+            "LƯU Ý: đây không nhất thiết là điện thoại Android đang kết nối ADB mà bạn định flash. Phải đọc model/codename từ đúng thiết bị đích trước khi chọn image.\\n\\n" +
+            "CÁC IMAGE CÓ THỂ GẶP\\n" +
+            "boot.img: có thể chứa kernel và ramdisk.\\n" +
+            "init_boot.img: ramdisk khởi động trên một số thiết bị mới.\\n" +
+            "vendor_boot.img: vendor ramdisk; không phải kernel thay thế phổ thông.\\n" +
+            "dtbo.img / vendor_kernel_boot.img / Image / AnyKernel ZIP: phụ thuộc thiết kế từng thiết bị.\\n\\n" +
+            "LỆNH KIỂM TRA FASTBOOT (CHỈ ĐỌC)\\n" +
+            "fastboot devices\\n" +
+            "fastboot getvar product\\n" +
+            "fastboot getvar current-slot\\n" +
+            "fastboot getvar unlocked\\n\\n" +
+            "LỆNH FLASH THAM KHẢO - KHÔNG TỰ CHẠY\\n" +
+            "fastboot flash boot patched_boot.img\\n" +
+            "fastboot flash init_boot patched_init_boot.img\\n" +
+            "Không chạy cả hai lệnh. Chỉ dùng đúng partition/slot đã được xác minh cho đúng model và firmware.\\n\\n" +
+            "CHECKLIST SAO LƯU TRƯỚC KHI FLASH\\n" +
+            "1. Ghi lại model, codename, SoC, firmware build, khu vực, slot và trạng thái bootloader.\\n" +
+            "2. Sao lưu dữ liệu cá nhân riêng; unlock bootloader thường xóa dữ liệu.\\n" +
+            "3. Lưu firmware gốc đầy đủ đúng mã máy và công cụ khôi phục chính hãng.\\n" +
+            "4. Chỉ sao lưu partition khi nhà sản xuất/thiết bị hỗ trợ phương thức đọc an toàn; không giả định fastboot có lệnh dump/backup phổ quát.\\n" +
+            "5. Giữ bản image gốc, checksum SHA-256 và ghi rõ partition/slot tương ứng.\\n\\n" +
+            "KHÔI PHỤC KHI LỖI\\n" +
+            "Không có một lệnh restore chung cho mọi Android. Dùng đúng firmware gốc và công cụ của hãng (ví dụ Download Mode/Odin trên các máy Samsung được hỗ trợ, hoặc fastboot/recovery khi model hỗ trợ). Không flash chéo model, không hạ firmware nếu chưa kiểm tra anti-rollback.\\n\\n" +
+            "BO KALI AI hiện chỉ hướng dẫn và kiểm tra thông tin; chưa thực hiện backup partition, unlock bootloader hay flash bất kỳ image nào.";
         new AlertDialog.Builder(this)
-            .setTitle("Kernel / Boot Image Flash • Device-aware")
+            .setTitle("Kernel / Boot / Recovery • An toàn thiết bị")
             .setMessage(guide)
             .setPositiveButton("SAO CHÉP HƯỚNG DẪN", (d, w) ->
-                copyText(guide, "Đã sao chép hướng dẫn kernel/boot image."))
+                copyText(guide, "Đã sao chép checklist kernel/boot và khôi phục."))
+            .setNeutralButton("MỞ TÀI LIỆU ANDROID", (d, w) ->
+                startActivity(new Intent(Intent.ACTION_VIEW,
+                    Uri.parse("https://source.android.com/docs/core/architecture/bootloader"))))
             .setNegativeButton("ĐÓNG", null)
             .show();
     }
