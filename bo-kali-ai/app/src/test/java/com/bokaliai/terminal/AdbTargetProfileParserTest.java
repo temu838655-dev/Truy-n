@@ -180,13 +180,13 @@ public class AdbTargetProfileParserTest {
     @Test
     public void endMarkerMustBeAnExactStandaloneLine() {
         String output =
-            "=== TARGET SERIAL: device-marker ===\\n" +
-            "ro.product.manufacturer=Maker\\n" +
-            "ro.product.model=Phone Marker\\n" +
-            "ro.product.device=phone_marker\\n" +
-            "ro.build.fingerprint=maker/phone_marker:14/BUILD/1:user/release-keys\\n" +
-            "ro.boot.hardware.sku=SKU_MARKER\\n" +
-            "prefix --- END TARGET PROFILE: READ ONLY --- suffix\\n";
+            "=== TARGET SERIAL: device-marker ===\n" +
+            "ro.product.manufacturer=Maker\n" +
+            "ro.product.model=Phone Marker\n" +
+            "ro.product.device=phone_marker\n" +
+            "ro.build.fingerprint=maker/phone_marker:14/BUILD/1:user/release-keys\n" +
+            "ro.boot.hardware.sku=SKU_MARKER\n" +
+            "prefix --- END TARGET PROFILE: READ ONLY --- suffix\n";
         AdbTargetProfileParser.DeviceProfile profile =
             AdbTargetProfileParser.parse(output).get(0);
         assertFalse(profile.isComplete());
