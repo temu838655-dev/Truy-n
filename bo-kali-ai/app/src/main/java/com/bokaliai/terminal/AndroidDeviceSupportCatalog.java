@@ -150,17 +150,21 @@ public final class AndroidDeviceSupportCatalog {
     public static Result lookup(List<Entry> entries, String manufacturer,
             String model, String codename, String firmwareFingerprint, String regionOrSku) {
         if (entries == null || entries.isEmpty()) return new Result(null);
+        Entry match = null;
         for (Entry entry : entries) {
-            if (entry == null || !entry.hasRequiredEvidence()) continue;
+            if (entry == null || !entry.hasRequiredEvidence()
+                    || entry.status == Status.RESEARCH_REQUIRED) continue;
             if (same(entry.manufacturer, manufacturer)
                     && same(entry.model, model)
                     && same(entry.codename, codename)
                     && same(entry.firmwareFingerprint, firmwareFingerprint)
                     && same(entry.regionOrSku, regionOrSku)) {
-                return new Result(entry);
+                // Duplicate exact identities are ambiguous: never select the first record.
+                if (match != null) return new Result(null);
+                match = entry;
             }
         }
-        return new Result(null);
+        return new Result(match);
     }
 
 
