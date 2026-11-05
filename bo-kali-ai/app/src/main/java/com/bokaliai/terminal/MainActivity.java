@@ -5146,7 +5146,7 @@ public class MainActivity extends Activity {
             outputForAi = outputForAi.substring(0, 12000)
                 + "\n[Đã rút gọn kết quả còn 12.000 ký tự để AI phân tích ổn định.]";
         }
-        questionInput.setText("Hãy giải thích kết quả/lỗi Kali dưới đây bằng tiếng Việt, chỉ ra nguyên nhân, mức độ rủi ro và cách xử lý an toàn. Không giả định lệnh đã làm gì ngoài nội dung kết quả:\n\n" + outputForAi);
+        questionInput.setText("Hãy giải thích kết quả/lỗi Kali dưới đây bằng tiếng Việt, chỉ ra nguyên nhân, mức độ rủi ro, cách xử lý an toàn và cách xác minh đã sửa thành công. Không giả định lệnh đã làm gì ngoài nội dung kết quả:\n\n" + outputForAi);
         askAi();
     }
 
@@ -6099,7 +6099,8 @@ public class MainActivity extends Activity {
         String q = questionInput.getText().toString().trim();
         if (q.isEmpty()) return;
         final boolean isTranslationRequest =
-            q.startsWith("Hãy dịch nội dung sau sang tiếng Việt tự nhiên");
+            q.startsWith("Hãy dịch nội dung sau sang tiếng Việt tự nhiên")
+            || q.startsWith("Hãy giải thích kết quả/lỗi Kali dưới đây");
         int selected = aiProviderPicker == null ? 0 : aiProviderPicker.getSelectedItemPosition();
         final String provider = selected == 1 ? "Claude" : (selected == 2 ? "OpenAI" : (selected == 3 ? "Antigravity" : "Gemini"));
         // Antigravity Agent is accessed through the Gemini API key, but uses its own Interactions API.
