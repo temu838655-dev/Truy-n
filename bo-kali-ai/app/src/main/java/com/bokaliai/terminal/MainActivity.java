@@ -154,6 +154,10 @@ public class MainActivity extends Activity {
         controlRow.addView(aiPlan, new LinearLayout.LayoutParams(0, dp(44), 1));
         root.addView(controlRow);
 
+        Button secondaryDeviceScreen = button("MÀN HÌNH PHỤ · ĐIỀU KHIỂN THIẾT BỊ");
+        secondaryDeviceScreen.setOnClickListener(v -> showDualWorkspace());
+        root.addView(secondaryDeviceScreen, new LinearLayout.LayoutParams(-1, dp(44)));
+
         LinearLayout toolsRow = new LinearLayout(this); toolsRow.setOrientation(LinearLayout.HORIZONTAL);
         Button batch = button("KIỂM TRA NHIỀU MÁY"); batch.setOnClickListener(v -> showAdbBatchCheck());
         toolsRow.addView(batch, new LinearLayout.LayoutParams(0, dp(42), 1));
@@ -1417,10 +1421,13 @@ public class MainActivity extends Activity {
         codePane.setOrientation(LinearLayout.VERTICAL);
         codePane.setPadding(dp(7), dp(8), dp(7), dp(8));
         codePane.setBackgroundColor(PANEL);
-        codePane.addView(text("MÀN HÌNH CHÍNH · CODE / KALI / AI", GREEN, 13, true));
-        codePane.addView(text("Khu vực làm việc độc lập, không cần thiết bị ngoài kết nối.", WHITE, 11, false));
-        Button terminal = button("MỞ CODE / TERMINAL");
-        terminal.setOnClickListener(v -> setContentView(root));
+        codePane.addView(text("MÀN HÌNH CHÍNH · DỊCH / OCR / CODE / KALI / AI", GREEN, 13, true));
+        codePane.addView(text("Dịch văn bản và OCR ảnh ở màn hình chính. Màn hình phụ chỉ dành cho điều khiển thiết bị.", WHITE, 11, false));
+        Button terminal = button("MỞ MÀN HÌNH CHÍNH · DỊCH / OCR");
+        terminal.setOnClickListener(v -> {
+            setContentView(root);
+            if (translationInput != null) translationInput.requestFocus();
+        });
         codePane.addView(terminal, new LinearLayout.LayoutParams(-1, dp(48)));
         Button kali = button("MỞ KALI SHELL");
         kali.setOnClickListener(v -> kaliShellMenu());
@@ -1534,12 +1541,15 @@ public class MainActivity extends Activity {
         codePane.setOrientation(LinearLayout.VERTICAL);
         codePane.setPadding(dp(8), dp(8), dp(8), dp(8));
         codePane.setBackgroundColor(PANEL);
-        TextView codeTitle = text("MÀN HÌNH CHÍNH · CODE / KALI / AI", GREEN, 13, true);
+        TextView codeTitle = text("MÀN HÌNH CHÍNH · DỊCH / OCR / CODE / KALI / AI", GREEN, 13, true);
         codePane.addView(codeTitle);
-        TextView codeInfo = text("Khu vực làm việc chính. Mở terminal đầy đủ để viết/chạy lệnh, dùng Kali và hỏi AI. Màn hình này không phụ thuộc thiết bị ADB.", WHITE, 12, false);
+        TextView codeInfo = text("Dịch văn bản và OCR ảnh ở màn hình chính. Màn hình phụ chỉ dành cho điều khiển thiết bị.", WHITE, 12, false);
         codePane.addView(codeInfo);
-        Button openTerminal = button("MỞ CODE / TERMINAL");
-        openTerminal.setOnClickListener(v -> setContentView(root));
+        Button openTerminal = button("MỞ MÀN HÌNH CHÍNH · DỊCH / OCR");
+        openTerminal.setOnClickListener(v -> {
+            setContentView(root);
+            if (translationInput != null) translationInput.requestFocus();
+        });
         codePane.addView(openTerminal, new LinearLayout.LayoutParams(-1, dp(48)));
         Button kali = button("MỞ KALI SHELL");
         kali.setOnClickListener(v -> kaliShellMenu());
