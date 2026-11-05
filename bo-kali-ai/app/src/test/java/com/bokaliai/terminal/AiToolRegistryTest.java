@@ -74,6 +74,45 @@ public class AiToolRegistryTest {
     }
 
     @Test
+    public void rawShellScopeAcceptsOnlyExplicitReadOnlyDiagnostics() {
+        String[] commands = {
+            "getprop ro.product.model",
+            "dumpsys battery",
+            "cat /proc/meminfo",
+            "ip route",
+            "pm list packages -3",
+            "df -h",
+            "uptime",
+            "uname -a",
+            "id",
+            "whoami",
+            "date"
+        };
+        for (String command : commands) {
+            assertEquals("OK", AiToolRegistry.validateAdbPlan(
+                AiToolRegistry.RAW_ADB_SHELL, "device-01", command,
+                grant(AiToolRegistry.RAW_ADB_SHELL)));
+        }
+    }
+
+    @Test
+    public void rawShellScopeRejectsRootAndSystemMutationCommands() {
+        String[] commands = {
+            "su -c id",
+            "settings put system screen_brightness 100",
+            "pm disable com.example.app",
+            "rm /sdcard/test.txt",
+            "mount -o rw,remount /system",
+            "dd if=/dev/zero of=/dev/block/test"
+        };
+        for (String command : commands) {
+            assertFalse(command, "OK".equals(AiToolRegistry.validateAdbPlan(
+                AiToolRegistry.RAW_ADB_SHELL, "device-01", command,
+                grant(AiToolRegistry.RAW_ADB_SHELL))));
+        }
+    }
+
+    @Test
     public void rejectsMalformedDeviceSerial() {
         assertEquals("INVALID_DEVICE_SERIAL", AiToolRegistry.validateAdbPlan(
             AiToolRegistry.READ_INFO, "device-01\nother", "getprop", grant(AiToolRegistry.READ_INFO)));
