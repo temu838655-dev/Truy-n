@@ -62,6 +62,8 @@ public class MainActivity extends Activity {
     private String geminiKey = "", claudeKey = "", openAiKey = "", githubToken = "", lastCommandOutput = "";
     // A root/unlock catalog view must be backed by the exact ADB audit it requested.
     private String pendingRootCatalogAuditToken = "";
+    private static final int REQ_DEVICE_PROFILE_JSON = 4106;
+    private final ArrayList<AndroidDeviceSupportCatalog.Entry> importedDeviceProfiles = new ArrayList<>();
     private Spinner aiProviderPicker;
     // Independent, session-only consent for each provider. All default to off.
     private boolean shareTerminalGemini = false, shareTerminalClaude = false;
@@ -159,6 +161,14 @@ public class MainActivity extends Activity {
         Button kali = button("KALI / TERMUX"); kali.setOnClickListener(v -> kaliShellMenu());
         toolsRow.addView(kali, new LinearLayout.LayoutParams(0, dp(42), 1));
         root.addView(toolsRow);
+        LinearLayout profileRow = new LinearLayout(this); profileRow.setOrientation(LinearLayout.HORIZONTAL);
+        Button importProfiles = button("NHẬP HỒ SƠ THIẾT BỊ JSON");
+        importProfiles.setOnClickListener(v -> chooseDeviceSupportProfiles());
+        profileRow.addView(importProfiles, new LinearLayout.LayoutParams(0, dp(42), 1));
+        Button viewProfiles = button("HỒ SƠ ĐÃ NHẬP");
+        viewProfiles.setOnClickListener(v -> showImportedDeviceProfiles());
+        profileRow.addView(viewProfiles, new LinearLayout.LayoutParams(0, dp(42), 1));
+        root.addView(profileRow);
 
         scroll = new ScrollView(this); scroll.setFillViewport(true);
         log = new LinearLayout(this); log.setOrientation(LinearLayout.VERTICAL);
@@ -2955,6 +2965,8 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 line("Không xuất được báo cáo TXT: " + e.getMessage(), 0xffff8080);
             }
+        } else if (requestCode == REQ_DEVICE_PROFILE_JSON) {
+            importDeviceSupportProfiles(uri);
         } else if (requestCode == REQ_AI_TEXT_FILE) {
             readAiTextFile(uri);
         } else if (requestCode == REQ_AI_IMAGE) {
@@ -3008,6 +3020,102 @@ public class MainActivity extends Activity {
                 }
             });
         }
+    }
+
+    private void chooseDeviceSupportProfiles() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/json", "text/json", "text/plain"});
+        startActivityForResult(intent, REQ_DEVICE_PROFILE_JSON);
+    }
+
+    private void importDeviceSupportProfiles(Uri uri) {
+        line("Đang đọc hồ sơ JSON; mọi bản ghi nhập vào sẽ vẫn ở trạng thái CHƯA XÁC MINH.", GREEN);
+        worker.execute(() -> {
+            try (java.io.InputStream in = getContentResolver().openInputStream(uri);
+                 java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+                if (in == null) throw new java.io.IOException("Không mở được tệp JSON.");
+                byte[] chunk = new byte[8192];
+                int count;
+                while ((count = in.read(chunk)) != -1) {
+                    if (out.size() + count > 1024 * 1024)
+                        throw new IllegalArgumentException("Tệp JSON vượt giới hạn 1 MB.");
+                    out.write(chunk, 0, count);
+                }
+                String json = new String(out.toByteArray(), StandardCharsets.UTF_8);
+                DeviceSupportProfileImporter.ImportResult result = DeviceSupportProfileImporter.parse(json);
+                runOnUiThread(() -> showDeviceProfileImportPreview(result));
+            } catch (Exception e) {
+                runOnUiThread(() -> line("Không nhập được hồ sơ JSON: " + e.getMessage(), 0xffff8080));
+            }
+        });
+    }
+
+    private void showDeviceProfileImportPreview(DeviceSupportProfileImporter.ImportResult result) {
+        if (result == null || result.getEntries().isEmpty()) {
+            String error = result == null || result.getErrors().isEmpty()
+                ? "Không tìm thấy hồ sơ hợp lệ." : result.getErrors().get(0);
+            line("Nhập hồ sơ thất bại: " + error, 0xffff8080);
+            new AlertDialog.Builder(this).setTitle("Không nhập được hồ sơ")
+                .setMessage(error).setPositiveButton("ĐÓNG", null).show();
+            return;
+        }
+        StringBuilder preview = new StringBuilder();
+        preview.append("Số hồ sơ đọc được: ").append(result.getEntries().size())
+            .append("\\nTất cả đều được gắn trạng thái RESEARCH_REQUIRED.")
+            .append("\\nKhông có hồ sơ nào được dùng để cấp lệnh root/unlock/flash.\\n");
+        for (int i = 0; i < result.getEntries().size(); i++) {
+            AndroidDeviceSupportCatalog.Entry entry = result.getEntries().get(i);
+            preview.append("\\n#").append(i + 1).append(" ")
+                .append(entry.manufacturer).append(" ").append(entry.model)
+                .append("\\nCodename: ").append(entry.codename)
+                .append("\\nFirmware: ").append(entry.firmwareFingerprint)
+                .append("\\nSKU/Region: ").append(entry.regionOrSku)
+                .append("\\nNguồn: ").append(entry.sourceUrl)
+                .append("\\nNgày ghi trong tệp: ").append(entry.verifiedDate)
+                .append("\\nTrạng thái: CHƯA XÁC MINH\\n");
+        }
+        if (!result.getErrors().isEmpty()) {
+            preview.append("\\nCác bản ghi bị bỏ qua: ").append(result.getErrors().size());
+            for (String error : result.getErrors())
+                preview.append("\\n• ").append(error);
+        }
+        new AlertDialog.Builder(this).setTitle("Xem trước hồ sơ thiết bị")
+            .setMessage(preview.toString())
+            .setPositiveButton("XÁC NHẬN NHẬP BẢN GHI", (d, w) -> {
+                importedDeviceProfiles.addAll(result.getEntries());
+                line("Đã nhập " + result.getEntries().size()
+                    + " hồ sơ nghiên cứu. Chúng chưa được xác minh và không cấp quyền thao tác.", GREEN);
+            })
+            .setNegativeButton("HỦY", null).show();
+    }
+
+    private void showImportedDeviceProfiles() {
+        if (importedDeviceProfiles.isEmpty()) {
+            new AlertDialog.Builder(this).setTitle("Hồ sơ thiết bị")
+                .setMessage("Chưa có hồ sơ JSON nào được nhập trong phiên ứng dụng này.")
+                .setPositiveButton("ĐÓNG", null).show();
+            return;
+        }
+        StringBuilder report = new StringBuilder("Tổng hồ sơ nghiên cứu: ")
+            .append(importedDeviceProfiles.size())
+            .append("\\nTất cả đều chưa xác minh; không dùng làm căn cứ chạy lệnh.\\n");
+        for (int i = 0; i < importedDeviceProfiles.size(); i++) {
+            AndroidDeviceSupportCatalog.Entry entry = importedDeviceProfiles.get(i);
+            report.append("\\n").append(i + 1).append(". ")
+                .append(entry.manufacturer).append(" ").append(entry.model)
+                .append(" (").append(entry.codename).append(")")
+                .append("\\nFirmware: ").append(entry.firmwareFingerprint)
+                .append("\\nNguồn: ").append(entry.sourceUrl).append("\\n");
+        }
+        new AlertDialog.Builder(this).setTitle("Hồ sơ đã nhập • chỉ nghiên cứu")
+            .setMessage(report.toString())
+            .setPositiveButton("ĐÓNG", null)
+            .setNeutralButton("XÓA HỒ SƠ PHIÊN", (d, w) -> {
+                importedDeviceProfiles.clear();
+                line("Đã xóa các hồ sơ JSON được nhập trong phiên này.", GREEN);
+            }).show();
     }
 
     private void importAdbBackup(Uri uri) {
