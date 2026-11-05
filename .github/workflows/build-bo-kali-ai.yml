@@ -92,4 +92,21 @@ jobs:
           else
             gh release create "$TAG" --title "BO Kali AI — bản mới nhất" --notes "$NOTES" --prerelease
           fi
-          gh release upload "$TAG" "$APK" "$CHECKSUM" "$METADATA" --clobber
+          # GitHub Releases occasionally returns transient HTTP 5xx errors.
+          # Retry the asset upload without rebuilding or changing the release tag.
+          upload_ok=false
+          for attempt in 1 2 3 4 5; do
+            if gh release upload "$TAG" "$APK" "$CHECKSUM" "$METADATA" --clobber; then
+              upload_ok=true
+              break
+            fi
+            if [ "$attempt" -lt 5 ]; then
+              delay=$((attempt * 10))
+              echo "Release asset upload failed (attempt $attempt/5); retrying in ${delay}s..."
+              sleep "$delay"
+            fi
+          done
+          if [ "$upload_ok" != true ]; then
+            echo "::error::Could not upload APK assets to GitHub Releases after 5 attempts."
+            exit 1
+          fi
