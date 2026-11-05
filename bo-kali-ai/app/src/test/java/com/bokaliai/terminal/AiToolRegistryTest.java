@@ -207,6 +207,23 @@ public class AiToolRegistryTest {
     }
 
     @Test
+    public void validatesGitRefsBeforeUsingThemInGitHubApiPaths() {
+        assertTrue(AiToolRegistry.validGitRef("main"));
+        assertTrue(AiToolRegistry.validGitRef("release-1.2"));
+        assertTrue(AiToolRegistry.validGitRef("feature/android-tv"));
+        assertTrue(AiToolRegistry.validGitRef("0123456789abcdef0123456789abcdef01234567"));
+        assertFalse(AiToolRegistry.validGitRef(""));
+        assertFalse(AiToolRegistry.validGitRef("../main"));
+        assertFalse(AiToolRegistry.validGitRef("feature/../main"));
+        assertFalse(AiToolRegistry.validGitRef("feature//main"));
+        assertFalse(AiToolRegistry.validGitRef(".hidden"));
+        assertFalse(AiToolRegistry.validGitRef("main.lock"));
+        assertFalse(AiToolRegistry.validGitRef("main\\\\other"));
+        assertFalse(AiToolRegistry.validGitRef("main?query"));
+        assertFalse(AiToolRegistry.validGitRef("main\\nother"));
+    }
+
+    @Test
     public void validatesRepositoryNamesWithoutDotSegmentTraversal() {
         assertTrue(AiToolRegistry.validRepositoryName("owner/repo"));
         assertTrue(AiToolRegistry.validRepositoryName("owner-name/repo.name"));

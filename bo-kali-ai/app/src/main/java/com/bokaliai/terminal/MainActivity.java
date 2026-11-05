@@ -6822,8 +6822,7 @@ public class MainActivity extends Activity {
         if ("github_read_file".equals(functionName)) {
             String path = args.optString("path", "").trim();
             String ref = args.optString("ref", "main").trim();
-            if (!AiToolRegistry.validRepoPath(path) || ref.isEmpty()
-                    || ref.length() > 200 || ref.matches(".*[\\r\\n\\u0000].*")) {
+            if (!AiToolRegistry.validRepoPath(path) || !AiToolRegistry.validGitRef(ref) {
                 reportAntigravityToolOutcome("invalid_path_or_ref", "Đường dẫn hoặc ref GitHub không hợp lệ.");
                 return;
             }
@@ -6887,8 +6886,7 @@ public class MainActivity extends Activity {
         String ref = args.optString("ref", "main").trim();
         JSONArray requested = args.optJSONArray("paths");
         if (!AiToolRegistry.validRepositoryName(repository)
-                || ref.isEmpty() || ref.length() > 200 || ref.matches(".*[\\r\\n\\u0000].*")
-                || requested == null || requested.length() < 2 || requested.length() > 8) {
+                || !AiToolRegistry.validGitRef(ref) {
             reportAntigravityToolOutcome("invalid_multi_file_read",
                 "Yêu cầu đọc nhiều tệp không hợp lệ. Chỉ hỗ trợ 2 đến 8 đường dẫn và ref hợp lệ.");
             return;
@@ -6950,10 +6948,7 @@ public class MainActivity extends Activity {
         String content = args.optString("content", "");
         String summary = args.optString("summary", "Update " + path).trim();
         if (!AiToolRegistry.validRepositoryName(repository)
-                || !AiToolRegistry.validRepoPath(path) || branch.isEmpty()
-                || branch.length() > 200 || branch.matches(".*[\\r\\n\\u0000].*")
-                || content.isEmpty() || content.length() > 60000
-                || summary.isEmpty() || summary.length() > 120) {
+                || !AiToolRegistry.validRepoPath(path) || !AiToolRegistry.validGitRef(branch) {
             reportAntigravityToolOutcome("invalid_github_update", "Thông số cập nhật GitHub không hợp lệ hoặc vượt giới hạn 60.000 ký tự.");
             return;
         }

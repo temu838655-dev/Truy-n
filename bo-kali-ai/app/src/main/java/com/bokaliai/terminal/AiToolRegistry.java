@@ -501,6 +501,26 @@ public final class AiToolRegistry {
         return true;
     }
 
+    /** Conservative validation for a Git branch, tag, or commit ref used in REST paths. */
+    public static boolean validGitRef(String ref) {
+        if (ref == null || ref.isEmpty() || ref.length() > 200
+                || ref.startsWith("/") || ref.endsWith("/") || ref.endsWith(".")
+                || ref.endsWith(".lock") || ref.contains("..") || ref.contains("@{")
+                || ref.contains("//")) return false;
+        String[] segments = ref.split("/", -1);
+        for (String segment : segments) {
+            if (segment.isEmpty() || segment.startsWith(".") || segment.endsWith(".")
+                    || segment.endsWith(".lock")) return false;
+        }
+        for (int i = 0; i < ref.length(); i++) {
+            char ch = ref.charAt(i);
+            if (!(ch >= 'A' && ch <= 'Z') && !(ch >= 'a' && ch <= 'z')
+                    && !(ch >= '0' && ch <= '9') && ch != '/' && ch != '.'
+                    && ch != '_' && ch != '-') return false;
+        }
+        return true;
+    }
+
     public static boolean validRepoPath(String path) {
         if (path == null || path.trim().isEmpty() || path.length() > 500) return false;
         String p = path.trim();
