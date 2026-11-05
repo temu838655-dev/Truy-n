@@ -145,4 +145,35 @@ public class AdbTargetProfileParserTest {
         assertEquals("phone_c", profile.get("ro.product.device"));
         assertFalse(profile.hasMinimumIdentity());
     }
+    @Test
+    public void completeLookingIdentityWithoutEndMarkerIsRejected() {
+        String output =
+            "=== TARGET SERIAL: device-truncated ===\\n" +
+            "ro.product.manufacturer=Maker\\n" +
+            "ro.product.model=Phone Exact\\n" +
+            "ro.product.device=phone_exact\\n" +
+            "ro.build.fingerprint=maker/phone_exact:14/BUILD/1:user/release-keys\\n" +
+            "ro.boot.hardware.sku=SKU_EXACT\\n";
+        AdbTargetProfileParser.DeviceProfile profile =
+            AdbTargetProfileParser.parse(output).get(0);
+        assertFalse(profile.isComplete());
+        assertFalse(profile.hasMinimumIdentity());
+        assertTrue(profile.getMissingMinimumIdentityFields().contains("dấu kết thúc hồ sơ ADB"));
+    }
+
+    @Test
+    public void missingIdentityFieldsCannotBeModifiedByCaller() {
+        String output =
+            "=== TARGET SERIAL: device-immutable ===\\n" +
+            "ro.product.model=Partial Phone\\n";
+        AdbTargetProfileParser.DeviceProfile profile =
+            AdbTargetProfileParser.parse(output).get(0);
+        try {
+            profile.getMissingMinimumIdentityFields().clear();
+            fail("Missing-field report must be immutable");
+        } catch (UnsupportedOperationException expected) {
+            assertFalse(profile.hasMinimumIdentity());
+        }
+    }
+
 }
