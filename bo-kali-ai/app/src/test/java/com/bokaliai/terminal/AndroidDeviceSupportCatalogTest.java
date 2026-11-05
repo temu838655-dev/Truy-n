@@ -56,6 +56,16 @@ public class AndroidDeviceSupportCatalogTest {
     }
 
     @Test
+    public void verifiedMatchExposesItsEvidenceAndProvenance() {
+        AndroidDeviceSupportCatalog.Result result = AndroidDeviceSupportCatalog.lookup(
+            Collections.singletonList(verifiedEntry()), "Example", "Model X", "device_x",
+            "example/device_x:14/BUILD/123:user/release-keys", "REGION_A");
+        assertTrue(result.getEvidenceSummaryVi().contains("2026-11-05"));
+        assertTrue(result.getEvidenceSummaryVi().contains("https://example.com/device-x-unlock"));
+        assertTrue(result.getEvidenceSummaryVi().contains("REGION_A"));
+    }
+
+    @Test
     public void builtInCatalogDoesNotPretendToSupportUnverifiedDevices() {
         assertTrue(AndroidDeviceSupportCatalog.builtInEntries().isEmpty());
         assertFalse(AndroidDeviceSupportCatalog.lookupBuiltIn(

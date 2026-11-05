@@ -4584,7 +4584,8 @@ public class MainActivity extends Activity {
             "ro.product.vendor.device ro.product.odm.device ro.product.board ro.board.platform " +
             "ro.hardware ro.soc.manufacturer ro.soc.model ro.build.fingerprint ro.vendor.build.fingerprint " +
             "ro.build.id ro.build.version.release ro.build.version.sdk ro.build.version.security_patch " +
-            "ro.product.first_api_level ro.product.cpu.abi; do " +
+            "ro.product.first_api_level ro.product.cpu.abi ro.boot.hardware.sku " +
+            "ro.boot.product.hardware.sku ro.boot.region ro.product.locale; do " +
             "v=$(getprop \"$p\"); [ -n \"$v\" ] && printf '%s=%s\\n' \"$p\" \"$v\"; done; " +
             "echo '--- BOOT / PARTITION METADATA ---'; " +
             "for p in ro.bootloader ro.boot.bootloader ro.boot.slot_suffix ro.boot.dynamic_partitions " +
@@ -5412,6 +5413,10 @@ public class MainActivity extends Activity {
                 appendTargetField(targetSummary, profile, "Verified boot", "ro.boot.verifiedbootstate");
                 appendTargetField(targetSummary, profile, "Flash locked", "ro.boot.flash.locked");
                 appendTargetField(targetSummary, profile, "VBMeta state", "ro.boot.vbmeta.device_state");
+                appendTargetField(targetSummary, profile, "Hardware SKU", "ro.boot.hardware.sku");
+                appendTargetField(targetSummary, profile, "Product hardware SKU", "ro.boot.product.hardware.sku");
+                appendTargetField(targetSummary, profile, "Region", "ro.boot.region");
+                appendTargetField(targetSummary, profile, "Product locale", "ro.product.locale");
                 AndroidDeviceSupportCatalog.Result catalogResult =
                     AndroidDeviceSupportCatalog.lookupBuiltIn(
                         profile.get("ro.product.manufacturer"),

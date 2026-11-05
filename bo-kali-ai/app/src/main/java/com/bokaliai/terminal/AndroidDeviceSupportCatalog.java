@@ -88,6 +88,17 @@ public final class AndroidDeviceSupportCatalog {
                     return "CHƯA ĐỦ BẰNG CHỨNG.";
             }
         }
+
+        /** Human-readable provenance for a verified exact match; never a flash command. */
+        public String getEvidenceSummaryVi() {
+            if (!isVerifiedMatch()) return "Không có bằng chứng đủ điều kiện để hiển thị.";
+            return "Model: " + entry.model + " | Codename: " + entry.codename
+                + " | Firmware: " + entry.firmwareFingerprint
+                + " | SKU/Region: " + entry.regionOrSku
+                + " | Xác minh: " + entry.verifiedDate
+                + " | Nguồn: " + entry.sourceUrl
+                + " | Ghi chú: " + entry.summary;
+        }
     }
 
     private AndroidDeviceSupportCatalog() {}
