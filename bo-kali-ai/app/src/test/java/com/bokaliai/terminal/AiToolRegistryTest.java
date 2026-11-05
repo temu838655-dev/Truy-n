@@ -92,4 +92,55 @@ public class AiToolRegistryTest {
         assertFalse(AiToolRegistry.validRepoPath("/etc/passwd"));
         assertFalse(AiToolRegistry.validRepoPath("app//MainActivity.java"));
     }
+
+    @Test
+    public void rejectsAllShellCompositionCharacters() {
+        String[] commands = {
+            "getprop && id",
+            "getprop || id",
+            "getprop > /sdcard/out.txt",
+            "getprop `id`",
+            "getprop $HOME",
+            "getprop\nreboot"
+        };
+        for (String command : commands) {
+            assertEquals("INVALID_SINGLE_COMMAND", AiToolRegistry.validateAdbPlan(
+                AiToolRegistry.READ_INFO, "device-01", command, grant(AiToolRegistry.READ_INFO)));
+        }
+    }
+
+    @Test
+    public void readInfoScopeRejectsCommandsOutsideItsExactAllowlist() {
+        String[] commands = {
+            "cat /data/system/packages.xml",
+            "pm list packages",
+            "settings get system screen_brightness",
+            "curl https://example.com",
+            "getprop ro.serialno"
+        };
+        for (String command : commands) {
+            assertEquals("COMMAND_NOT_ALLOWED_FOR_SCOPE", AiToolRegistry.validateAdbPlan(
+                AiToolRegistry.READ_INFO, "device-01", command, grant(AiToolRegistry.READ_INFO)));
+        }
+    }
+
+    @Test
+    public void readInfoScopeAcceptsOnlyDocumentedReadOnlyCommands() {
+        String[] commands = {
+            "getprop",
+            "getprop ro.product.model",
+            "getprop ro.build.version.release",
+            "df -h",
+            "uptime",
+            "uname -a",
+            "dumpsys battery",
+            "ip addr show wlan0",
+            "cat /proc/meminfo"
+        };
+        for (String command : commands) {
+            assertEquals("OK", AiToolRegistry.validateAdbPlan(
+                AiToolRegistry.READ_INFO, "device-01", command, grant(AiToolRegistry.READ_INFO)));
+        }
+    }
+
 }
