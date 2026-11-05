@@ -222,16 +222,16 @@ public class MainActivity extends Activity {
         copyTranslation.setOnClickListener(v -> {
             String translated = translationResultView == null ? "" : translationResultView.getText().toString().trim();
             if (translated.isEmpty() || translated.startsWith("Bản dịch sẽ hiển thị")) {
-                Toast.makeText(this, "Chưa có nội dung để sao chép.", Toast.LENGTH_SHORT).show();
+                android.widget.Toast.makeText(this, "Chưa có nội dung để sao chép.", android.widget.Toast.LENGTH_SHORT).show();
                 return;
             }
             android.content.ClipboardManager clipboard =
                 (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
             if (clipboard != null) {
                 clipboard.setPrimaryClip(android.content.ClipData.newPlainText("BO Kali AI - Bản dịch", translated));
-                Toast.makeText(this, "Đã sao chép bản dịch.", Toast.LENGTH_SHORT).show();
+                android.widget.Toast.makeText(this, "Đã sao chép bản dịch.", android.widget.Toast.LENGTH_SHORT).show();
             } else {
-                Toast.makeText(this, "Không thể mở bộ nhớ tạm trên thiết bị.", Toast.LENGTH_SHORT).show();
+                android.widget.Toast.makeText(this, "Không thể mở bộ nhớ tạm trên thiết bị.", android.widget.Toast.LENGTH_SHORT).show();
             }
         });
         root.addView(copyTranslation, new LinearLayout.LayoutParams(-1, dp(38)));
