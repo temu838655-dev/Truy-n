@@ -2829,7 +2829,7 @@ public class MainActivity extends Activity {
             numbered.append(i + 1).append(" | ").append(lines[i]);
             if (numbered.length() > 120000) {
                 numbered.setLength(120000);
-                numbered.append("\\n[Đã cắt phần còn lại sau giới hạn 120.000 ký tự.]");
+                numbered.append("\n[Đã cắt phần còn lại sau giới hạn 120.000 ký tự.]");
                 break;
             }
         }
