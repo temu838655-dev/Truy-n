@@ -160,10 +160,13 @@ public class TermuxResultReceiver extends BroadcastReceiver {
         boolean previousScreenCapture = resultPrefs.getBoolean("pending_screen_capture", false);
         boolean previousScrcpyReady = resultPrefs.getBoolean("pending_scrcpy_ready", false);
         String previousScrcpyToken = resultPrefs.getString("pending_scrcpy_token", "");
-        resultPrefs.edit().putString("pending_output", combinedPending)
+        boolean pendingResultSaved = resultPrefs.edit().putString("pending_output", combinedPending)
             .putBoolean("pending_screen_capture", previousScreenCapture || screenCaptureSaved)
             .putBoolean("pending_scrcpy_ready", previousScrcpyReady || scrcpyReady)
-            .putString("pending_scrcpy_token", scrcpyReady ? scrcpyToken : previousScrcpyToken).apply();
+            .putString("pending_scrcpy_token", scrcpyReady ? scrcpyToken : previousScrcpyToken).commit();
+        if (!pendingResultSaved) {
+            output.append("\\nCẢNH BÁO: Android không xác nhận lưu bền kết quả chờ; mã tác vụ vẫn có thể cần kiểm tra thủ công.");
+        }
         try {
             context.startActivity(show);
         } catch (Exception ignored) {
