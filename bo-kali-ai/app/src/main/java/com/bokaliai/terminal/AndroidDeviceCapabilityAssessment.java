@@ -43,8 +43,8 @@ public final class AndroidDeviceCapabilityAssessment {
             root = State.AVAILABLE;
             rootReason = "ADB shell báo UID 0; vẫn cần xác minh quyền root ổn định và phạm vi quyền.";
         } else if (uid != null && uid.startsWith("uid=")) {
-            root = State.BLOCKED;
-            rootReason = "Phiên ADB hiện tại không chạy bằng UID 0; điều này không chứng minh máy không thể root.";
+            root = State.UNKNOWN;
+            rootReason = "ADB shell không chạy bằng UID 0; chưa kiểm tra được su/Magisk nên chưa thể kết luận máy đã root hay chưa.";
         }
 
         String locked = first(profile, "ro.boot.flash.locked", "ro.boot.vbmeta.device_state");
