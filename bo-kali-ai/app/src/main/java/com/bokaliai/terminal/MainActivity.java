@@ -3561,9 +3561,34 @@ public class MainActivity extends Activity {
             + "\nMã tác vụ: " + id + "\n\n" + detail
             + "\n\nBO giữ khóa để tránh gửi lặp. Hãy kiểm tra thiết bị đích và nhật ký Termux/ADB. "
             + "Không xóa khóa chỉ vì hết thời gian chờ: lệnh cũ có thể vẫn đang chạy.";
-        new AlertDialog.Builder(this).setTitle("Tác vụ ADB chưa xác minh")
+        AlertDialog.Builder builder = new AlertDialog.Builder(this).setTitle("Tác vụ ADB chưa xác minh")
             .setMessage(message)
-            .setPositiveButton("ĐÃ HIỂU", null).show();
+            .setPositiveButton("ĐÓNG", null);
+        if (age >= 180L) {
+            builder.setNeutralButton("MỞ KHÓA SAU KHI KIỂM TRA", (dialog, which) -> {
+                new AlertDialog.Builder(this).setTitle("Xác nhận mở khóa tác vụ")
+                    .setMessage("Chỉ tiếp tục nếu bạn đã tự kiểm tra Termux, ADB và thiết bị đích, đồng thời xác nhận lệnh cũ không còn chạy. Mở khóa KHÔNG dừng lệnh cũ. Nếu lệnh cũ vẫn chạy, lệnh mới có thể gây tác động trùng lặp.\n\nBạn xác nhận đã kiểm tra?")
+                    .setPositiveButton("TÔI ĐÃ KIỂM TRA", (d, w) -> {
+                        String current = guard.getString("active_execution_id", "");
+                        if (!id.equals(current)) {
+                            line("Không mở khóa: tác vụ đang chờ đã thay đổi.", 0xffffca70);
+                            return;
+                        }
+                        guard.edit().clear().commit();
+                        getSharedPreferences("bo_kali_ai_device_audit", MODE_PRIVATE)
+                            .edit().remove("pending_" + id).apply();
+                        android.content.SharedPreferences ag =
+                            getSharedPreferences("bo_kali_antigravity_pending_tool", MODE_PRIVATE);
+                        if (id.equals(ag.getString("execution_id", ""))) {
+                            ag.edit().remove("execution_id").commit();
+                        }
+                        appendAiDeviceAudit("NGƯỜI DÙNG MỞ KHÓA THỦ CÔNG SAU KIỂM TRA | tác vụ=" + id
+                            + " | lệnh cũ không bị hủy bởi BO");
+                        line("Đã mở khóa hàng đợi sau xác nhận của bạn. BO không hủy được lệnh cũ.", 0xffffca70);
+                    }).setNegativeButton("QUAY LẠI", null).show();
+            });
+        }
+        builder.show();
     }
 
     private void appendAiDeviceAudit(String entry) {
