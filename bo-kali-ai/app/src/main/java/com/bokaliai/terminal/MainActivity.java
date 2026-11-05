@@ -5522,11 +5522,18 @@ public class MainActivity extends Activity {
             "fastboot devices\n" +
             "fastboot getvar product\n" +
             "fastboot getvar current-slot\n" +
-            "fastboot getvar unlocked\n\n" +
+            "fastboot getvar unlocked\n" +
+            "fastboot getvar is-userspace\n" +
+            "fastboot getvar has-slot:boot\n" +
+            "fastboot getvar partition-size:boot\n\n" +
             "LỆNH FLASH THAM KHẢO - KHÔNG TỰ CHẠY\n" +
             "fastboot flash boot patched_boot.img\n" +
             "fastboot flash init_boot patched_init_boot.img\n" +
-            "Không chạy cả hai lệnh. Chỉ dùng đúng partition/slot đã được xác minh cho đúng model và firmware.\n\n" +
+            "Không chạy cả hai lệnh. Đây chỉ là ví dụ cú pháp, không phải lệnh dùng chung.\n" +
+            "Trước khi flash phải xác minh thiết bị đang ở bootloader fastboot hay fastbootd; hai môi trường có tập lệnh/partition khác nhau.\n" +
+            "Nếu máy dùng A/B, xác minh slot hiện tại và hướng dẫn cập nhật slot của đúng hãng; không tự thêm _a/_b hoặc flash cả hai slot.\n" +
+            "Không flash vbmeta, vendor_boot, dtbo, super hoặc partition động chỉ dựa vào tên file. Cần tài liệu chính thức đúng model/firmware.\n" +
+            "Nếu getvar trả FAILED/unknown variable, coi là KHÔNG BIẾT; không suy ra partition tồn tại hay có thể flash.\n\n" +
             "CHECKLIST SAO LƯU TRƯỚC KHI FLASH\n" +
             "1. Ghi lại model, codename, SoC, firmware build, khu vực, slot và trạng thái bootloader.\n" +
             "2. Sao lưu dữ liệu cá nhân riêng; unlock bootloader thường xóa dữ liệu.\n" +
