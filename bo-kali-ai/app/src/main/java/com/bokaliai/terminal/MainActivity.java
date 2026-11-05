@@ -75,6 +75,7 @@ public class MainActivity extends Activity {
     private boolean shareFileAntigravity = false, shareFileCodex = false;
     // Image content is held only in memory and gated separately for each API provider.
     private String selectedAiImageName = "", selectedAiImageMime = "", selectedAiImageBase64 = "";
+    private final AiImageLoadGuard aiImageLoadGuard = new AiImageLoadGuard();
     private boolean shareImageGemini = false, shareImageClaude = false, shareImageOpenAi = false;
     private String pendingExportText = "";
     private static final AtomicInteger TERMUX_REQUEST = new AtomicInteger(2000);
@@ -2511,6 +2512,7 @@ public class MainActivity extends Activity {
     }
 
     private void clearSelectedAiImage() {
+        aiImageLoadGuard.cancel();
         selectedAiImageName = "";
         selectedAiImageMime = "";
         selectedAiImageBase64 = "";
@@ -2519,8 +2521,9 @@ public class MainActivity extends Activity {
     }
 
     private void readAiImage(Uri uri) {
-        // Clear the previous selection before loading a replacement. If the new file
-        // is invalid or too large, the old image must not remain silently sendable.
+        // Every new selection invalidates older queued/in-flight reads. A later clear
+        // also cancels this token so a slow read cannot restore an image after clearing.
+        final int requestToken = aiImageLoadGuard.begin();
         selectedAiImageName = "";
         selectedAiImageMime = "";
         selectedAiImageBase64 = "";
@@ -2557,6 +2560,7 @@ public class MainActivity extends Activity {
                 final String imageMime = mime;
                 final String encoded = android.util.Base64.encodeToString(data, android.util.Base64.NO_WRAP);
                 runOnUiThread(() -> {
+                    if (!aiImageLoadGuard.isCurrent(requestToken)) return;
                     selectedAiImageName = imageName;
                     selectedAiImageMime = imageMime;
                     selectedAiImageBase64 = encoded;
@@ -2565,6 +2569,7 @@ public class MainActivity extends Activity {
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
+                    if (!aiImageLoadGuard.isCurrent(requestToken)) return;
                     if (aiImageStatusLabel != null) aiImageStatusLabel.setText("Không nạp được ảnh · chưa chọn ảnh nào.");
                     line("Không đọc được ảnh AI: " + e.getMessage(), 0xffff8080);
                 });
