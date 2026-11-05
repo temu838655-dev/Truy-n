@@ -3361,11 +3361,11 @@ public class MainActivity extends Activity {
         long requestedAt = pending.getLong("requested_at", 0L);
         if (requestId.isEmpty()) {
             line("Bỏ qua kết quả AI cũ: không có yêu cầu điều khiển đang chờ.", 0xffffca70);
-            reportAntigravityToolOutcome("rejected_by_bo", "BO không tìm thấy yêu cầu ADB đang chờ để xác minh.");
+            reportAiProposalOutcome(provider, "rejected_by_bo", "BO không tìm thấy yêu cầu ADB đang chờ.");
             return;
         }
         java.util.regex.Matcher matcher = java.util.regex.Pattern
-            .compile("(?m)^BO_AI_PLAN:([0-9a-fA-F-]{36}):(\\{[^\\r\\n]{1,5000}\\})\\s*$").matcher(output);
+            .compile("(?m)^BO_AI_PLAN:([0-9a-fA-F-]{36}):(\\{[^\\r\\n]{1,12000}\\})\\s*$").matcher(output);
         if (!matcher.find() || !requestId.equalsIgnoreCase(matcher.group(1))) {
             line("Bỏ qua kế hoạch AI không khớp request ID đang chờ. Không thực thi lệnh.", 0xffffca70);
             reportAiProposalOutcome(provider, "rejected_by_bo", "BO từ chối kế hoạch vì request ID không khớp.");
@@ -3379,88 +3379,124 @@ public class MainActivity extends Activity {
         }
         pending.edit().clear().commit();
         try {
-            JSONObject plan = new JSONObject(matcher.group(2));
-            String scope = plan.optString("scope", "");
-            String command = plan.optString("command", "").trim();
-            String reason = plan.optString("reason", "AI không nêu lý do.");
-            // AI-generated explanation is untrusted display text: bound its size and strip
-            // control characters so it cannot flood or visually forge terminal/audit lines.
-            if (reason.length() > 500) reason = reason.substring(0, 500);
-            StringBuilder safeReason = new StringBuilder(reason.length());
-            for (int ri = 0; ri < reason.length(); ri++) {
-                char ch = reason.charAt(ri);
-                safeReason.append(Character.isISOControl(ch) ? ' ' : ch);
+            JSONObject root = new JSONObject(matcher.group(2));
+            org.json.JSONArray steps;
+            if (root.has("steps")) {
+                steps = root.optJSONArray("steps");
+                if (steps == null || steps.length() < 1 || steps.length() > 5) {
+                    throw new IllegalArgumentException("Kế hoạch phải có từ 1 đến 5 bước.");
+                }
+            } else {
+                steps = new org.json.JSONArray().put(root);
             }
-            reason = safeReason.toString().trim();
-            if (reason.isEmpty()) reason = "AI không nêu lý do.";
-            String risk = plan.optString("risk", "HIGH").toUpperCase(java.util.Locale.ROOT);
-            if (!"LOW".equals(risk) && !"MEDIUM".equals(risk) && !"HIGH".equals(risk)) risk = "HIGH";
-            boolean knownScope = false;
-            for (String allowed : AI_DEVICE_SCOPE_IDS) if (allowed.equals(scope)) knownScope = true;
-            java.util.Set<String> registryGrants = aiDevicePermissions.get(serial);
-            String registryStatus = AiToolRegistry.validateAdbPlan(scope, serial, command, registryGrants);
-            if (!"OK".equals(registryStatus)) {
-                line("Kế hoạch AI bị từ chối bởi bộ kiểm tra công cụ: " + registryStatus, 0xffff8080);
-                reportAiProposalOutcome(provider, "rejected_by_bo", "Bộ kiểm tra công cụ từ chối: " + registryStatus);
+            // Validate every step before showing the first approval dialog.
+            for (int i = 0; i < steps.length(); i++) {
+                JSONObject step = steps.getJSONObject(i);
+                String scope = step.optString("scope", "");
+                String command = step.optString("command", "").trim();
+                if (scope.isEmpty() || command.isEmpty() || command.length() > 1200
+                    || command.indexOf(0) >= 0 || command.contains("\n") || command.contains("\r")
+                    || command.matches("(?s).*[;&|<>$].*") || command.indexOf(96) >= 0
+                    || command.contains("\\\\") || command.contains("'") || command.contains("\\\"")
+                    || command.startsWith("adb") || command.contains("adb ")
+                    || !isAiCommandAllowedForScope(scope, command)) {
+                    throw new IllegalArgumentException("Bước " + (i + 1) + " chứa lệnh không hợp lệ hoặc không thuộc phạm vi.");
+                }
+                String status = AiToolRegistry.validateAdbPlan(scope, serial, command, aiDevicePermissions.get(serial));
+                if (!"OK".equals(status)) throw new IllegalArgumentException("Bước " + (i + 1) + " bị bộ kiểm tra quyền từ chối: " + status);
+                boolean known = false;
+                for (String allowed : AI_DEVICE_SCOPE_IDS) if (allowed.equals(scope)) known = true;
+                if (!known) throw new IllegalArgumentException("Bước " + (i + 1) + " dùng nhóm quyền không hợp lệ.");
+                if (("APP_INSTALL_REMOVE".equals(scope) || "DEVICE_SETTINGS".equals(scope)
+                    || "RAW_ADB_SHELL".equals(scope)) && !hasAiDevicePermission(serial, scope)) {
+                    throw new IllegalArgumentException("Bước " + (i + 1) + " chưa được cấp quyền nhạy cảm " + scope + ".");
+                }
+                String risk = step.optString("risk", "HIGH").toUpperCase(java.util.Locale.ROOT);
+                if (!"LOW".equals(risk) && !"MEDIUM".equals(risk) && !"HIGH".equals(risk)) risk = "HIGH";
+                if ("RAW_ADB_SHELL".equals(scope) || "APP_INSTALL_REMOVE".equals(scope)
+                    || "DEVICE_SETTINGS".equals(scope)) risk = "HIGH";
+                step.put("risk", risk);
+                String reason = step.optString("reason", "AI không nêu lý do.");
+                if (reason.length() > 500) reason = reason.substring(0, 500);
+                StringBuilder safe = new StringBuilder();
+                for (int n = 0; n < reason.length(); n++) safe.append(Character.isISOControl(reason.charAt(n)) ? ' ' : reason.charAt(n));
+                step.put("reason", safe.toString().trim());
+            }
+            if (!isFreshAdbDevice(serial)) throw new IllegalStateException("Thiết bị ADB đã ngoại tuyến.");
+            android.content.SharedPreferences queue = getSharedPreferences("bo_kali_ai_step_queue", MODE_PRIVATE);
+            if (!queue.edit().putString("steps", steps.toString()).putString("serial", serial)
+                .putString("provider", provider).putInt("index", 0)
+                .putLong("created_at", System.currentTimeMillis()).commit()) {
+                throw new IllegalStateException("Không lưu được hàng đợi kế hoạch.");
+            }
+            appendAiDeviceAudit("AI ĐỀ XUẤT KẾ HOẠCH " + steps.length() + " BƯỚC | thiết bị=" + serial
+                + " | nhà cung cấp=" + provider + " | chưa có bước nào được chạy");
+            line("Đã nhận kế hoạch " + steps.length() + " bước. BO sẽ yêu cầu bạn duyệt từng bước riêng.", 0xff79c9ff);
+            showNextAiQueuedStep();
+        } catch (Exception e) {
+            getSharedPreferences("bo_kali_ai_step_queue", MODE_PRIVATE).edit().clear().apply();
+            line("BO từ chối kế hoạch nhiều bước: " + e.getMessage(), 0xffff8080);
+            reportAiProposalOutcome(provider, "rejected_by_bo", "Kế hoạch không hợp lệ: " + e.getMessage());
+        }
+    }
+
+    private void showNextAiQueuedStep() {
+        android.content.SharedPreferences queue = getSharedPreferences("bo_kali_ai_step_queue", MODE_PRIVATE);
+        String raw = queue.getString("steps", "");
+        String serial = queue.getString("serial", "");
+        String provider = queue.getString("provider", "");
+        int index = queue.getInt("index", 0);
+        if (raw.isEmpty() || serial.isEmpty()) return;
+        try {
+            org.json.JSONArray steps = new org.json.JSONArray(raw);
+            if (index < 0 || index >= steps.length()) {
+                queue.edit().clear().commit();
+                line("Hoàn tất kế hoạch AI nhiều bước. Tất cả bước đã được BO xác minh mã thoát và trạng thái ADB.", GREEN);
+                appendAiDeviceAudit("HOÀN TẤT KẾ HOẠCH NHIỀU BƯỚC | thiết bị=" + serial);
+                reportAiProposalOutcome(provider, "plan_completed", "Tất cả bước trong kế hoạch đã trả mã thoát 0 và ADB còn nhận thiết bị. Điều này không chứng minh mọi mục tiêu nghiệp vụ đã đạt.");
                 return;
             }
-            if (!knownScope || command.isEmpty() || command.length() > 1200 || command.indexOf(0) >= 0
-                || command.contains("\n") || command.contains("\r") || command.contains(";")
-                || command.contains("&") || command.contains("|") || command.contains("<")
-                || command.contains(">") || command.contains("$") || command.indexOf(96) >= 0
-                || command.contains("\\") || command.contains("'") || command.contains("\"")
-                || command.contains("adb ") || command.startsWith("adb")
-                || !isAiCommandAllowedForScope(scope, command)) {
-                line("Kế hoạch AI bị từ chối: lệnh không khớp quyền, chứa cú pháp shell hoặc thuộc nhóm thao tác bị chặn.", 0xffff8080);
-                reportAiProposalOutcome(provider, "rejected_by_bo", "Lệnh không qua chính sách an toàn của BO.");
-                return;
-            }
-            // The app, not the model, determines minimum risk for sensitive scopes.
-            if ("RAW_ADB_SHELL".equals(scope) || "APP_INSTALL_REMOVE".equals(scope)
-                || "DEVICE_SETTINGS".equals(scope)) risk = "HIGH";
-            else if ("SCREEN_CONTROL".equals(scope) && "LOW".equals(risk)) risk = "MEDIUM";
             if (!isFreshAdbDevice(serial)) {
-                line("Kế hoạch bị hủy: thiết bị đích không còn trực tuyến.", 0xffffca70);
-                reportAiProposalOutcome(provider, "device_unavailable", "Thiết bị ADB không còn trực tuyến.");
+                queue.edit().clear().commit();
+                line("Dừng kế hoạch: thiết bị đã ngoại tuyến.", 0xffffca70);
+                reportAiProposalOutcome(provider, "plan_stopped_device_unavailable", "Thiết bị ngoại tuyến; các bước còn lại không được chạy.");
                 return;
             }
-            if (!hasAiDevicePermission(serial, scope)) {
-                line("Kế hoạch bị chặn: chưa cấp quyền " + scope + " cho " + serial + ".", 0xffffca70);
-                reportAiProposalOutcome(provider, "permission_missing", "Chưa cấp quyền " + scope + " cho thiết bị " + serial + ".");
-                new AlertDialog.Builder(this).setTitle("AI chưa được cấp quyền")
-                    .setMessage("Thiết bị: " + serial + "\nNhóm quyền cần: " + scope
-                        + "\nMở phần cấp quyền, sau đó yêu cầu AI lập kế hoạch lại.")
-                    .setPositiveButton("MỞ CẤP QUYỀN", (d, w) -> showAiDevicePermissionDialog(serial))
-                    .setNegativeButton("ĐÓNG", null).show();
+            JSONObject step = steps.getJSONObject(index);
+            String scope = step.optString("scope", "");
+            String command = step.optString("command", "");
+            String risk = step.optString("risk", "HIGH");
+            String reason = step.optString("reason", "");
+            if (!hasAiDevicePermission(serial, scope)
+                || !"OK".equals(AiToolRegistry.validateAdbPlan(scope, serial, command, aiDevicePermissions.get(serial)))
+                || !isAiCommandAllowedForScope(scope, command)) {
+                queue.edit().clear().commit();
+                line("Dừng kế hoạch: quyền hoặc chính sách của bước " + (index + 1) + " không còn hợp lệ.", 0xffff8080);
+                reportAiProposalOutcome(provider, "plan_stopped_validation_failed", "Bước " + (index + 1) + " không qua kiểm tra quyền/phạm vi tại thời điểm duyệt.");
                 return;
             }
-            String providerName = "antigravity".equals(provider) ? "Google Antigravity"
-                : "openai".equals(provider) ? "OpenAI"
-                : "gemini".equals(provider) ? "Gemini"
-                : "claude".equals(provider) ? "Claude" : "OpenAI Codex";
-            final String effectiveRisk = risk;
-            String message = "AI: " + providerName + "\nThiết bị: " + serial + "\nQuyền: " + scope
-                + "\nRủi ro AI tự đánh giá: " + effectiveRisk + "\n\nLệnh trên thiết bị:\n" + command
-                + "\n\nLý do: " + reason + "\n\nBO chưa chạy lệnh.";
-            new AlertDialog.Builder(this).setTitle("Xem xét kế hoạch ADB do AI đề xuất")
-                .setMessage(message).setPositiveButton("XÁC NHẬN & CHẠY", (d, w) -> {
+            String message = "Thiết bị: " + serial + "\nBước " + (index + 1) + "/" + steps.length()
+                + "\nQuyền: " + scope + "\nRủi ro: " + risk
+                + "\n\nLệnh:\n" + command + "\n\nLý do: " + reason
+                + "\n\nChỉ bước này được chạy nếu bạn xác nhận. Các bước sau vẫn phải duyệt riêng.";
+            new AlertDialog.Builder(this).setTitle("Duyệt bước " + (index + 1) + " của kế hoạch AI")
+                .setMessage(message)
+                .setPositiveButton("DUYỆT VÀ CHẠY BƯỚC NÀY", (d, w) -> {
                     if (!isFreshAdbDevice(serial) || !hasAiDevicePermission(serial, scope)) {
-                        line("Không thực thi: thiết bị đã ngắt hoặc quyền đã bị thu hồi.", 0xffff8080);
-                        reportAiProposalOutcome(provider, "rejected_before_execution", "Thiết bị đã ngắt hoặc quyền bị thu hồi trước khi chạy.");
+                        queue.edit().clear().commit();
+                        reportAiProposalOutcome(provider, "plan_stopped_before_step", "Thiết bị hoặc quyền thay đổi trước khi chạy bước.");
                         return;
                     }
-                    if ("HIGH".equals(effectiveRisk)) {
-                        new AlertDialog.Builder(this).setTitle("Lệnh có rủi ro cao")
-                            .setMessage("Bạn đã xem lệnh và AI đánh giá rủi ro cao. Xác nhận lần cuối?\n\n" + command)
-                            .setPositiveButton("TÔI HIỂU, CHẠY", (x, y) -> executeAiAdbCommand(serial, scope, command, provider))
-                            .setNegativeButton("HỦY", (x, y) ->
-                                reportAiProposalOutcome(provider, "rejected_by_user", "Người dùng hủy xác nhận rủi ro cao; lệnh không chạy.")).show();
-                    } else executeAiAdbCommand(serial, scope, command, provider);
-                }).setNegativeButton("HỦY", (d, w) ->
-                    reportAiProposalOutcome(provider, "rejected_by_user", "Người dùng từ chối đề xuất ADB; lệnh không chạy.")).show();
+                    executeAiAdbCommand(serial, scope, command, provider);
+                })
+                .setNegativeButton("DỪNG KẾ HOẠCH", (d, w) -> {
+                    queue.edit().clear().commit();
+                    appendAiDeviceAudit("NGƯỜI DÙNG DỪNG KẾ HOẠCH | tại bước=" + (index + 1) + " | thiết bị=" + serial);
+                    reportAiProposalOutcome(provider, "plan_cancelled_by_user", "Người dùng dừng kế hoạch; các bước còn lại không chạy.");
+                }).show();
         } catch (Exception e) {
-            line("Không đọc được kế hoạch JSON: " + e.getMessage(), 0xffff8080);
-            reportAiProposalOutcome(provider, "rejected_by_bo", "BO không phân tích được kế hoạch JSON: " + e.getMessage());
+            queue.edit().clear().commit();
+            line("Không thể tiếp tục hàng đợi AI: " + e.getMessage(), 0xffff8080);
         }
     }
 
@@ -3511,6 +3547,11 @@ public class MainActivity extends Activity {
                 .putString("execution_id", executionId).commit();
         }
         String detail = "Thiết bị=" + serial + " | quyền=" + scope + " | lệnh=" + command;
+        android.content.SharedPreferences stepQueueAtDispatch = getSharedPreferences("bo_kali_ai_step_queue", MODE_PRIVATE);
+        boolean isQueuedStep = !stepQueueAtDispatch.getString("steps", "").isEmpty()
+            && serial.equals(stepQueueAtDispatch.getString("serial", ""))
+            && provider.equals(stepQueueAtDispatch.getString("provider", ""));
+        if (isQueuedStep) stepQueueAtDispatch.edit().putString("active_step_execution_id", executionId).commit();
         boolean guardSaved = executionGuard.edit()
             .putString("active_execution_id", executionId)
             .putString("active_detail", detail)
@@ -3649,6 +3690,19 @@ public class MainActivity extends Activity {
             line("AI ADB trả kết quả: mã thoát " + status + ", ADB=" + deviceState
                 + ". Đây không phải xác minh tác động cuối cùng của lệnh; xem nhật ký để biết chi tiết.",
                 "0".equals(status) && "device".equals(deviceState) ? GREEN : 0xffffca70);
+            android.content.SharedPreferences stepQueue = getSharedPreferences("bo_kali_ai_step_queue", MODE_PRIVATE);
+            if (id.equals(stepQueue.getString("active_step_execution_id", ""))) {
+                if ("0".equals(status) && "device".equals(deviceState)) {
+                    int next = stepQueue.getInt("index", 0) + 1;
+                    stepQueue.edit().remove("active_step_execution_id").putInt("index", next).commit();
+                    showNextAiQueuedStep();
+                } else {
+                    stepQueue.edit().clear().commit();
+                    appendAiDeviceAudit("DỪNG KẾ HOẠCH NHIỀU BƯỚC DO BƯỚC THẤT BẠI / MẤT ADB | tác vụ=" + id);
+                    reportAiProposalOutcome(stepQueue.getString("provider", ""), "plan_stopped_step_failed",
+                        "Bước hiện tại không trả exit 0 cùng trạng thái ADB device; các bước còn lại đã bị hủy.");
+                }
+            }
         }
     }
 
