@@ -5137,16 +5137,36 @@ public class MainActivity extends Activity {
     }
 
     private void explainLastOutput() {
-        if (lastCommandOutput.isEmpty()) {
-            line("Chưa có kết quả Kali để giải thích. Chạy một lệnh Kali trước.", 0xffffca70);
+        int selected = aiProviderPicker == null ? 0 : aiProviderPicker.getSelectedItemPosition();
+        boolean fileShareAllowed = selected == 0 ? shareFileGemini
+            : selected == 1 ? shareFileClaude
+            : selected == 2 ? shareFileOpenAi : shareFileAntigravity;
+        boolean hasOutput = lastCommandOutput != null && !lastCommandOutput.trim().isEmpty();
+        boolean hasSharedFile = selectedAiFileText != null && !selectedAiFileText.trim().isEmpty()
+            && fileShareAllowed;
+        if (!hasOutput && selectedAiFileText != null && !selectedAiFileText.trim().isEmpty()
+                && !fileShareAllowed) {
+            line("Bạn đã nạp tệp " + selectedAiFileName
+                + " nhưng chưa cấp quyền chia sẻ tệp cho nhà cung cấp AI đang chọn. Hãy bật quyền chia sẻ riêng trong Cài đặt AI rồi thử lại.", 0xffffca70);
             return;
         }
-        String outputForAi = lastCommandOutput;
+        if (!hasOutput && !hasSharedFile) {
+            line("Chưa có output Kali hoặc tệp mã nguồn/log đã nạp và được cấp quyền chia sẻ. Hãy chạy lệnh, hoặc nạp tệp rồi cấp quyền cho AI.", 0xffffca70);
+            return;
+        }
+        String outputForAi = hasOutput ? lastCommandOutput : "";
         if (outputForAi.length() > 12000) {
             outputForAi = outputForAi.substring(0, 12000)
                 + "\n[Đã rút gọn kết quả còn 12.000 ký tự để AI phân tích ổn định.]";
         }
-        questionInput.setText("Hãy giải thích kết quả/lỗi Kali dưới đây bằng tiếng Việt, chỉ ra nguyên nhân, mức độ rủi ro, cách xử lý an toàn và cách xác minh đã sửa thành công. Không giả định lệnh đã làm gì ngoài nội dung kết quả:\n\n" + outputForAi);
+        String prompt = "Hãy phân tích lỗi hoặc nội dung kỹ thuật được cung cấp bằng tiếng Việt. "
+            + "Nếu có output, xác định nguyên nhân có bằng chứng, mức độ rủi ro, cách xử lý an toàn và cách xác minh. "
+            + "Nếu có tệp mã nguồn/log được người dùng cấp quyền chia sẻ, đọc nội dung đó để tìm lỗi cụ thể, "
+            + "nêu tên tệp và vị trí chỉ khi dữ liệu thực sự có thông tin dòng. Không đoán nội dung chưa được cung cấp; "
+            + "phân biệt điều đã xác nhận với giả thuyết.\n\n"
+            + (hasOutput ? "OUTPUT TERMINAL/KALI:\n" + outputForAi : "Không có output terminal mới.")
+            + (hasSharedFile ? "\n\nTệp được cấp quyền: " + selectedAiFileName : "");
+        questionInput.setText(prompt);
         askAi();
     }
 
