@@ -7357,7 +7357,8 @@ public class MainActivity extends Activity {
                 if (!commitSha.isEmpty()) partial += " Commit gần nhất: " + commitSha + ".";
                 reportAntigravityToolOutcome("github_pull_request_failed",
                     "Không hoàn tất được Pull Request: " + e.getMessage() + partial);
-                runOnUiThread(() -> line("Tạo Pull Request thất bại: " + e.getMessage() + partial, 0xffff8080));
+                final String failureDetail = partial;
+                runOnUiThread(() -> line("Tạo Pull Request thất bại: " + e.getMessage() + failureDetail, 0xffff8080));
             }
         });
     }
