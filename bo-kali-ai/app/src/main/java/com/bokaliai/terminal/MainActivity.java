@@ -3057,8 +3057,8 @@ public class MainActivity extends Activity {
             line("Không cấp quyền: thiết bị ADB không còn được xác minh trực tuyến. Hãy quét lại.", 0xffffca70);
             return;
         }
-        java.util.HashSet<String> granted = aiDevicePermissions.get(serial);
-        if (granted == null) granted = new java.util.HashSet<>();
+        final java.util.HashSet<String> granted = aiDevicePermissions.containsKey(serial)
+            ? new java.util.HashSet<>(aiDevicePermissions.get(serial)) : new java.util.HashSet<String>();
         boolean[] checked = new boolean[AI_DEVICE_SCOPE_IDS.length];
         for (int i = 0; i < checked.length; i++) checked[i] = granted.contains(AI_DEVICE_SCOPE_IDS[i]);
         final boolean[] selection = checked.clone();
