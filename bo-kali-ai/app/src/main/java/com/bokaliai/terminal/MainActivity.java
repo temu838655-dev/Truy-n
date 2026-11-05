@@ -3830,7 +3830,9 @@ public class MainActivity extends Activity {
                     }
                     appendAiDeviceAudit("DỪNG KẾ HOẠCH NHIỀU BƯỚC DO BƯỚC THẤT BẠI / MẤT ADB | tác vụ=" + id);
                     reportAiProposalOutcome(queueProvider, "plan_stopped_step_failed",
-                        "Bước hiện tại không trả exit 0 cùng trạng thái ADB device; các bước còn lại đã bị hủy.");
+                        queueStopped
+                            ? "Bước hiện tại không trả exit 0 cùng trạng thái ADB device; các bước còn lại đã được đánh dấu dừng."
+                            : "Bước hiện tại không trả exit 0 cùng trạng thái ADB device; chưa xác nhận lưu được trạng thái dừng. Không chạy tiếp; cần kiểm tra hàng đợi thủ công.");
                 }
             }
         }
