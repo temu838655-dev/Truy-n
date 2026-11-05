@@ -4613,7 +4613,9 @@ public class MainActivity extends Activity {
             (auditMarker.isEmpty() ? "" : "echo '" + auditMarker + "'; ") +
             "echo '=== BO KALI AI: TARGET DEVICE PROFILE (READ ONLY) ==='; " +
             "if ! command -v adb >/dev/null 2>&1; then " +
-            "echo 'ADB_NOT_INSTALLED: cài android-tools trong Termux rồi chạy lại.'; exit 127; fi; " +
+            "echo 'ADB_NOT_INSTALLED: cài android-tools trong Termux rồi chạy lại.'; " +
+            (auditMarker.isEmpty() ? "" : "echo '" + auditMarker + ":END'; ") +
+            "exit 127; fi; " +
             "echo '=== ADB DEVICE STATES ==='; adb devices -l; " +
             "echo '=== PROFILE FOR AUTHORIZED ONLINE DEVICES ==='; " +
             "adb devices | awk 'NR > 1 && $2 == \"device\" {print $1}' | " +
@@ -5413,7 +5415,7 @@ public class MainActivity extends Activity {
         StringBuilder targetSummary = new StringBuilder();
         int verifiedCatalogMatches = 0;
         if (profiles.isEmpty()) {
-            targetSummary.append("CHƯA CÓ HỒ SƠ ADB ĐÍCH HOÀN CHỈNH. Chạy 'PHÂN TÍCH BẢO MẬT THIẾT BỊ ADB (CHỈ ĐỌC)' sau khi kết nối đúng máy. HOST không thay thế TARGET.");
+            targetSummary.append("LẦN QUÉT ADB MỚI NHẤT KHÔNG TÌM THẤY THIẾT BỊ Ở TRẠNG THÁI device. Kiểm tra android-tools, quyền USB/Wi-Fi ADB và kết nối đúng máy rồi mở lại danh mục. HOST không thay thế TARGET.");
         } else {
             targetSummary.append("Số hồ sơ ADB nhận diện: ").append(profiles.size())
                 .append(". Mỗi hồ sơ gắn với serial riêng; chưa có model nào được xác nhận hỗ trợ root/unlock chỉ từ bước nhận diện.\n");
