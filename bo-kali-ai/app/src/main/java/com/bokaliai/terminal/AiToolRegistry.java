@@ -504,7 +504,7 @@ public final class AiToolRegistry {
     public static boolean validRepoPath(String path) {
         if (path == null || path.trim().isEmpty() || path.length() > 500) return false;
         String p = path.trim();
-        if (p.startsWith("/") || p.indexOf('\\\\') >= 0) return false;
+        if (p.startsWith("/") || p.indexOf('\\') >= 0) return false;
         for (int i = 0; i < p.length(); i++) {
             char ch = p.charAt(i);
             if (ch <= 0x1f || ch == 0x7f) return false;
