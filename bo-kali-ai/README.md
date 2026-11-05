@@ -19,6 +19,7 @@
 - Kế hoạch nhiều bước bị giới hạn số bước; từng bước cần người dùng xác nhận riêng.
 - Có nhật ký kiểm tra cục bộ; quyền phiên không được xem là quyền vĩnh viễn.
 - Hồ sơ thiết bị phục vụ tra cứu root/unlock yêu cầu nhận dạng chính xác và nguồn bằng chứng được duyệt; không suy đoán thiết bị chỉ từ tên gần giống.
+- **Danh mục thiết bị đã xác minh hiện chưa có bản ghi tích hợp sẵn.** Vì vậy app chưa thể đưa ra kết luận hoặc hướng dẫn root/unlock/flash đã xác minh cho một model cụ thể chỉ dựa trên dữ liệu hiện tại; thiếu hồ sơ khớp chính xác thì phải báo chưa có dữ liệu.
 
 ### Root, unlock bootloader và flash
 - Có mục hướng dẫn/tra cứu root, unlock bootloader và flash kernel / boot image / recovery.
