@@ -3463,17 +3463,23 @@ public class MainActivity extends Activity {
     }
 
     private void executeAiAdbCommand(String serial, String scope, String command, String provider) {
-        if (!isFreshAdbDevice(serial) || !hasAiDevicePermission(serial, scope)) {
-            line("Chặn thực thi: thiết bị không trực tuyến hoặc quyền đã bị thu hồi.", 0xffff8080);
-            reportAiProposalOutcome(provider, "rejected_before_execution", "Thiết bị ngoại tuyến hoặc quyền bị thu hồi tại bước kiểm tra cuối.");
+        if (serial == null || !serial.matches("[A-Za-z0-9._:-]+")
+            || !isFreshAdbDevice(serial) || !hasAiDevicePermission(serial, scope)) {
+            line("Chặn thực thi: serial không hợp lệ, thiết bị không trực tuyến hoặc quyền đã bị thu hồi.", 0xffff8080);
+            appendAiDeviceAudit("TỪ CHỐI TRƯỚC THỰC THI | thiết bị=" + serial + " | quyền=" + scope);
+            reportAiProposalOutcome(provider, "rejected_before_execution", "Thiết bị ngoại tuyến, serial không hợp lệ hoặc quyền bị thu hồi tại bước kiểm tra cuối.");
             return;
         }
+        java.util.Set<String> currentGrants = aiDevicePermissions.get(serial);
+        String registryCheck = AiToolRegistry.validateAdbPlan(scope, serial, command, currentGrants);
         if (command == null || command.trim().isEmpty() || command.length() > 1200
             || command.matches("(?s).*[;&|<>$].*") || command.indexOf(96) >= 0
             || command.contains("\\") || command.contains("'") || command.contains("\"")
-            || !isAiCommandAllowedForScope(scope, command)) {
-            line("Lệnh không qua kiểm tra cuối cùng; không thực thi.", 0xffff8080);
-            reportAiProposalOutcome(provider, "rejected_by_bo", "Lệnh không qua kiểm tra cuối cùng của BO.");
+            || !"OK".equals(registryCheck) || !isAiCommandAllowedForScope(scope, command)) {
+            line("Lệnh không qua kiểm tra quyền/phạm vi lần cuối; không thực thi.", 0xffff8080);
+            appendAiDeviceAudit("TỪ CHỐI KIỂM TRA CUỐI | thiết bị=" + serial + " | quyền=" + scope
+                + " | lý do=" + registryCheck);
+            reportAiProposalOutcome(provider, "rejected_by_bo", "Lệnh không qua kiểm tra quyền/phạm vi cuối cùng của BO: " + registryCheck);
             return;
         }
         String executionId = java.util.UUID.randomUUID().toString();
