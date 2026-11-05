@@ -2528,21 +2528,22 @@ public class MainActivity extends Activity {
         worker.execute(() -> {
             try {
                 String mime = getContentResolver().getType(uri);
-                if (mime == null || !(mime.equals("image/jpeg") || mime.equals("image/png")
-                    || mime.equals("image/webp") || mime.equals("image/gif")))
-                    throw new IllegalArgumentException("Chỉ hỗ trợ ảnh JPEG, PNG, WebP hoặc GIF để tương thích API của các AI.");
+                if (!AiImagePolicy.isSupportedMime(mime))
+                    throw new IllegalArgumentException(AiImagePolicy.unsupportedMimeMessage());
                 byte[] data;
                 try (java.io.InputStream in = getContentResolver().openInputStream(uri);
                      java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
                     if (in == null) throw new java.io.IOException("Không mở được ảnh.");
                     byte[] buffer = new byte[8192]; int n;
                     while ((n = in.read(buffer)) != -1) {
-                        if (out.size() + n > 6 * 1024 * 1024)
+                        if (out.size() + n > AiImagePolicy.MAX_IMAGE_BYTES)
                             throw new IllegalArgumentException("Ảnh vượt giới hạn 6 MB.");
                         out.write(buffer, 0, n);
                     }
                     data = out.toByteArray();
                 }
+                String imageValidationError = AiImagePolicy.validationError(mime, data.length);
+                if (imageValidationError != null) throw new IllegalArgumentException(imageValidationError);
                 String name = "selected-image";
                 android.database.Cursor cursor = getContentResolver().query(uri,
                     new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null);
