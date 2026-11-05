@@ -4622,7 +4622,8 @@ public class MainActivity extends Activity {
             "QUẢN LÝ CÔNG CỤ TERMUX / KALI",
             "CHẨN ĐOÁN MẠNG / DNS / KẾT NỐI",
             "PHÂN TÍCH BẢO MẬT THIẾT BỊ ADB (CHỈ ĐỌC)",
-            "HƯỚNG DẪN KALI ROOT / ROOTLESS"
+            "HƯỚNG DẪN KALI ROOT / ROOTLESS",
+            "CƠ SỞ DỮ LIỆU ROOT / UNLOCK BOOTLOADER"
         };
         new AlertDialog.Builder(this)
             .setTitle("Kali Shell • Rootless + Full Root")
@@ -4640,7 +4641,8 @@ public class MainActivity extends Activity {
                 else if (which == 7) showKaliToolManager();
                 else if (which == 8) runNetworkDiagnostics();
                 else if (which == 9) runAdbDeviceSecurityAudit();
-                else showKaliInstructions();
+                else if (which == 10) showKaliInstructions();
+                else showUniversalRootUnlockCatalog();
             })
             .setNegativeButton("ĐÓNG", null)
             .show();
@@ -5352,6 +5354,52 @@ public class MainActivity extends Activity {
             line("Không mở được Kali trực tiếp: " + e.getMessage() + ". Đang mở Termux thay thế.", 0xffff8080);
             openTermux();
         }
+    }
+
+    /**
+     * Device-aware root / bootloader reference. Commands are displayed as references only:
+     * this screen never invokes fastboot, unlocks a bootloader, patches images or flashes partitions.
+     */
+    private void showUniversalRootUnlockCatalog() {
+        String brand = android.os.Build.MANUFACTURER == null ? "Unknown" : android.os.Build.MANUFACTURER;
+        String model = android.os.Build.MODEL == null ? "Unknown" : android.os.Build.MODEL;
+        String device = android.os.Build.DEVICE == null ? "Unknown" : android.os.Build.DEVICE;
+        String abi = android.os.Build.SUPPORTED_ABIS != null && android.os.Build.SUPPORTED_ABIS.length > 0
+            ? android.os.Build.SUPPORTED_ABIS[0] : "Unknown";
+        String report =
+            "=== THIẾT BỊ HIỆN TẠI ===\\n" +
+            "Hãng: " + brand + "\\nModel: " + model + "\\nDevice codename: " + device +
+            "\\nAndroid: " + android.os.Build.VERSION.RELEASE + " (API " + android.os.Build.VERSION.SDK_INT + ")" +
+            "\\nABI: " + abi +
+            "\\n\\n=== TRẠNG THÁI HỖ TRỢ ===\\n" +
+            "Model profile: CHƯA ĐƯỢC XÁC MINH TRONG CƠ SỞ DỮ LIỆU" +
+            "\\nBootloader unlock: cần xác minh chính xác model / mã vùng / nhà mạng" +
+            "\\nRoot: cần xác minh boot.img hoặc init_boot.img, firmware đúng bản và kernel" +
+            "\\n\\n=== LỆNH FASTBOOT THAM KHẢO (KHÔNG TỰ CHẠY) ===\\n" +
+            "fastboot devices                 # chỉ liệt kê thiết bị" +
+            "\\nfastboot getvar unlocked        # đọc trạng thái nếu bootloader hỗ trợ" +
+            "\\nfastboot flashing unlock        # LỆNH MỞ KHÓA CÓ THỂ XÓA TOÀN BỘ DỮ LIỆU" +
+            "\\nfastboot oem unlock             # biến thể cũ; không dùng nếu chưa xác minh model" +
+            "\\n\\n=== QUY TRÌNH ROOT THAM KHẢO ===\\n" +
+            "1. Xác định đúng model/codename, chipset, khu vực, phiên bản firmware và bản vá." +
+            "\\n2. Kiểm tra chính sách OEM unlock và yêu cầu mã mở khóa / tài khoản / nhà mạng." +
+            "\\n3. Tải firmware chính thức đúng phiên bản; xác minh checksum và trích boot.img hoặc init_boot.img." +
+            "\\n4. Chỉ dùng Magisk / KernelSU / APatch nếu thiết bị và kernel tương thích; patch đúng image." +
+            "\\n5. Chỉ flash image sau khi đã sao lưu và xác minh hướng dẫn riêng của đúng model." +
+            "\\n6. Chuẩn bị image gốc và quy trình khôi phục trước khi thay đổi." +
+            "\\n\\n=== GIỚI HẠN QUAN TRỌNG ===\\n" +
+            "Không có một lệnh unlock/root dùng an toàn cho mọi Android. Samsung thường dùng Download Mode/Odin thay vì fastboot; nhiều máy nhà mạng hoặc một số hãng/model không cho mở khóa. Unlock thường factory reset. Anti-rollback, AVB và firmware sai có thể làm máy không khởi động." +
+            "\\nBO không giả lập root bằng proot và không thực hiện unlock / flash từ màn hình này.";
+        new AlertDialog.Builder(this)
+            .setTitle("Android Root & Bootloader • Device-aware")
+            .setMessage(report)
+            .setPositiveButton("SAO CHÉP BÁO CÁO", (d, w) ->
+                copyText(report, "Đã sao chép hồ sơ thiết bị và hướng dẫn tham khảo."))
+            .setNeutralButton("HƯỚNG DẪN ANDROID", (d, w) ->
+                startActivity(new Intent(Intent.ACTION_VIEW,
+                    Uri.parse("https://source.android.com/docs/core/architecture/bootloader/locking_unlocking"))))
+            .setNegativeButton("ĐÓNG", null)
+            .show();
     }
 
     private void showKaliInstructions() {
