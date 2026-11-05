@@ -3188,9 +3188,9 @@ public class MainActivity extends Activity {
                 getSharedPreferences("bo_kali_ai_device_plan", MODE_PRIVATE).edit()
                     .putString("request_id", planId).putString("serial", serial)
                     .putString("provider", provider).putLong("requested_at", System.currentTimeMillis()).commit();
-                String prompt = "Bạn là bộ lập kế hoạch ADB của BO Kali AI. Trả lời CHỈ MỘT DÒNG theo dạng BO_AI_PLAN:" + planId + ":{JSON}, không markdown; bắt buộc giữ nguyên request ID và tiền tố BO_AI_PLAN:. Schema: "
-                    + "{\"scope\":\"READ_INFO|READ_LOGS|APP_LIST|APP_LAUNCH|APP_INSTALL_REMOVE|SCREEN_CONTROL|DEVICE_SETTINGS|NETWORK_DIAGNOSTICS|RAW_ADB_SHELL\","
-                    + "\"command\":\"một lệnh Android shell duy nhất\",\"reason\":\"giải thích ngắn bằng tiếng Việt\",\"risk\":\"LOW|MEDIUM|HIGH\"}. "
+                String prompt = "Bạn là bộ lập kế hoạch ADB của BO Kali AI. Trả lời CHỈ MỘT DÒNG theo dạng BO_AI_PLAN:" + planId + ":{JSON}, không markdown; bắt buộc giữ nguyên request ID và tiền tố BO_AI_PLAN:. "
+                    + "JSON phải có mảng steps gồm 1 đến 5 phần tử; mỗi phần tử có scope, command (đúng một lệnh Android shell), reason và risk (LOW|MEDIUM|HIGH). "
+                    + "Mỗi bước là một lệnh độc lập, không ghép chuỗi. "
                     + "Chỉ chọn scope nhỏ nhất phù hợp; không tự nâng lên RAW_ADB_SHELL nếu người dùng không yêu cầu rõ. " 
                     + "Lệnh READ_INFO hợp lệ: getprop ro.product.model, getprop ro.product.manufacturer, getprop ro.build.version.release, getprop ro.build.version.sdk, df -h, uptime, uname -a, dumpsys battery, dumpsys display, ip addr show wlan0, cat /proc/meminfo. "
                     + "READ_LOGS: logcat -d -t 100 hoặc dumpsys activity|meminfo|cpuinfo|window|display|package (chọn một lệnh cụ thể, không dùng ký tự | trong lệnh). "
@@ -3200,7 +3200,7 @@ public class MainActivity extends Activity {
                     + "NETWORK_DIAGNOSTICS: ip route, ip addr show wlan0, dumpsys wifi, dumpsys connectivity, ping -c 4 1.1.1.1, ping -c 4 8.8.8.8 hoặc ping -c 4 google.com. "
                     + "Không thêm adb vào command. Không dùng newline, dấu chấm phẩy, &&, ||, pipe, redirect, backtick, biến shell, dấu nháy hoặc chuỗi lệnh ghép. "
                     + "Không đề xuất xóa dữ liệu, factory reset, tắt bảo mật, lấy mật khẩu, vượt xác thực, khai thác lỗ hổng hoặc truy cập thiết bị khác. "
-                    + "Nếu không thể thực hiện an toàn bằng một lệnh, trả command rỗng và risk HIGH. Chỉ lập kế hoạch, không tuyên bố đã thực thi. "
+                    + "Nếu không thể thực hiện an toàn, không đưa bước đó vào kế hoạch. Sắp xếp bước đọc thông tin trước; không giả định bước trước thành công. BO kiểm tra tất cả bước rồi hỏi người dùng duyệt riêng từng bước. Chỉ lập kế hoạch, không tuyên bố đã thực thi. "
                     + "Quyền đã được chủ thiết bị cấp riêng cho serial này: "
                     + grantedAiScopesForPrompt(serial) + ". Chỉ chọn một scope nằm trong danh sách quyền đã cấp; nếu không có scope phù hợp, trả command rỗng và risk HIGH. "
                     + "Thiết bị: " + serial + ". Mục tiêu: " + task;
@@ -3551,7 +3551,6 @@ public class MainActivity extends Activity {
         boolean isQueuedStep = !stepQueueAtDispatch.getString("steps", "").isEmpty()
             && serial.equals(stepQueueAtDispatch.getString("serial", ""))
             && provider.equals(stepQueueAtDispatch.getString("provider", ""));
-        if (isQueuedStep) stepQueueAtDispatch.edit().putString("active_step_execution_id", executionId).commit();
         boolean guardSaved = executionGuard.edit()
             .putString("active_execution_id", executionId)
             .putString("active_detail", detail)
@@ -3563,6 +3562,7 @@ public class MainActivity extends Activity {
                 "BO không lưu được khóa chống chạy trùng; lệnh chưa được gửi.");
             return;
         }
+        if (isQueuedStep) stepQueueAtDispatch.edit().putString("active_step_execution_id", executionId).commit();
         android.content.SharedPreferences audit = getSharedPreferences("bo_kali_ai_device_audit", MODE_PRIVATE);
         audit.edit().putString("pending_" + executionId, detail).apply();
         appendAiDeviceAudit("ĐÃ XÁC NHẬN / GỬI THERMUX | " + detail);
@@ -3585,6 +3585,10 @@ public class MainActivity extends Activity {
             }
             reportAiProposalOutcome(provider, "dispatch_failed",
                 "BO không gửi được tác vụ tới Termux (thiếu quyền RUN_COMMAND, Termux chưa sẵn sàng hoặc lỗi dịch vụ). Lệnh chưa được xác nhận là đã chạy.");
+            if (isQueuedStep) {
+                stepQueueAtDispatch.edit().clear().commit();
+                appendAiDeviceAudit("DỪNG KẾ HOẠCH NHIỀU BƯỚC DO KHÔNG GỬI ĐƯỢC LỆNH");
+            }
         }
     }
 
@@ -3697,9 +3701,10 @@ public class MainActivity extends Activity {
                     stepQueue.edit().remove("active_step_execution_id").putInt("index", next).commit();
                     showNextAiQueuedStep();
                 } else {
+                    String queueProvider = stepQueue.getString("provider", "");
                     stepQueue.edit().clear().commit();
                     appendAiDeviceAudit("DỪNG KẾ HOẠCH NHIỀU BƯỚC DO BƯỚC THẤT BẠI / MẤT ADB | tác vụ=" + id);
-                    reportAiProposalOutcome(stepQueue.getString("provider", ""), "plan_stopped_step_failed",
+                    reportAiProposalOutcome(queueProvider, "plan_stopped_step_failed",
                         "Bước hiện tại không trả exit 0 cùng trạng thái ADB device; các bước còn lại đã bị hủy.");
                 }
             }
