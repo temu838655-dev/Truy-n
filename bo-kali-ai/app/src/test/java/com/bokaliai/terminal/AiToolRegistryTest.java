@@ -224,6 +224,25 @@ public class AiToolRegistryTest {
     }
 
     @Test
+    public void rejectsGitRefsWithForbiddenCharactersAndBoundaryViolations() {
+        assertFalse(AiToolRegistry.validGitRef(null));
+        assertFalse(AiToolRegistry.validGitRef("main."));
+        assertFalse(AiToolRegistry.validGitRef("main/"));
+        assertFalse(AiToolRegistry.validGitRef("/main"));
+        assertFalse(AiToolRegistry.validGitRef("main@"));
+        assertFalse(AiToolRegistry.validGitRef("main~1"));
+        assertFalse(AiToolRegistry.validGitRef("main^"));
+        assertFalse(AiToolRegistry.validGitRef("main:name"));
+        assertFalse(AiToolRegistry.validGitRef("main name"));
+        assertFalse(AiToolRegistry.validGitRef("feature/.hidden"));
+        assertFalse(AiToolRegistry.validGitRef("feature/topic.lock"));
+
+        StringBuilder tooLong = new StringBuilder();
+        for (int i = 0; i < 201; i++) tooLong.append('a');
+        assertFalse(AiToolRegistry.validGitRef(tooLong.toString()));
+    }
+
+    @Test
     public void validatesRepositoryNamesWithoutDotSegmentTraversal() {
         assertTrue(AiToolRegistry.validRepositoryName("owner/repo"));
         assertTrue(AiToolRegistry.validRepositoryName("owner-name/repo.name"));
