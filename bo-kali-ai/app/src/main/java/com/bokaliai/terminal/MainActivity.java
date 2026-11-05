@@ -57,6 +57,7 @@ public class MainActivity extends Activity {
     private LinearLayout root, log;
     private ScrollView scroll;
     private EditText commandInput, questionInput, translationInput;
+    private TextView aiImageStatusLabel;
     private String geminiKey = "", claudeKey = "", openAiKey = "", githubToken = "", lastCommandOutput = "";
     // A root/unlock catalog view must be backed by the exact ADB audit it requested.
     private String pendingRootCatalogAuditToken = "";
@@ -196,6 +197,11 @@ public class MainActivity extends Activity {
         translate.setOnClickListener(v -> translateWorkspaceContent());
         translateRow.addView(translate, new LinearLayout.LayoutParams(0, dp(44), 1));
         root.addView(translateRow);
+        aiImageStatusLabel = text("Chưa chọn ảnh OCR", 0xff91a9bd, 11, false);
+        root.addView(aiImageStatusLabel, new LinearLayout.LayoutParams(-1, dp(30)));
+        Button clearOcrImage = button("XÓA ẢNH OCR ĐÃ CHỌN");
+        clearOcrImage.setOnClickListener(v -> clearSelectedAiImage());
+        root.addView(clearOcrImage, new LinearLayout.LayoutParams(-1, dp(38)));
         Button explainCodeError = button("GIẢI THÍCH LỖI CODE / BUILD GẦN NHẤT");
         explainCodeError.setOnClickListener(v -> explainLastOutput());
         root.addView(explainCodeError, new LinearLayout.LayoutParams(-1, dp(42)));
@@ -2553,6 +2559,7 @@ public class MainActivity extends Activity {
         selectedAiImageName = "";
         selectedAiImageMime = "";
         selectedAiImageBase64 = "";
+        if (aiImageStatusLabel != null) aiImageStatusLabel.setText("Chưa chọn ảnh OCR");
         line("Đã xóa ảnh AI khỏi bộ nhớ phiên.", GREEN);
     }
 
@@ -2591,6 +2598,7 @@ public class MainActivity extends Activity {
                     selectedAiImageName = imageName;
                     selectedAiImageMime = imageMime;
                     selectedAiImageBase64 = encoded;
+                    if (aiImageStatusLabel != null) aiImageStatusLabel.setText("Ảnh OCR: " + imageName + " · " + imageMime + " · " + data.length + " byte · chưa gửi AI");
                     line("Đã nạp ảnh vào RAM phiên: " + imageName + ". Chưa gửi cho AI nào; cần cấp quyền riêng.", GREEN);
                 });
             } catch (Exception e) {
