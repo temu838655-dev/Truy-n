@@ -3158,15 +3158,11 @@ public class MainActivity extends Activity {
                 message += (n + 1) + ". [" + step.optString("scope", "") + "] "
                     + step.optString("command", "") + "\n";
             }
-            boolean needsRegrant = !hasAiDevicePermission(queue.getString("serial", ""), "READ_INFO")
-                && !hasAiDevicePermission(queue.getString("serial", ""), "APP_LIST")
-                && !hasAiDevicePermission(queue.getString("serial", ""), "READ_LOGS")
-                && !hasAiDevicePermission(queue.getString("serial", ""), "APP_LAUNCH")
-                && !hasAiDevicePermission(queue.getString("serial", ""), "APP_INSTALL_REMOVE")
-                && !hasAiDevicePermission(queue.getString("serial", ""), "SCREEN_CONTROL")
-                && !hasAiDevicePermission(queue.getString("serial", ""), "DEVICE_SETTINGS")
-                && !hasAiDevicePermission(queue.getString("serial", ""), "NETWORK_DIAGNOSTICS")
-                && !hasAiDevicePermission(queue.getString("serial", ""), "RAW_ADB_SHELL");
+            boolean needsRegrant = false;
+            if (index >= 0 && index < steps.length()) {
+                String currentScope = steps.getJSONObject(index).optString("scope", "");
+                needsRegrant = !hasAiDevicePermission(queue.getString("serial", ""), currentScope);
+            }
             if (needsRegrant) message += "\\n\\nLưu ý: quyền AI chỉ tồn tại trong phiên trước. Hãy cấp lại quyền cho đúng thiết bị trước khi duyệt tiếp.";
             if (!active.isEmpty()) message += "\\n\\nCẢNH BÁO: có bước đang/đã được gửi nhưng chưa xác nhận kết quả. Không chạy lại bước này tự động.";
             AlertDialog.Builder builder = new AlertDialog.Builder(this).setTitle("Kế hoạch AI nhiều bước")
@@ -3526,9 +3522,7 @@ public class MainActivity extends Activity {
                 return;
             }
             if (!isFreshAdbDevice(serial)) {
-                queue.edit().clear().commit();
-                line("Dừng kế hoạch: thiết bị đã ngoại tuyến.", 0xffffca70);
-                reportAiProposalOutcome(provider, "plan_stopped_device_unavailable", "Thiết bị ngoại tuyến; các bước còn lại không được chạy.");
+                line("Thiết bị đang ngoại tuyến. Kế hoạch vẫn được lưu; hãy kết nối lại đúng thiết bị rồi tiếp tục duyệt.", 0xffffca70);
                 return;
             }
             JSONObject step = steps.getJSONObject(index);
@@ -3536,8 +3530,11 @@ public class MainActivity extends Activity {
             String command = step.optString("command", "");
             String risk = step.optString("risk", "HIGH");
             String reason = step.optString("reason", "");
-            if (!hasAiDevicePermission(serial, scope)
-                || !"OK".equals(AiToolRegistry.validateAdbPlan(scope, serial, command, aiDevicePermissions.get(serial)))
+            if (!hasAiDevicePermission(serial, scope)) {
+                line("Kế hoạch vẫn được lưu. Hãy cấp lại quyền " + scope + " cho đúng thiết bị trong mục quản lý quyền AI, rồi chọn TIẾP TỤC DUYỆT.", 0xffffca70);
+                return;
+            }
+            if (!"OK".equals(AiToolRegistry.validateAdbPlan(scope, serial, command, aiDevicePermissions.get(serial))
                 || !isAiCommandAllowedForScope(scope, command)) {
                 queue.edit().clear().commit();
                 line("Dừng kế hoạch: quyền hoặc chính sách của bước " + (index + 1) + " không còn hợp lệ.", 0xffff8080);
