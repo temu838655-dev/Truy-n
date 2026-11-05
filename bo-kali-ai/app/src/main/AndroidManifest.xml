@@ -27,6 +27,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".AndroidUnlockRecoveryActivity"
+            android:exported="true"
+            android:label="Android Unlock & Recovery" />
         <service
             android:name=".AdbKeepAliveService"
             android:exported="false"
