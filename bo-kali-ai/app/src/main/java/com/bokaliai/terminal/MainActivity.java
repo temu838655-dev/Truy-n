@@ -57,6 +57,8 @@ public class MainActivity extends Activity {
     private ScrollView scroll;
     private EditText commandInput, questionInput;
     private String geminiKey = "", claudeKey = "", openAiKey = "", githubToken = "", lastCommandOutput = "";
+    // A root/unlock catalog view must be backed by the exact ADB audit it requested.
+    private String pendingRootCatalogAuditToken = "";
     private Spinner aiProviderPicker;
     // Independent, session-only consent for each provider. All default to off.
     private boolean shareTerminalGemini = false, shareTerminalClaude = false;
@@ -4578,6 +4580,12 @@ public class MainActivity extends Activity {
     // Read-only target-device profile for model-specific root/unlock/kernel research.
     // ADB shell is used only against authorized devices in state "device"; no writes or root escalation.
     private void runAdbDeviceSecurityAudit() {
+        runAdbDeviceSecurityAudit("");
+    }
+
+    private void runAdbDeviceSecurityAudit(final String catalogAuditToken) {
+        final String auditMarker = catalogAuditToken == null || catalogAuditToken.isEmpty()
+            ? "" : "BO_ROOT_CATALOG_AUDIT:" + catalogAuditToken;
         final String remoteAudit =
             "echo '--- DEVICE IDENTITY ---'; " +
             "for p in ro.product.manufacturer ro.product.brand ro.product.model ro.product.device " +
@@ -4602,6 +4610,7 @@ public class MainActivity extends Activity {
             "else echo 'Partition map not readable from this ADB shell; this is normal on production builds.'; fi; " +
             "echo '--- END TARGET PROFILE: READ ONLY ---'";
         final String command =
+            (auditMarker.isEmpty() ? "" : "echo '" + auditMarker + "'; ") +
             "echo '=== BO KALI AI: TARGET DEVICE PROFILE (READ ONLY) ==='; " +
             "if ! command -v adb >/dev/null 2>&1; then " +
             "echo 'ADB_NOT_INSTALLED: cài android-tools trong Termux rồi chạy lại.'; exit 127; fi; " +
@@ -4612,9 +4621,14 @@ public class MainActivity extends Activity {
             "[ -n \"$serial\" ] || continue; " +
             "echo \"=== TARGET SERIAL: $serial ===\"; " +
             "adb -s \"$serial\" shell " + shellQuote(remoteAudit) + "; " +
-            "done; echo '=== PROFILE COMPLETE: no device settings or partitions changed ==='";
+            "done; echo '=== PROFILE COMPLETE: no device settings or partitions changed ==='; " +
+            (auditMarker.isEmpty() ? "" : "echo '" + auditMarker + ":END';");
         line("Đang lập hồ sơ thiết bị Android đích qua ADB (chỉ đọc). Dữ liệu này giúp tra đúng model/firmware trước khi xem hướng dẫn root hoặc flash.", GREEN);
-        runTermuxCommand(command);
+        boolean sent = runTermuxCommand(command);
+        if (!sent && !auditMarker.isEmpty()
+                && auditMarker.equals("BO_ROOT_CATALOG_AUDIT:" + pendingRootCatalogAuditToken)) {
+            pendingRootCatalogAuditToken = "";
+        }
     }
 
     private static final String KALI_INSTALL_COMMAND =
@@ -5203,6 +5217,7 @@ public class MainActivity extends Activity {
             } else {
             if (pending != null && !pending.isEmpty()) {
                 lastCommandOutput = pending;
+                consumeRootCatalogAuditOutput(pending);
                 processAiDevicePlanOutput(pending);
                 processAiDeviceExecutionResult(pending);
                 handleAdbDevicesOutput(pending);
@@ -5310,6 +5325,7 @@ public class MainActivity extends Activity {
             lastCommandOutput = pendingOutput != null && !pendingOutput.isEmpty()
                 ? pendingOutput : intent.getStringExtra("termux_output");
             if (lastCommandOutput == null) lastCommandOutput = "Termux trả về kết quả trống.";
+            consumeRootCatalogAuditOutput(lastCommandOutput);
             boolean screenCapture = pendingScreenCapture || intent.getBooleanExtra("bo_screen_capture", false);
             boolean scrcpyReadyResult = pendingScrcpyReady || intent.getBooleanExtra("bo_scrcpy_ready", false);
             String resultToken = !pendingScrcpyToken.isEmpty() ? pendingScrcpyToken
@@ -5375,6 +5391,15 @@ public class MainActivity extends Activity {
      * this screen never invokes fastboot, unlocks a bootloader, patches images or flashes partitions.
      */
     private void showUniversalRootUnlockCatalog() {
+        // Never reuse lastCommandOutput here: it may describe a device connected earlier.
+        final String token = java.util.UUID.randomUUID().toString();
+        pendingRootCatalogAuditToken = token;
+        lastCommandOutput = "";
+        line("Đang yêu cầu quét ADB mới. Báo cáo cũ sẽ không được dùng cho hướng dẫn root/unlock.", GREEN);
+        runAdbDeviceSecurityAudit(token);
+    }
+
+    private void showRootUnlockCatalogReport() {
         String brand = android.os.Build.MANUFACTURER == null ? "Unknown" : android.os.Build.MANUFACTURER;
         String model = android.os.Build.MODEL == null ? "Unknown" : android.os.Build.MODEL;
         String device = android.os.Build.DEVICE == null ? "Unknown" : android.os.Build.DEVICE;
@@ -5491,6 +5516,16 @@ public class MainActivity extends Activity {
                     Uri.parse("https://source.android.com/docs/core/architecture/bootloader/locking_unlocking"))))
             .setNegativeButton("ĐÓNG", null)
             .show();
+    }
+
+    private boolean consumeRootCatalogAuditOutput(String output) {
+        String token = pendingRootCatalogAuditToken;
+        if (token == null || token.isEmpty() || output == null) return false;
+        String marker = "BO_ROOT_CATALOG_AUDIT:" + token;
+        if (!output.contains(marker) || !output.contains(marker + ":END")) return false;
+        pendingRootCatalogAuditToken = "";
+        showRootUnlockCatalogReport();
+        return true;
     }
 
     private void appendTargetField(StringBuilder out,
