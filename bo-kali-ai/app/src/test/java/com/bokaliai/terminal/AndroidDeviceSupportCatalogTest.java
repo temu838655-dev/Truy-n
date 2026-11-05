@@ -167,6 +167,18 @@ public class AndroidDeviceSupportCatalogTest {
     }
 
     @Test
+    public void rejectsEvidenceUrlContainingWhitespace() {
+        AndroidDeviceSupportCatalog.Entry entry = new AndroidDeviceSupportCatalog.Entry(
+            "Example", "Model X", "device_x", "fingerprint", "REGION_A",
+            AndroidDeviceSupportCatalog.Status.VERIFIED_ROOT_METHOD,
+            "Claim with whitespace in its source URL.",
+            "https://example.com/device x", "2026-11-05",
+            AndroidDeviceSupportCatalog.EvidenceSource.PROJECT_DOCUMENTATION, true,
+            "Reviewed note.");
+        assertFalse(entry.hasRequiredEvidence());
+    }
+
+    @Test
     public void rejectsEvidenceWithMalformedVerificationDate() {
         AndroidDeviceSupportCatalog.Entry entry = new AndroidDeviceSupportCatalog.Entry(
             "Example", "Model X", "device_x", "fingerprint", "REGION_A",
