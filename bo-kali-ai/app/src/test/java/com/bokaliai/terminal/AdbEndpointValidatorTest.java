@@ -6,8 +6,16 @@ import static org.junit.Assert.*;
 public class AdbEndpointValidatorTest {
     @Test public void acceptsIpv4AndHostnameEndpoints() {
         assertTrue(AdbEndpointValidator.isValid("192.168.1.20:5555"));
+        assertTrue(AdbEndpointValidator.isValid("0.0.0.0:5555"));
+        assertTrue(AdbEndpointValidator.isValid("255.255.255.255:5555"));
         assertTrue(AdbEndpointValidator.isValid("android-box.local:5555"));
         assertTrue(AdbEndpointValidator.isValid("android-box:5555"));
+    }
+
+    @Test public void rejectsOutOfRangeIpv4Octets() {
+        assertFalse(AdbEndpointValidator.isValid("256.168.1.20:5555"));
+        assertFalse(AdbEndpointValidator.isValid("192.999.1.20:5555"));
+        assertFalse(AdbEndpointValidator.isValid("999.999.999.999:5555"));
     }
 
     @Test public void acceptsBracketedIpv6Endpoints() {

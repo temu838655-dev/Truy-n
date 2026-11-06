@@ -39,10 +39,23 @@ public final class AdbEndpointValidator {
     private static boolean isHostnameOrIpv4(String host) {
         if (host == null || host.isEmpty() || host.length() > 253) return false;
         String[] labels = host.split("\\.", -1);
+        boolean dottedNumeric = labels.length == 4;
         for (String label : labels) {
             if (label.isEmpty() || label.length() > 63
                     || !label.matches("[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?")) {
                 return false;
+            }
+            if (!label.matches("[0-9]+")) dottedNumeric = false;
+        }
+        // A four-part numeric host is an IPv4 literal, not a DNS hostname.
+        // Validate every octet so values such as 999.1.1.1 are rejected.
+        if (dottedNumeric) {
+            for (String label : labels) {
+                try {
+                    if (Integer.parseInt(label) > 255) return false;
+                } catch (NumberFormatException invalidOctet) {
+                    return false;
+                }
             }
         }
         return true;
