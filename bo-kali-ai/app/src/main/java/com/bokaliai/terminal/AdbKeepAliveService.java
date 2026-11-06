@@ -43,19 +43,20 @@ public class AdbKeepAliveService extends Service {
             getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
         boolean sessionRequested = session.getBoolean("keep_alive", false);
         String savedSerial = session.getString("active_serial", "");
-        String serial = intent == null ? savedSerial : intent.getStringExtra(EXTRA_SERIAL);
-        // Reject stale START intents after the user has stopped the session or switched devices.
-        if (!sessionRequested) {
+        // The persisted session is authoritative: a delayed START for an older
+        // device must not replace the current target or leave a new FGS unpromoted.
+        if (!sessionRequested || savedSerial == null || savedSerial.isEmpty()) {
             releaseLocks();
             stopForeground(true);
             stopSelf(startId);
             return START_NOT_STICKY;
         }
-        // Ignore a delayed START for another device without releasing locks or
-        // stopping the service that may already be protecting the current session.
-        if (serial == null || serial.isEmpty() || !serial.equals(savedSerial)) {
-            return START_STICKY;
-        }
+        String requestedSerial = intent == null ? savedSerial
+            : intent.getStringExtra(EXTRA_SERIAL);
+        // A stale or malformed START is harmless; keep the current authorized
+        // session in the foreground instead of returning sticky without a notification.
+        String serial = requestedSerial != null && requestedSerial.equals(savedSerial)
+            ? requestedSerial : savedSerial;
         // Acquire first so the persistent notification reports the protection
         // Android actually granted instead of promising locks that may have failed.
         acquireLocks();
