@@ -33,14 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * The ADB transport and server lifecycle are managed by Termux's authorized adb client.
  */
 public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder.Callback {
-    private static final int CODEC_H264 = 0x68323634;
-    // scrcpy v4.0 frame header: bit 63 distinguishes session packets;
-    // for media packets bit 62 is CONFIG, bit 61 is KEY_FRAME, low 61 bits are PTS.
-    private static final long FLAG_SESSION = 1L << 63;
-    private static final long FLAG_CONFIG = 1L << 62;
-    private static final long FLAG_KEY_FRAME = 1L << 61;
-    private static final long FLAG_PTS_MASK = (1L << 61) - 1;
-    private static final int MAX_PACKET = 16 * 1024 * 1024;
+    // Header parsing and bounds checks are centralized and unit-tested.
 
     private final SurfaceView surfaceView;
     private final TextView statusView;
@@ -196,45 +189,41 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
         try {
             DataInputStream input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 256 * 1024));
             int codecId = input.readInt();
-            if (codecId != CODEC_H264) throw new IOException("Codec không hỗ trợ: 0x" + Integer.toHexString(codecId));
+            if (codecId != ScrcpyProtocol.CODEC_H264) throw new IOException("Codec không hỗ trợ: 0x" + Integer.toHexString(codecId));
 
             // scrcpy v4.0 sends a 12-byte SESSION packet immediately after
             // the codec id, including on the first capture session.
-            byte[] initialSession = new byte[12];
+            byte[] initialSession = new byte[ScrcpyProtocol.HEADER_SIZE];
             input.readFully(initialSession);
-            ByteBuffer initialHeader = ByteBuffer.wrap(initialSession).order(ByteOrder.BIG_ENDIAN);
-            // scrcpy v4.0 session header is exactly 12 bytes:
-            // 4-byte flags/padding, 4-byte width, then 4-byte height.
-            int initialFlags = initialHeader.getInt();
-            if ((initialFlags & 0x80000000) == 0) {
-                throw new IOException("Thiếu gói khởi tạo phiên video scrcpy");
+            ScrcpyProtocol.VideoSize initialSize;
+            try {
+                initialSize = ScrcpyProtocol.parseInitialSession(initialSession);
+            } catch (IllegalArgumentException invalidHeader) {
+                throw new IOException(invalidHeader.getMessage(), invalidHeader);
             }
-            int width = initialHeader.getInt();
-            int height = initialHeader.getInt();
-            codec = createDecoder(width, height);
+            codec = createDecoder(initialSize.width, initialSize.height);
             decoder = codec;
 
             while (isCurrentSession(generation)) {
-                byte[] header = new byte[12];
-                input.readFully(header);
-                ByteBuffer headerBuffer = ByteBuffer.wrap(header).order(ByteOrder.BIG_ENDIAN);
-                long ptsAndFlags = headerBuffer.getLong();
-                int packetSize = headerBuffer.getInt();
+                byte[] headerBytes = new byte[ScrcpyProtocol.HEADER_SIZE];
+                input.readFully(headerBytes);
+                ScrcpyProtocol.FrameHeader frameHeader;
+                try {
+                    frameHeader = ScrcpyProtocol.parseFrameHeader(headerBytes);
+                } catch (IllegalArgumentException invalidHeader) {
+                    throw new IOException(invalidHeader.getMessage(), invalidHeader);
+                }
 
-                if ((ptsAndFlags & FLAG_SESSION) != 0) {
-                    int nextWidth = ByteBuffer.wrap(header, 4, 4).order(ByteOrder.BIG_ENDIAN).getInt();
-                    int nextHeight = ByteBuffer.wrap(header, 8, 4).order(ByteOrder.BIG_ENDIAN).getInt();
-                    if (nextWidth <= 0 || nextHeight <= 0 || nextWidth > 8192 || nextHeight > 8192) {
-                        throw new IOException("Kích thước phiên video không hợp lệ");
-                    }
+                if (frameHeader.session) {
                     try { codec.stop(); } catch (Exception ignored) { }
                     codec.release();
-                    codec = createDecoder(nextWidth, nextHeight);
+                    codec = createDecoder(frameHeader.size.width, frameHeader.size.height);
                     decoder = codec;
                     continue;
                 }
 
-                if (packetSize < 1 || packetSize > MAX_PACKET) throw new IOException("Gói video quá lớn hoặc không hợp lệ");
+                long ptsAndFlags = frameHeader.ptsAndFlags;
+                int packetSize = frameHeader.packetSize;
                 byte[] packet = new byte[packetSize];
                 input.readFully(packet);
                 if (codec == null) continue;
@@ -255,10 +244,10 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
                     }
                     target.clear();
                     target.put(packet);
-                    boolean config = (ptsAndFlags & FLAG_CONFIG) != 0;
-                    long pts = ptsAndFlags & FLAG_PTS_MASK;
+                    boolean config = (ptsAndFlags & ScrcpyProtocol.FLAG_CONFIG) != 0;
+                    long pts = ptsAndFlags & ScrcpyProtocol.FLAG_PTS_MASK;
                     int codecFlags = config ? MediaCodec.BUFFER_FLAG_CODEC_CONFIG : 0;
-                    if ((ptsAndFlags & FLAG_KEY_FRAME) != 0) codecFlags |= MediaCodec.BUFFER_FLAG_KEY_FRAME;
+                    if ((ptsAndFlags & ScrcpyProtocol.FLAG_KEY_FRAME) != 0) codecFlags |= MediaCodec.BUFFER_FLAG_KEY_FRAME;
                     codec.queueInputBuffer(inputIndex, 0, packet.length, pts, codecFlags);
                 } else if (isCurrentSession(generation)) {
                     throw new IOException("Bộ giải mã video không nhận buffer sau 500 ms");
