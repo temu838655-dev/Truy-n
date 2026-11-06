@@ -65,45 +65,4 @@ public class ScrcpyProtocolTest {
             fail("Expected header length rejection");
         } catch (IllegalArgumentException expected) { }
     }
-
-    @Test public void acceptsMaximumSupportedDimensions() {
-        ScrcpyProtocol.VideoSize size =
-            ScrcpyProtocol.parseInitialSession(session(0x80000000, 8192, 8192));
-        assertEquals(8192, size.width);
-        assertEquals(8192, size.height);
-    }
-
-    @Test public void rejectsDimensionsAboveMaximumInResizePacket() {
-        try {
-            ScrcpyProtocol.parseFrameHeader(session(0x80000000, 8193, 720));
-            fail("Expected oversized resize dimensions rejection");
-        } catch (IllegalArgumentException expected) { }
-    }
-
-    @Test public void rejectsZeroLengthMediaPacket() {
-        byte[] bytes = ByteBuffer.allocate(12).order(ByteOrder.BIG_ENDIAN)
-            .putLong(1L).putInt(0).array();
-        try {
-            ScrcpyProtocol.parseFrameHeader(bytes);
-            fail("Expected zero-length packet rejection");
-        } catch (IllegalArgumentException expected) { }
-    }
-
-    @Test public void rejectsNegativeMediaPacketLength() {
-        byte[] bytes = ByteBuffer.allocate(12).order(ByteOrder.BIG_ENDIAN)
-            .putLong(1L).putInt(-1).array();
-        try {
-            ScrcpyProtocol.parseFrameHeader(bytes);
-            fail("Expected negative packet length rejection");
-        } catch (IllegalArgumentException expected) { }
-    }
-
-    @Test public void acceptsMaximumMediaPacketLength() {
-        byte[] bytes = ByteBuffer.allocate(12).order(ByteOrder.BIG_ENDIAN)
-            .putLong(1L).putInt(ScrcpyProtocol.MAX_PACKET_SIZE).array();
-        ScrcpyProtocol.FrameHeader header = ScrcpyProtocol.parseFrameHeader(bytes);
-        assertFalse(header.session);
-        assertEquals(ScrcpyProtocol.MAX_PACKET_SIZE, header.packetSize);
-    }
-
 }

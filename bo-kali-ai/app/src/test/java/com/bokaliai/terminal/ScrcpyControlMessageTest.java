@@ -79,4 +79,15 @@ public class ScrcpyControlMessageTest {
         for (int i = 0; i < count; i++) out.append(value);
         return out.toString();
     }
+
+    @Test public void convertsCancelToUpToReleaseRemotePointer() {
+        assertEquals(1, ScrcpyControlMessage.normalizeCancelAction(3));
+    }
+
+    @Test public void preservesNonCancelTouchActionsAndPointerIndexBits() {
+        assertEquals(0, ScrcpyControlMessage.normalizeCancelAction(0));
+        assertEquals(2, ScrcpyControlMessage.normalizeCancelAction(2));
+        assertEquals(6, ScrcpyControlMessage.normalizeCancelAction(6));
+    }
+
 }

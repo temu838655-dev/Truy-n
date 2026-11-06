@@ -370,7 +370,8 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             } else if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP
                 || action == MotionEvent.ACTION_POINTER_DOWN || action == MotionEvent.ACTION_POINTER_UP) {
                 // Preserve the pointer-index bits for ACTION_POINTER_DOWN/UP.
-                writeTouch(output, event.getAction(), event, actionIndex, width, height);
+                writeTouch(output, ScrcpyControlMessage.normalizeCancelAction(event.getAction()),
+                    event, actionIndex, width, height);
             }
             return true;
         } catch (IOException error) {

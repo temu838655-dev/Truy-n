@@ -9,6 +9,11 @@ final class ScrcpyControlMessage {
     static final int MAX_TEXT_BYTES = 300;
     private ScrcpyControlMessage() { }
 
+    static int normalizeCancelAction(int action) {
+        // Android ACTION_CANCEL (3) must release the active pointer as ACTION_UP (1).
+        return action == 3 ? 1 : action;
+    }
+
     static int mapCoordinate(float coordinate, int displayedSize, int videoSize) {
         if (displayedSize < 1 || videoSize < 1 || Float.isNaN(coordinate)
                 || Float.isInfinite(coordinate)) {
