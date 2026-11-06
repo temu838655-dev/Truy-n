@@ -382,16 +382,10 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
         int x = Math.min(width - 1, Math.max(0, Math.round(xRatio * width)));
         int y = Math.min(height - 1, Math.max(0, Math.round(yRatio * height)));
         int pressure = Math.round(Math.max(0f, Math.min(1f, event.getPressure(index))) * 65535f);
-        // scrcpy v4.0 INJECT_TOUCH_EVENT is exactly 32 bytes:
-        // type, action, pointer id, position, pressure, action button, buttons.
-        ByteBuffer message = ByteBuffer.allocate(32).order(ByteOrder.BIG_ENDIAN);
-        message.put((byte) 2).put((byte) action).putLong(event.getPointerId(index));
-        message.putInt(x).putInt(y).putShort((short) Math.min(width, 65535));
-        message.putShort((short) Math.min(height, 65535)).putShort((short) pressure);
-        message.putInt(0); // action_button
-        message.putInt(0); // buttons
+        byte[] message = ScrcpyControlMessage.touch(action, event.getPointerId(index),
+            x, y, Math.min(width, 65535), Math.min(height, 65535), pressure, 0, 0);
         synchronized (output) {
-            output.write(message.array());
+            output.write(message);
             output.flush();
         }
     }
@@ -410,17 +404,16 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
     public void sendText(String value) {
         OutputStream output = controlOutput;
         if (!running.get() || output == null || value == null || value.isEmpty()) return;
-        byte[] utf8 = value.getBytes(StandardCharsets.UTF_8);
-        if (utf8.length > 300) {
-            setStatus("Văn bản quá dài (tối đa 300 byte UTF-8 mỗi lần gửi)");
+        final byte[] message;
+        try {
+            message = ScrcpyControlMessage.text(value);
+        } catch (IllegalArgumentException invalidText) {
+            setStatus("Văn bản không hợp lệ hoặc vượt quá 300 byte UTF-8");
             return;
         }
-        // scrcpy INJECT_TEXT: type byte + 32-bit UTF-8 byte length + payload.
-        ByteBuffer message = ByteBuffer.allocate(5 + utf8.length).order(ByteOrder.BIG_ENDIAN);
-        message.put((byte) 1).putInt(utf8.length).put(utf8);
         try {
             synchronized (output) {
-                output.write(message.array());
+                output.write(message);
                 output.flush();
             }
         } catch (IOException error) {
@@ -429,10 +422,9 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
     }
 
     private void writeKey(OutputStream output, int action, int keyCode) throws IOException {
-        ByteBuffer message = ByteBuffer.allocate(14).order(ByteOrder.BIG_ENDIAN);
-        message.put((byte) 0).put((byte) action).putInt(keyCode).putInt(0).putInt(0);
+        byte[] message = ScrcpyControlMessage.key(action, keyCode);
         synchronized (output) {
-            output.write(message.array());
+            output.write(message);
             output.flush();
         }
     }
