@@ -186,6 +186,7 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
 
     private void decodeVideo(Socket socket, Socket sessionControlSocket, int generation) {
         MediaCodec codec = null;
+        String stopReason = null;
         try {
             DataInputStream input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 256 * 1024));
             int codecId = input.readInt();
@@ -255,7 +256,7 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
                 drainDecoder(codec);
             }
         } catch (Exception error) {
-            if (isCurrentSession(generation)) setStatus("Luồng màn hình đã dừng: " + safeMessage(error));
+            if (isCurrentSession(generation)) stopReason = safeMessage(error);
         } finally {
             if (codec != null) {
                 try { codec.stop(); } catch (Exception ignored) { }
@@ -274,9 +275,15 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             // and refuses to run its reconnect handshake after the network returns.
             if (sessionGeneration.get() == generation) {
                 running.set(false);
+                final String finalStopReason = stopReason;
                 post(() -> {
                     if (sessionGeneration.get() == generation) {
-                        statusView.setText("Mất luồng scrcpy · ADB chưa bị ngắt · Mở lại màn hình để kết nối lại");
+                        if (finalStopReason != null) {
+                            statusView.setText("Luồng màn hình đã dừng: " + finalStopReason
+                                + " · ADB chưa bị ngắt · Hãy kết nối lại");
+                        } else {
+                            statusView.setText("Mất luồng scrcpy · ADB chưa bị ngắt · Mở lại màn hình để kết nối lại");
+                        }
                     }
                 });
             }
