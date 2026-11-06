@@ -367,10 +367,7 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             }
             return true;
         } catch (IOException error) {
-            setStatus("Mất kênh điều khiển: " + safeMessage(error));
-            // A dead control socket means the mirrored session is no longer usable.
-            // Stop both channels so the next Activity resume can rebuild them together.
-            stop();
+            failControlChannel("Mất kênh điều khiển: ", error);
             return false;
         }
     }
@@ -388,6 +385,18 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
         }
     }
 
+    /**
+     * A failed control write invalidates the whole mirrored session. Invalidate its
+     * generation before closing sockets so decoder cleanup cannot overwrite the
+     * actionable error with a generic disconnect status.
+     */
+    private void failControlChannel(String label, IOException error) {
+        sessionGeneration.incrementAndGet();
+        running.set(false);
+        stopSockets();
+        setStatus(label + safeMessage(error) + " · Hãy kết nối lại");
+    }
+
     public void sendKey(int androidKeyCode) {
         OutputStream output = controlOutput;
         if (!running.get() || output == null) return;
@@ -395,7 +404,7 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
             writeKey(output, 0, androidKeyCode);
             writeKey(output, 1, androidKeyCode);
         } catch (IOException error) {
-            setStatus("Không gửi được phím: " + safeMessage(error));
+            failControlChannel("Không gửi được phím: ", error);
         }
     }
 
@@ -415,7 +424,7 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
                 output.flush();
             }
         } catch (IOException error) {
-            setStatus("Không gửi được văn bản: " + safeMessage(error));
+            failControlChannel("Không gửi được văn bản: ", error);
         }
     }
 
