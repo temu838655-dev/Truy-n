@@ -7,6 +7,24 @@ import java.nio.charset.StandardCharsets;
 import org.junit.Test;
 
 public class ScrcpyControlMessageTest {
+    @Test public void mapsTouchCoordinatesToVideoResolution() {
+        assertEquals(0, ScrcpyControlMessage.mapCoordinate(0f, 500, 1920));
+        assertEquals(960, ScrcpyControlMessage.mapCoordinate(250f, 500, 1920));
+        assertEquals(1919, ScrcpyControlMessage.mapCoordinate(500f, 500, 1920));
+    }
+
+    @Test public void clampsTouchCoordinatesOutsideSurface() {
+        assertEquals(0, ScrcpyControlMessage.mapCoordinate(-20f, 500, 1920));
+        assertEquals(1919, ScrcpyControlMessage.mapCoordinate(700f, 500, 1920));
+    }
+
+    @Test public void rejectsInvalidCoordinateMapping() {
+        try {
+            ScrcpyControlMessage.mapCoordinate(Float.NaN, 500, 1920);
+            fail("Expected invalid coordinate rejection");
+        } catch (IllegalArgumentException expected) { }
+    }
+
     @Test public void encodesTouchAs32ByteBigEndianMessage() {
         byte[] bytes = ScrcpyControlMessage.touch(0, 7L, 100, 200, 1080, 1920, 65535, 0, 1);
         ByteBuffer b = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN);

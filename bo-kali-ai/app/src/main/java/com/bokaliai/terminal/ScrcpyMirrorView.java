@@ -377,10 +377,8 @@ public final class ScrcpyMirrorView extends FrameLayout implements SurfaceHolder
 
     private void writeTouch(OutputStream output, int action, MotionEvent event, int index, int width, int height)
         throws IOException {
-        float xRatio = Math.max(0f, Math.min(1f, event.getX(index) / Math.max(1f, surfaceView.getWidth())));
-        float yRatio = Math.max(0f, Math.min(1f, event.getY(index) / Math.max(1f, surfaceView.getHeight())));
-        int x = Math.min(width - 1, Math.max(0, Math.round(xRatio * width)));
-        int y = Math.min(height - 1, Math.max(0, Math.round(yRatio * height)));
+        int x = ScrcpyControlMessage.mapCoordinate(event.getX(index), surfaceView.getWidth(), width);
+        int y = ScrcpyControlMessage.mapCoordinate(event.getY(index), surfaceView.getHeight(), height);
         int pressure = Math.round(Math.max(0f, Math.min(1f, event.getPressure(index))) * 65535f);
         byte[] message = ScrcpyControlMessage.touch(action, event.getPointerId(index),
             x, y, Math.min(width, 65535), Math.min(height, 65535), pressure, 0, 0);

@@ -9,6 +9,15 @@ final class ScrcpyControlMessage {
     static final int MAX_TEXT_BYTES = 300;
     private ScrcpyControlMessage() { }
 
+    static int mapCoordinate(float coordinate, int displayedSize, int videoSize) {
+        if (displayedSize < 1 || videoSize < 1 || Float.isNaN(coordinate)
+                || Float.isInfinite(coordinate)) {
+            throw new IllegalArgumentException("Tọa độ hiển thị scrcpy không hợp lệ");
+        }
+        float ratio = Math.max(0f, Math.min(1f, coordinate / displayedSize));
+        return Math.min(videoSize - 1, Math.max(0, Math.round(ratio * videoSize)));
+    }
+
     static byte[] touch(int action, long pointerId, int x, int y, int width, int height,
                         int pressure, int actionButton, int buttons) {
         if (width < 1 || width > 65535 || height < 1 || height > 65535
