@@ -5320,34 +5320,7 @@ public class MainActivity extends Activity {
 
         adbNetworkCallback = new ConnectivityManager.NetworkCallback() {
             @Override public void onAvailable(Network network) {
-                mainHandler.post(() -> {
-                    boolean changed = adbObservedDefaultNetwork != null
-                        && !adbObservedDefaultNetwork.equals(network);
-                    adbObservedDefaultNetwork = network;
-                    if (!activityResumed) return;
-
-                    android.content.SharedPreferences session =
-                        getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
-                    if (!session.getBoolean("keep_alive", false)) return;
-                    String serial = session.getString("active_serial", "");
-                    if (serial == null || serial.isEmpty() || activeMirrorView == null
-                        || !serial.equals(dualWorkspaceSerial)) return;
-
-                    if (changed) {
-                        invalidateScrcpyForNetworkChange(session);
-                        activeMirrorView.setStatus(
-                            "Mạng vừa thay đổi · Đang tìm lại thiết bị ADB đã ghép đôi...");
-                        line("Mạng đã đổi. Đang quét mDNS để tìm endpoint ADB mới; BO không tự kết nối endpoint chưa xác minh.",
-                            0xffffca70);
-                        // The previous IP:port may now belong to another device.
-                        // Discover candidates, then let the user select the intended endpoint.
-                        scanAdbServices();
-                        return;
-                    }
-                    if (!activeMirrorView.isRunning() && !adbMirrorResumePending) {
-                        resumeAdbMirrorAfterUnlock();
-                    }
-                });
+                mainHandler.post(() -> handleAdbDefaultNetworkAvailable(network));
             }
 
             @Override public void onLost(Network network) {
@@ -5396,6 +5369,53 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void handleAdbDefaultNetworkAvailable(Network network) {
+        // Do not consume a network transition while the Activity is paused. onResume
+        // reconciles against getActiveNetwork() so a Wi-Fi/mobile switch in background
+        // cannot be mistaken for the still-valid old ADB endpoint.
+        if (!activityResumed || network == null) return;
+        boolean changed = adbObservedDefaultNetwork != null
+            && !adbObservedDefaultNetwork.equals(network);
+        adbObservedDefaultNetwork = network;
+
+        android.content.SharedPreferences session =
+            getSharedPreferences("bo_kali_adb_session", MODE_PRIVATE);
+        if (!session.getBoolean("keep_alive", false)) return;
+        String serial = session.getString("active_serial", "");
+        if (serial == null || serial.isEmpty() || activeMirrorView == null
+            || !serial.equals(dualWorkspaceSerial)) return;
+
+        if (changed) {
+            invalidateScrcpyForNetworkChange(session);
+            activeMirrorView.setStatus(
+                "Mạng vừa thay đổi · Đang tìm lại thiết bị ADB đã ghép đôi...");
+            line("Mạng đã đổi. Đang quét mDNS để tìm endpoint ADB mới; BO không tự kết nối endpoint chưa xác minh.",
+                0xffffca70);
+            // The previous IP:port may now belong to another device.
+            // Discover candidates, then let the user select the intended endpoint.
+            scanAdbServices();
+            return;
+        }
+        if (!activeMirrorView.isRunning() && !adbMirrorResumePending) {
+            resumeAdbMirrorAfterUnlock();
+        }
+    }
+
+    private boolean reconcileAdbNetworkOnResume() {
+        ConnectivityManager manager =
+            (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        Network current = manager == null ? null : manager.getActiveNetwork();
+        if (current == null) return false;
+        boolean changed = adbObservedDefaultNetwork != null
+            && !adbObservedDefaultNetwork.equals(current);
+        if (!changed) {
+            adbObservedDefaultNetwork = current;
+            return false;
+        }
+        handleAdbDefaultNetworkAvailable(current);
+        return true;
+    }
+
     private void invalidateScrcpyForNetworkChange(
         android.content.SharedPreferences session) {
         cancelScrcpyResumeRetry();
@@ -5427,6 +5447,7 @@ public class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         activityResumed = true;
+        boolean adbNetworkChangedWhilePaused = reconcileAdbNetworkOnResume();
         android.content.SharedPreferences prefs = getSharedPreferences("bo_kali_results", MODE_PRIVATE);
         String pending = prefs.getString("pending_output", null);
         boolean pendingScreenCapture = prefs.getBoolean("pending_screen_capture", false);
@@ -5487,7 +5508,7 @@ public class MainActivity extends Activity {
             }
             }
         }
-        resumeAdbMirrorAfterUnlock();
+        if (!adbNetworkChangedWhilePaused) resumeAdbMirrorAfterUnlock();
     }
 
     /**
